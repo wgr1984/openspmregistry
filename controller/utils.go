@@ -62,6 +62,7 @@ func checkHeaders(r *http.Request) *HeaderError {
 						HttpStatusCode: http.StatusUnsupportedMediaType,
 					}
 				}
+				return nil
 			}
 		}
 	}
