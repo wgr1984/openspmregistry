@@ -54,7 +54,10 @@ func checkHeaders(r *http.Request) *HeaderError {
 			if len(versionMediaType) == 2 {
 				version, mediaType := versionMediaType[0], versionMediaType[1]
 				if versionValue, err := strconv.Atoi(version); err != nil || versionValue != 1 {
-					return NewHeaderError(fmt.Sprintf("unsupported version: %s", version))
+					if err != nil {
+						return NewHeaderError(fmt.Sprintf("invalid API version: %s", version))
+					}
+					return NewHeaderError(fmt.Sprintf("unsupported API version: %s", version))
 				}
 				if !slices.Contains(supportedMediaType, mediaType) {
 					return &HeaderError{
