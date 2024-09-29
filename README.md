@@ -21,6 +21,11 @@ e.g.
 ```
 mkdir spm_test
 cd spm_test
-wift package init --type=executable 
+swift package init --type=executable 
 ```
 ensure spm registry is known and setup
+e.g. `localhost` (be ware `swift package-registry` as for now accepts tls/ssl connections only)
+```
+swift package-registry set https://127.0.0.1:1234
+```
+⚠️ on local setup we need to make sure ssl cert is set too trusted on system level
