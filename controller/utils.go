@@ -11,25 +11,25 @@ import (
 )
 
 type HeaderError struct {
-	ErrorMessage   string
-	HttpStatusCode int
+	errorMessage   string
+	httpStatusCode int
 }
 
 func NewHeaderError(errorMessage string) *HeaderError {
-	return &HeaderError{ErrorMessage: errorMessage, HttpStatusCode: http.StatusBadRequest}
+	return &HeaderError{errorMessage: errorMessage, httpStatusCode: http.StatusBadRequest}
 }
 
 func (e *HeaderError) Error() string {
-	return e.ErrorMessage
+	return e.errorMessage
 }
 
 func (e *HeaderError) writeResponse(w http.ResponseWriter) error {
 	header := w.Header()
 	header.Set("Content-Type", "application/problem+json")
 	header.Set("Content-Language", "en")
-	w.WriteHeader(e.HttpStatusCode)
+	w.WriteHeader(e.httpStatusCode)
 	err := json.NewEncoder(w).Encode(responses.Error{
-		Detail: e.ErrorMessage,
+		Detail: e.errorMessage,
 	})
 	return err
 }
@@ -61,8 +61,8 @@ func checkHeaders(r *http.Request) *HeaderError {
 				}
 				if !slices.Contains(supportedMediaType, mediaType) {
 					return &HeaderError{
-						ErrorMessage:   fmt.Sprintf("unsupported media type: %s", mediaType),
-						HttpStatusCode: http.StatusUnsupportedMediaType,
+						errorMessage:   fmt.Sprintf("unsupported media type: %s", mediaType),
+						httpStatusCode: http.StatusUnsupportedMediaType,
 					}
 				}
 				return nil
