@@ -1,6 +1,7 @@
 package controller
 
 import (
+	"OpenSPMRegistry/config"
 	"OpenSPMRegistry/responses"
 	"encoding/json"
 	"fmt"
@@ -11,7 +12,15 @@ import (
 	"regexp"
 )
 
-func MainAction(w http.ResponseWriter, r *http.Request) {
+type Controller struct {
+	config config.ServerConfig
+}
+
+func NewController(config config.ServerConfig) *Controller {
+	return &Controller{config: config}
+}
+
+func (c *Controller) MainAction(w http.ResponseWriter, r *http.Request) {
 
 	if slog.Default().Enabled(nil, slog.LevelDebug) {
 		slog.Debug("Request:")
@@ -36,7 +45,7 @@ func MainAction(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func PublishAction(w http.ResponseWriter, r *http.Request) {
+func (c *Controller) PublishAction(w http.ResponseWriter, r *http.Request) {
 
 	if slog.Default().Enabled(nil, slog.LevelDebug) {
 		slog.Debug("Publish Request:")
@@ -70,6 +79,14 @@ func PublishAction(w http.ResponseWriter, r *http.Request) {
 
 	if match, err := regexp.MatchString("\\A[a-zA-Z0-9](?:[a-zA-Z0-9]|[-_][a-zA-Z0-9]){0,99}\\z", packageName); err != nil || !match {
 		if e := writeError(fmt.Sprint("upload failed, incorrect package:", packageName), w); e != nil {
+			log.Fatal(e)
+		}
+		return
+	}
+
+	err := r.ParseMultipartForm(c.config.Publish.MaxSize)
+	if err != nil {
+		if e := writeError("upload failed: parsing multipart form", w); e != nil {
 			log.Fatal(e)
 		}
 		return

@@ -1,0 +1,4 @@
+server:
+  port: 1234
+  publish:
+    maxSize: 204800
