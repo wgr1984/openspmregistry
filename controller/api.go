@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"github.com/gorilla/mux"
+	"io"
 	"log"
 	"log/slog"
 	"net/http"
@@ -54,8 +55,8 @@ func (c *Controller) PublishAction(w http.ResponseWriter, r *http.Request) {
 				slog.Debug("Header:", name, value)
 			}
 		}
-		slog.Debug("URL", r.RequestURI)
-		slog.Debug("Method", r.Method)
+		slog.Debug("URL", "url", r.RequestURI)
+		slog.Debug("Method", "method", r.Method)
 	}
 
 	if err := checkHeaders(r); err != nil {
@@ -84,12 +85,42 @@ func (c *Controller) PublishAction(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	err := r.ParseMultipartForm(c.config.Publish.MaxSize)
+	reader, err := r.MultipartReader()
 	if err != nil {
 		if e := writeError("upload failed: parsing multipart form", w); e != nil {
 			log.Fatal(e)
 		}
 		return
+	}
+	for {
+		part, errPart := reader.NextPart()
+		if errPart == io.EOF {
+			slog.Debug("EOF")
+			break
+		}
+
+		name := part.FormName()
+		fileName := part.FileName()
+
+		if slog.Default().Enabled(nil, slog.LevelDebug) {
+			slog.Debug("Upload part", "name", name)
+			slog.Debug("Upload part", "fileName", fileName)
+			for name, values := range part.Header {
+				for _, value := range values {
+					slog.Debug("Upload part Header:", name, value)
+				}
+			}
+		}
+
+		b := make([]byte, 1024)
+		for {
+			count, err := part.Read(b)
+			slog.Debug("BODY read", "count", count)
+			if err == io.EOF {
+				slog.Debug("EOF BODY")
+				break
+			}
+		}
 	}
 
 	if e := writeError("upload failed", w); e != nil {

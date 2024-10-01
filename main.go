@@ -4,6 +4,7 @@ import (
 	"OpenSPMRegistry/config"
 	"OpenSPMRegistry/controller"
 	"flag"
+	"fmt"
 	"github.com/gorilla/mux"
 	"gopkg.in/yaml.v3"
 	"log"
@@ -55,7 +56,7 @@ func main() {
 	router.HandleFunc("/{scope}/{package}/{version}", c.PublishAction).Methods("PUT")
 
 	srv := &http.Server{
-		Addr:    ":1234",
+		Addr:    fmt.Sprintf(":%d", serverConfig.Server.Port),
 		Handler: http.Handler(router),
 	}
 
