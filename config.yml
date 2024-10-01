@@ -1,4 +1,7 @@
 server:
   port: 1234
+  repo:
+    type: file
+    path: ./repo/
   publish:
     maxSize: 204800
