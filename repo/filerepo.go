@@ -61,6 +61,8 @@ func (f *FileRepo) Write(element *models.Element, reader io.Reader) error {
 		if err == io.EOF {
 			slog.Debug("filerepo EOF", "filename", element.FileName())
 			break
+		} else if err != nil {
+			return err
 		}
 	}
 	return nil
