@@ -46,7 +46,7 @@ func (f *FileRepo) Write(element *models.Element, reader io.Reader) error {
 		if err != nil {
 			slog.Error(err.Error())
 		}
-		slog.Info("filerepo file closed")
+		slog.Info("Filerepo closed", "filename", element.FileName())
 	}(file)
 
 	b := make([]byte, 512)
@@ -54,7 +54,7 @@ func (f *FileRepo) Write(element *models.Element, reader io.Reader) error {
 		count, err := reader.Read(b)
 		slog.Debug("Filerepo read", "count", count)
 		if err == io.EOF {
-			slog.Debug("Filerepo EOF")
+			slog.Debug("filerepo EOF", "filename", element.FileName())
 			break
 		}
 		_, writeErr := file.Write(b[:count])
