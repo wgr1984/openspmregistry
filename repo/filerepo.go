@@ -53,13 +53,14 @@ func (f *FileRepo) Write(element *models.Element, reader io.Reader) error {
 	for {
 		count, err := reader.Read(b)
 		slog.Debug("Filerepo read", "count", count)
+		wrote, writeErr := file.Write(b[:count])
+		if writeErr != nil {
+			return writeErr
+		}
+		slog.Debug("Filerepo wrote", "count", wrote)
 		if err == io.EOF {
 			slog.Debug("filerepo EOF", "filename", element.FileName())
 			break
-		}
-		_, writeErr := file.Write(b[:count])
-		if writeErr != nil {
-			return writeErr
 		}
 	}
 	return nil
