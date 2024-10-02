@@ -1,6 +1,7 @@
 package repo
 
 import (
+	"OpenSPMRegistry/models"
 	"errors"
 	"io"
 	"log/slog"
@@ -16,24 +17,26 @@ func NewFileRepo(path string) *FileRepo {
 	return &FileRepo{path: path}
 }
 
-func (f *FileRepo) Exists(scope string, packageName string, version string) bool {
-	path := filepath.Join(f.path, scope, packageName, version)
+func (f *FileRepo) Exists(element *models.Element) bool {
+	path := filepath.Join(f.path, element.Scope, element.Name, element.FileName())
 	if _, err := os.Stat(path); errors.Is(err, os.ErrNotExist) {
 		return false
 	}
 	return true
 }
 
-func (f *FileRepo) Write(scope string, packageName string, version string, reader io.Reader) error {
-	pathFolder := filepath.Join(f.path, scope, packageName)
+func (f *FileRepo) Write(element *models.Element, reader io.Reader) error {
+	pathFolder := filepath.Join(f.path, element.Scope, element.Name)
 	if _, err := os.Stat(pathFolder); errors.Is(err, os.ErrNotExist) {
-		err := os.MkdirAll(pathFolder, os.ModeDir)
+		err := os.MkdirAll(pathFolder, os.ModePerm)
 		if err != nil {
 			return err
 		}
 	}
+
 	// write to file
-	file, err := os.Create("/tmp/dat2")
+	pathFile := filepath.Join(pathFolder, element.FileName())
+	file, err := os.Create(pathFile)
 	if err != nil {
 		return err
 	}
@@ -43,14 +46,15 @@ func (f *FileRepo) Write(scope string, packageName string, version string, reade
 		if err != nil {
 			slog.Error(err.Error())
 		}
+		slog.Info("filerepo file closed")
 	}(file)
 
-	b := make([]byte, 1024)
+	b := make([]byte, 512)
 	for {
 		count, err := reader.Read(b)
-		slog.Debug("read", "count", count)
+		slog.Debug("Filerepo read", "count", count)
 		if err == io.EOF {
-			slog.Debug("EOF")
+			slog.Debug("Filerepo EOF")
 			break
 		}
 		_, writeErr := file.Write(b[:count])

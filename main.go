@@ -3,6 +3,7 @@ package main
 import (
 	"OpenSPMRegistry/config"
 	"OpenSPMRegistry/controller"
+	"OpenSPMRegistry/repo"
 	"flag"
 	"fmt"
 	"github.com/gorilla/mux"
@@ -50,7 +51,15 @@ func main() {
 
 	router := mux.NewRouter()
 
-	c := controller.NewController(serverConfig.Server)
+	repoConfig := serverConfig.Server.Repo
+
+	if repoConfig.Type != "file" {
+		log.Fatal("Only filesystem is supported as repo so far")
+	}
+
+	r := repo.NewFileRepo(repoConfig.Path)
+
+	c := controller.NewController(serverConfig.Server, r)
 
 	router.HandleFunc("/", c.MainAction)
 	router.HandleFunc("/{scope}/{package}/{version}", c.PublishAction).Methods("PUT")
@@ -61,10 +70,10 @@ func main() {
 	}
 
 	if tlsFlag {
-		slog.Info("Starting HTTPS server on", srv.Addr)
+		slog.Info("Starting HTTPS server on", "port", srv.Addr)
 		log.Fatal(srv.ListenAndServeTLS("server.crt", "server.key"))
 	} else {
-		slog.Info("Starting HTTP server on", srv.Addr)
+		slog.Info("Starting HTTP server on", "port", srv.Addr)
 		log.Fatal(srv.ListenAndServe())
 	}
 }
