@@ -2,6 +2,7 @@ package controller
 
 import (
 	"OpenSPMRegistry/config"
+	"OpenSPMRegistry/models"
 	"OpenSPMRegistry/repo"
 	"OpenSPMRegistry/responses"
 	"encoding/json"
@@ -11,6 +12,7 @@ import (
 	"log"
 	"log/slog"
 	"net/http"
+	"net/url"
 	"regexp"
 )
 
@@ -87,14 +89,6 @@ func (c *Controller) PublishAction(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// check if file exist in repo
-	if c.repo.Exists(scope, packageName, version) {
-		if e := writeError(fmt.Sprint("upload failed, package exists:", scope, '.', packageName, '@', version), w); e != nil {
-			log.Fatal(e)
-		}
-		return
-	}
-
 	reader, err := r.MultipartReader()
 	if err != nil {
 		if e := writeError("upload failed: parsing multipart form", w); e != nil {
@@ -102,6 +96,8 @@ func (c *Controller) PublishAction(w http.ResponseWriter, r *http.Request) {
 		}
 		return
 	}
+
+	var element *models.Element
 
 	for {
 		part, errPart := reader.NextPart()
@@ -128,25 +124,63 @@ func (c *Controller) PublishAction(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 
-		err := c.repo.Write(scope, packageName, version, part)
-		if err != nil {
-			if e := writeError("upload failed, error storing file", w); e != nil {
-				log.Fatal(e)
+		// currently we support only source archive storing
+		if name == "source-archive" {
+			mimeType := part.Header.Get("Content-Type")
+			element = models.NewElement(scope, packageName, version, mimeType)
+
+			// check if file exist in repo
+			if c.repo.Exists(element) {
+				msg := fmt.Sprint("upload failed, package exists:", scope, ".", packageName, "@", version)
+				slog.Error("Error", "msg", msg)
+				if e := writeErrorWithStatusCode(msg, w, http.StatusConflict); e != nil {
+					log.Fatal(e)
+				}
+				return
 			}
-			return
+
+			err := c.repo.Write(element, part)
+			if err != nil {
+				slog.Error("Error", "msg", err)
+				if e := writeError("upload failed, error storing file", w); e != nil {
+					log.Fatal(e)
+				}
+				return
+			}
 		}
 	}
 
-	if e := writeError("upload failed", w); e != nil {
+	if element != nil {
+		location, err := url.JoinPath("https://server/", scope, packageName, element.FileName())
+		if err != nil {
+			slog.Error("Error", "msg", err)
+			if e := writeError("upload failed", w); e != nil {
+				log.Fatal(e)
+			}
+		}
+		header := w.Header()
+		header.Set("Content-Version", "1")
+		header.Set("Location", location)
+		w.WriteHeader(http.StatusCreated)
+		return
+	}
+
+	slog.Error("Error", "msg", "nothing found to store")
+	if e := writeError("upload failed, nothing found to store", w); e != nil {
 		log.Fatal(e)
 	}
 }
 
 func writeError(msg string, w http.ResponseWriter) error {
+	return writeErrorWithStatusCode(msg, w, http.StatusBadRequest)
+}
+
+func writeErrorWithStatusCode(msg string, w http.ResponseWriter, status int) error {
 	header := w.Header()
 	header.Set("Content-Type", "application/problem+json")
 	header.Set("Content-Language", "en")
-	w.WriteHeader(http.StatusBadRequest)
+	header.Set("Content-Version", "1")
+	w.WriteHeader(status)
 	return json.NewEncoder(w).Encode(responses.Error{
 		Detail: msg,
 	})

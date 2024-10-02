@@ -1,8 +1,11 @@
 package repo
 
-import "io"
+import (
+	"OpenSPMRegistry/models"
+	"io"
+)
 
 type Repo interface {
-	Exists(scope string, packageName string, version string) bool
-	Write(scope string, packageName string, version string, reader io.Reader) error
+	Exists(element *models.Element) bool
+	Write(element *models.Element, reader io.Reader) error
 }
