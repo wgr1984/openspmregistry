@@ -150,8 +150,14 @@ func (c *Controller) PublishAction(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	// currently we only support synchronous publishing
+	// https://github.com/swiftlang/swift-package-manager/blob/main/Documentation/PackageRegistry/Registry.md#4631-synchronous-publication
 	if element != nil {
-		location, err := url.JoinPath("https://server/", scope, packageName, element.FileName())
+		location, err := url.JoinPath(
+			"https://", fmt.Sprintf("%s:%d", c.config.Hostname, c.config.Port),
+			scope,
+			packageName,
+			element.FileName())
 		if err != nil {
 			slog.Error("Error", "msg", err)
 			if e := writeError("upload failed", w); e != nil {

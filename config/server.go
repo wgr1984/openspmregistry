@@ -5,9 +5,10 @@ type ServerRoot struct {
 }
 
 type ServerConfig struct {
-	Port    int           `yaml:"port"`
-	Repo    Repo          `yaml:"repo"`
-	Publish PublishConfig `yaml:"publish"`
+	Hostname string        `yaml:"hostname"`
+	Port     int           `yaml:"port"`
+	Repo     Repo          `yaml:"repo"`
+	Publish  PublishConfig `yaml:"publish"`
 }
 
 type PublishConfig struct {
