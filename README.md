@@ -11,9 +11,33 @@ Simple implementation of Swift Package Manager Registry according to
 https://github.com/swiftlang/swift-package-manager/blob/main/Documentation/PackageRegistry/Registry.md
 
 # Current Features
-
+Basic Publishing and retrieval of swift packages
+- ❌ Listing / Browsing
+- ❌ Retrieval of Packages
+- ✔️ Publishing
+  - ✔ synchronous
+  - ✔ binary format
+- ✔️ Storage
+  - ✔ Filesystem
+  
 # How To Use
 ## Run server
+### Using docker image
+TBD
+### From source
+fetch from git
+```
+git clone https://github.com/wgr1984/openspmregistry.git
+```
+build / run
+```
+ go run main.go -tls=true -v
+```
+⚠️ check `server.yml` to e.g. adapt path and port
+```
+ go run main.go -tls=true -v
+```
+
 ## Usage in SPM
 ### Create New Project
 https://www.swift.org/documentation/package-manager/
@@ -29,3 +53,15 @@ e.g. `localhost` (be ware `swift package-registry` as for now accepts tls/ssl co
 swift package-registry set https://127.0.0.1:1234
 ```
 ⚠️ on local setup we need to make sure ssl cert is set too trusted on system level
+
+### 📋 Todos ❎
+- ✔️ Docker Image
+- ✔️ Publishing
+    - ❌ asynchronous
+    - ❌ base64 format
+- ✔️ Storage
+  - ❌ DB support (e.g. mysql, postgres)
+  - ❌ online storage (e.g S3, cloud drive)
+- ❌ User Management / Access Control
+  - ❌ Basic Auth
+  - ❌ Oauth token
