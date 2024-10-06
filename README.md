@@ -7,12 +7,12 @@
       |_|                                            |___/                |___/ 
 ```
 
-Simple implementation of Swift Package Manager Registry according to
+Simple (using as much go std. lib and as less external dependencies as possible) implementation of Swift Package Manager Registry according to
 https://github.com/swiftlang/swift-package-manager/blob/main/Documentation/PackageRegistry/Registry.md
 
 # Current Features
 Basic Publishing and retrieval of swift packages
-- ❌ Listing / Browsing
+- ✔️ Listing / Browsing
 - ❌ Retrieval of Packages
 - ✔️ Publishing
   - ✔ synchronous
