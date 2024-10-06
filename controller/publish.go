@@ -1,54 +1,17 @@
 package controller
 
 import (
-	"OpenSPMRegistry/config"
 	"OpenSPMRegistry/models"
-	"OpenSPMRegistry/repo"
-	"OpenSPMRegistry/responses"
-	"encoding/json"
 	"fmt"
 	"github.com/gorilla/mux"
 	"io"
 	"log"
 	"log/slog"
+	"mime/multipart"
 	"net/http"
 	"net/url"
 	"regexp"
 )
-
-type Controller struct {
-	config config.ServerConfig
-	repo   repo.Repo
-}
-
-func NewController(config config.ServerConfig, repo repo.Repo) *Controller {
-	return &Controller{config: config, repo: repo}
-}
-
-func (c *Controller) MainAction(w http.ResponseWriter, r *http.Request) {
-
-	if slog.Default().Enabled(nil, slog.LevelDebug) {
-		slog.Debug("Request:")
-		for name, values := range r.Header {
-			for _, value := range values {
-				slog.Debug("Header:", name, value)
-			}
-		}
-		slog.Debug("URL", r.RequestURI)
-		slog.Debug("Method", r.Method)
-	}
-
-	if err := checkHeaders(r); err != nil {
-		if e := err.writeResponse(w); e != nil {
-			log.Fatal(e)
-		}
-		return
-	}
-
-	if e := writeError("general error", w); e != nil {
-		log.Fatal(e)
-	}
-}
 
 func (c *Controller) PublishAction(w http.ResponseWriter, r *http.Request) {
 
@@ -97,7 +60,7 @@ func (c *Controller) PublishAction(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var element *models.Element
+	var packageElement *models.Element
 
 	for {
 		part, errPart := reader.NextPart()
@@ -124,40 +87,27 @@ func (c *Controller) PublishAction(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 
+		mimeType := part.Header.Get("Content-Type")
+
 		// currently we support only source archive storing
+		unsupported, element := storeElements(w, name, scope, packageName, version, mimeType, c, part)
+		if unsupported {
+			return
+		}
+
 		if name == "source-archive" {
-			mimeType := part.Header.Get("Content-Type")
-			element = models.NewElement(scope, packageName, version, mimeType)
-
-			// check if file exist in repo
-			if c.repo.Exists(element) {
-				msg := fmt.Sprint("upload failed, package exists:", scope, ".", packageName, "@", version)
-				slog.Error("Error", "msg", msg)
-				if e := writeErrorWithStatusCode(msg, w, http.StatusConflict); e != nil {
-					log.Fatal(e)
-				}
-				return
-			}
-
-			err := c.repo.Write(element, part)
-			if err != nil {
-				slog.Error("Error", "msg", err)
-				if e := writeError("upload failed, error storing file", w); e != nil {
-					log.Fatal(e)
-				}
-				return
-			}
+			packageElement = element
 		}
 	}
 
 	// currently we only support synchronous publishing
 	// https://github.com/swiftlang/swift-package-manager/blob/main/Documentation/PackageRegistry/Registry.md#4631-synchronous-publication
-	if element != nil {
+	if packageElement != nil {
 		location, err := url.JoinPath(
 			"https://", fmt.Sprintf("%s:%d", c.config.Hostname, c.config.Port),
 			scope,
 			packageName,
-			element.FileName())
+			packageElement.FileName())
 		if err != nil {
 			slog.Error("Error", "msg", err)
 			if e := writeError("upload failed", w); e != nil {
@@ -177,17 +127,39 @@ func (c *Controller) PublishAction(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func writeError(msg string, w http.ResponseWriter) error {
-	return writeErrorWithStatusCode(msg, w, http.StatusBadRequest)
-}
+func storeElements(w http.ResponseWriter, name string, scope string, packageName string, version string, mimeType string, c *Controller, part *multipart.Part) (bool, *models.Element) {
+	element := models.NewElement(scope, packageName, version, mimeType)
+	var filename string
 
-func writeErrorWithStatusCode(msg string, w http.ResponseWriter, status int) error {
-	header := w.Header()
-	header.Set("Content-Type", "application/problem+json")
-	header.Set("Content-Language", "en")
-	header.Set("Content-Version", "1")
-	w.WriteHeader(status)
-	return json.NewEncoder(w).Encode(responses.Error{
-		Detail: msg,
-	})
+	switch name {
+	case "source-archive":
+		filename = element.FileName()
+		break
+	case "metadata":
+		filename = "metadata"
+		element.SetFilenameOverwrite(filename)
+		break
+	default:
+		return false, nil
+	}
+
+	// check if file exist in repo
+	if c.repo.Exists(element) {
+		msg := fmt.Sprint("upload failed, package exists:", filename)
+		slog.Error("Error", "msg", msg)
+		if e := writeErrorWithStatusCode(msg, w, http.StatusConflict); e != nil {
+			log.Fatal(e)
+		}
+		return true, element
+	}
+
+	err := c.repo.Write(element, part)
+	if err != nil {
+		slog.Error("Error", "msg", err)
+		if e := writeError("upload failed, error storing file", w); e != nil {
+			log.Fatal(e)
+		}
+		return true, element
+	}
+	return false, element
 }
