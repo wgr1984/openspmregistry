@@ -4,7 +4,6 @@ import (
 	"OpenSPMRegistry/models"
 	"encoding/json"
 	"fmt"
-	"github.com/gorilla/mux"
 	"github.com/hashicorp/go-version"
 	"log"
 	"log/slog"
@@ -34,9 +33,8 @@ func (c *Controller) ListAction(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// check scope name
-	params := mux.Vars(r)
-	scope := params["scope"]
-	packageName := params["package"]
+	scope := r.PathValue("scope")
+	packageName := r.PathValue("package")
 
 	elements, err := c.repo.List(scope, packageName)
 	if err != nil {
