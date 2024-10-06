@@ -60,7 +60,7 @@ func (c *Controller) PublishAction(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var packageElement *models.Element
+	var packageElement *models.UploadElement
 
 	for {
 		part, errPart := reader.NextPart()
@@ -127,7 +127,7 @@ func (c *Controller) PublishAction(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func storeElements(w http.ResponseWriter, name string, scope string, packageName string, version string, mimeType string, c *Controller, part *multipart.Part) (bool, *models.Element) {
+func storeElements(w http.ResponseWriter, name string, scope string, packageName string, version string, mimeType string, c *Controller, part *multipart.Part) (bool, *models.UploadElement) {
 	element := models.NewElement(scope, packageName, version, mimeType)
 	var filename string
 

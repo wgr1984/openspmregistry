@@ -8,7 +8,7 @@ import (
 	"strings"
 )
 
-func ExtractPackageSwiftFiles(element *models.Element, fileLocation string, packageSwiftReader func(name string, r io.ReadCloser) error) error {
+func ExtractPackageSwiftFiles(element *models.UploadElement, fileLocation string, packageSwiftReader func(name string, r io.ReadCloser) error) error {
 	// extract Package Swifts
 	if element.MimeType == "application/zip" {
 		r, err := zip.OpenReader(fileLocation)
