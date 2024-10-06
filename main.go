@@ -62,7 +62,8 @@ func main() {
 	c := controller.NewController(serverConfig.Server, r)
 
 	router.HandleFunc("/", c.MainAction)
-	router.HandleFunc("/{scope}/{package}/{version}", c.PublishAction).Methods("PUT")
+	router.HandleFunc("/{scope}/{package}", c.ListAction).Methods(http.MethodGet)
+	router.HandleFunc("/{scope}/{package}/{version}", c.PublishAction).Methods(http.MethodPut)
 
 	srv := &http.Server{
 		Addr:    fmt.Sprintf(":%d", serverConfig.Server.Port),

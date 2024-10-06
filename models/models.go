@@ -5,7 +5,7 @@ import (
 	"mime"
 )
 
-type Element struct {
+type UploadElement struct {
 	Scope             string `json:"scope"`
 	Name              string `json:"name"`
 	Version           string `json:"version"`
@@ -13,15 +13,25 @@ type Element struct {
 	filenameOverwrite string
 }
 
-func NewElement(scope string, name string, version string, mimeType string) *Element {
-	return &Element{Scope: scope, Name: name, Version: version, MimeType: mimeType, filenameOverwrite: ""}
+type ListElement struct {
+	Scope       string
+	PackageName string
+	Version     string
 }
 
-func (e *Element) SetFilenameOverwrite(filename string) {
+func NewListElement(scope string, packageName string, version string) *ListElement {
+	return &ListElement{Scope: scope, PackageName: packageName, Version: version}
+}
+
+func NewElement(scope string, name string, version string, mimeType string) *UploadElement {
+	return &UploadElement{Scope: scope, Name: name, Version: version, MimeType: mimeType, filenameOverwrite: ""}
+}
+
+func (e *UploadElement) SetFilenameOverwrite(filename string) {
 	e.filenameOverwrite = filename
 }
 
-func (e *Element) FileName() string {
+func (e *UploadElement) FileName() string {
 	extensions, err := mime.ExtensionsByType(e.MimeType)
 
 	if err != nil || extensions == nil || len(extensions) == 0 {
@@ -35,4 +45,20 @@ func (e *Element) FileName() string {
 		return fmt.Sprintf("%s%s", e.filenameOverwrite, extensions[0])
 	}
 	return fmt.Sprintf("%s.%s-%s%s", e.Scope, e.Name, e.Version, extensions[0])
+}
+
+type Release struct {
+	Url string `json:"url"`
+}
+
+func NewRelease(url string) *Release {
+	return &Release{Url: url}
+}
+
+type ListRelease struct {
+	Releases map[string]Release `json:"releases"`
+}
+
+func NewListRelease(releases map[string]Release) *ListRelease {
+	return &ListRelease{Releases: releases}
 }

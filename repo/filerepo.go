@@ -17,7 +17,7 @@ func NewFileRepo(path string) *FileRepo {
 	return &FileRepo{path: path}
 }
 
-func (f *FileRepo) Exists(element *models.Element) bool {
+func (f *FileRepo) Exists(element *models.UploadElement) bool {
 	path := filepath.Join(f.path, element.Scope, element.Name, element.Version, element.FileName())
 	if _, err := os.Stat(path); errors.Is(err, os.ErrNotExist) {
 		return false
@@ -25,7 +25,7 @@ func (f *FileRepo) Exists(element *models.Element) bool {
 	return true
 }
 
-func (f *FileRepo) Write(element *models.Element, reader io.Reader) error {
+func (f *FileRepo) Write(element *models.UploadElement, reader io.Reader) error {
 	pathFolder := filepath.Join(f.path, element.Scope, element.Name, element.Version)
 	if _, err := os.Stat(pathFolder); errors.Is(err, os.ErrNotExist) {
 		err := os.MkdirAll(pathFolder, os.ModePerm)
@@ -76,6 +76,32 @@ func (f *FileRepo) Write(element *models.Element, reader io.Reader) error {
 	}
 
 	return nil
+}
+
+func (f *FileRepo) List(scope string, name string) ([]models.ListElement, error) {
+	path := filepath.Join(f.path, scope, name)
+	if _, err := os.Stat(path); errors.Is(err, os.ErrNotExist) {
+		return nil, nil
+	}
+
+	var elements []models.ListElement
+
+	err := filepath.WalkDir(path, func(p string, d os.DirEntry, err error) error {
+		// skip root
+		if p == path {
+			return nil
+		}
+		if err != nil {
+			return err
+		}
+		if d.IsDir() {
+			elements = append(elements, *models.NewListElement(scope, name, d.Name()))
+			return nil
+		}
+		return nil
+	})
+
+	return elements, err
 }
 
 func writePackageSwiftFiles(pathFolder string) func(name string, r io.ReadCloser) error {
