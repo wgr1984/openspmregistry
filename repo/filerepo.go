@@ -18,7 +18,7 @@ func NewFileRepo(path string) *FileRepo {
 }
 
 func (f *FileRepo) Exists(element *models.Element) bool {
-	path := filepath.Join(f.path, element.Scope, element.Name, element.Version)
+	path := filepath.Join(f.path, element.Scope, element.Name, element.Version, element.FileName())
 	if _, err := os.Stat(path); errors.Is(err, os.ErrNotExist) {
 		return false
 	}
@@ -71,7 +71,11 @@ func (f *FileRepo) Write(element *models.Element, reader io.Reader) error {
 		return fileCloseErr
 	}
 
-	return ExtractPackageSwiftFiles(element, pathFile, writePackageSwiftFiles(pathFolder))
+	if element.MimeType == "application/zip" {
+		return ExtractPackageSwiftFiles(element, pathFile, writePackageSwiftFiles(pathFolder))
+	}
+
+	return nil
 }
 
 func writePackageSwiftFiles(pathFolder string) func(name string, r io.ReadCloser) error {
