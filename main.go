@@ -6,7 +6,6 @@ import (
 	"OpenSPMRegistry/repo"
 	"flag"
 	"fmt"
-	"github.com/gorilla/mux"
 	"gopkg.in/yaml.v3"
 	"log"
 	"log/slog"
@@ -49,7 +48,7 @@ func main() {
 		log.Fatal(err)
 	}
 
-	router := mux.NewRouter()
+	router := http.NewServeMux()
 
 	repoConfig := serverConfig.Server.Repo
 
@@ -61,9 +60,9 @@ func main() {
 
 	c := controller.NewController(serverConfig.Server, r)
 
-	router.HandleFunc("/", c.MainAction)
-	router.HandleFunc("/{scope}/{package}", c.ListAction).Methods(http.MethodGet)
-	router.HandleFunc("/{scope}/{package}/{version}", c.PublishAction).Methods(http.MethodPut)
+	router.HandleFunc("GET /", c.MainAction)
+	router.HandleFunc("GET /{scope}/{package}", c.ListAction)
+	router.HandleFunc("PUT /{scope}/{package}/{version}", c.PublishAction)
 
 	srv := &http.Server{
 		Addr:    fmt.Sprintf(":%d", serverConfig.Server.Port),

@@ -3,7 +3,6 @@ package controller
 import (
 	"OpenSPMRegistry/models"
 	"fmt"
-	"github.com/gorilla/mux"
 	"io"
 	"log"
 	"log/slog"
@@ -34,10 +33,9 @@ func (c *Controller) PublishAction(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// check scope name
-	params := mux.Vars(r)
-	scope := params["scope"]
-	packageName := params["package"]
-	version := params["version"]
+	scope := r.PathValue("scope")
+	packageName := r.PathValue("package")
+	version := r.PathValue("version")
 	if match, err := regexp.MatchString("\\A[a-zA-Z0-9](?:[a-zA-Z0-9]|-[a-zA-Z0-9]){0,38}\\z", scope); err != nil || !match {
 		if e := writeError(fmt.Sprint("upload failed, incorrect scope:", scope), w); e != nil {
 			log.Fatal(e)
