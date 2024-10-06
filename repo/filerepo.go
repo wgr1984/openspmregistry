@@ -18,7 +18,7 @@ func NewFileRepo(path string) *FileRepo {
 }
 
 func (f *FileRepo) Exists(element *models.Element) bool {
-	path := filepath.Join(f.path, element.Scope, element.Name, element.FileName())
+	path := filepath.Join(f.path, element.Scope, element.Name, element.Version)
 	if _, err := os.Stat(path); errors.Is(err, os.ErrNotExist) {
 		return false
 	}
