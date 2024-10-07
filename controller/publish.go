@@ -127,15 +127,19 @@ func (c *Controller) PublishAction(w http.ResponseWriter, r *http.Request) {
 
 func storeElements(w http.ResponseWriter, name string, scope string, packageName string, version string, mimeType string, c *Controller, part *multipart.Part) (bool, *models.UploadElement) {
 	element := models.NewElement(scope, packageName, version, mimeType)
-	var filename string
 
 	switch name {
 	case "source-archive":
-		filename = element.FileName()
+		break
+	case "source-archive-signature":
+		element.SetExtOverwrite(".sig")
 		break
 	case "metadata":
-		filename = "metadata"
-		element.SetFilenameOverwrite(filename)
+		element.SetFilenameOverwrite("metadata")
+		break
+	case "metadata-signature":
+		element.SetFilenameOverwrite("metadata")
+		element.SetExtOverwrite(".sig")
 		break
 	default:
 		return false, nil
@@ -143,7 +147,7 @@ func storeElements(w http.ResponseWriter, name string, scope string, packageName
 
 	// check if file exist in repo
 	if c.repo.Exists(element) {
-		msg := fmt.Sprint("upload failed, package exists:", filename)
+		msg := fmt.Sprint("upload failed, package exists:", element.FileName())
 		slog.Error("Error", "msg", msg)
 		if e := writeErrorWithStatusCode(msg, w, http.StatusConflict); e != nil {
 			log.Fatal(e)

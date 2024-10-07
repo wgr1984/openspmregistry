@@ -11,6 +11,7 @@ type UploadElement struct {
 	Version           string `json:"version"`
 	MimeType          string `json:"mime_type"`
 	filenameOverwrite string
+	extOverwrite      string
 }
 
 type ListElement struct {
@@ -31,8 +32,20 @@ func (e *UploadElement) SetFilenameOverwrite(filename string) {
 	e.filenameOverwrite = filename
 }
 
+func (e *UploadElement) SetExtOverwrite(ext string) {
+	e.extOverwrite = ext
+}
+
 func (e *UploadElement) FileName() string {
 	extensions, err := mime.ExtensionsByType(e.MimeType)
+
+	if len(extensions) > 0 {
+		if len(extensions) > 0 {
+			extensions[0] = e.extOverwrite
+		} else {
+			extensions = []string{e.extOverwrite}
+		}
+	}
 
 	if err != nil || extensions == nil || len(extensions) == 0 {
 		if len(e.filenameOverwrite) > 0 {

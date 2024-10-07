@@ -57,6 +57,7 @@ swift package-registry set https://127.0.0.1:1234
 ### 📋 Todos ❎
 - ✔️ Docker Image
 - ✔️ Publishing
+    - ❌ Support Signatures
     - ❌ Package Validity checking (checksum, manifest, etc)
     - ❌ asynchronous
     - ❌ base64 format
