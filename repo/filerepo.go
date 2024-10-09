@@ -3,6 +3,7 @@ package repo
 import (
 	"OpenSPMRegistry/models"
 	"errors"
+	"fmt"
 	"io"
 	"log/slog"
 	"os"
@@ -73,6 +74,52 @@ func (f *FileRepo) Write(element *models.UploadElement, reader io.Reader) error 
 
 	if element.MimeType == "application/zip" {
 		return ExtractPackageSwiftFiles(element, pathFile, writePackageSwiftFiles(pathFolder))
+	}
+
+	return nil
+}
+
+func (f *FileRepo) Read(element *models.UploadElement, writer io.Writer) error {
+	pathFolder := filepath.Join(f.path, element.Scope, element.Name, element.Version)
+	if _, err := os.Stat(pathFolder); errors.Is(err, os.ErrNotExist) {
+		return errors.New(fmt.Sprintf("file not exists: %s", pathFolder))
+	}
+
+	// read file
+	pathFile := filepath.Join(pathFolder, element.FileName())
+	file, err := os.Open(pathFile)
+	if err != nil {
+		if fileCloseErr := closeFile(pathFile, file); fileCloseErr != nil {
+			return fileCloseErr
+		}
+		return err
+	}
+
+	b := make([]byte, 512)
+	for {
+		count, err := file.Read(b)
+		slog.Debug("Filerepo read", "count", count)
+		wrote, writeErr := writer.Write(b[:count])
+		if writeErr != nil {
+			if fileCloseErr := closeFile(pathFile, file); fileCloseErr != nil {
+				return fileCloseErr
+			}
+			return writeErr
+		}
+		slog.Debug("Filerepo wrote", "count", wrote)
+		if err == io.EOF {
+			slog.Debug("filerepo EOF", "filename", pathFile)
+			break
+		} else if err != nil {
+			if fileCloseErr := closeFile(pathFile, file); fileCloseErr != nil {
+				return fileCloseErr
+			}
+			return err
+		}
+	}
+
+	if fileCloseErr := closeFile(pathFile, file); fileCloseErr != nil {
+		return fileCloseErr
 	}
 
 	return nil

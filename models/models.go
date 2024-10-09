@@ -5,6 +5,15 @@ import (
 	"mime"
 )
 
+type UploadElementType string
+
+const (
+	SourceArchive          UploadElementType = "source-archive"
+	SourceArchiveSignature                   = "source-archive-signature"
+	Metadata                                 = "metadata"
+	MetadataSignature                        = "metadata-signature"
+)
+
 type UploadElement struct {
 	Scope             string `json:"scope"`
 	Name              string `json:"name"`
@@ -24,8 +33,27 @@ func NewListElement(scope string, packageName string, version string) *ListEleme
 	return &ListElement{Scope: scope, PackageName: packageName, Version: version}
 }
 
-func NewElement(scope string, name string, version string, mimeType string) *UploadElement {
-	return &UploadElement{Scope: scope, Name: name, Version: version, MimeType: mimeType, filenameOverwrite: ""}
+func NewUploadElement(scope string, name string, version string, mimeType string, uploadType UploadElementType) *UploadElement {
+	element := &UploadElement{Scope: scope, Name: name, Version: version, MimeType: mimeType, filenameOverwrite: ""}
+
+	switch uploadType {
+	case SourceArchive:
+		break
+	case SourceArchiveSignature:
+		element.SetExtOverwrite(".sig")
+		break
+	case Metadata:
+		element.SetFilenameOverwrite("metadata")
+		break
+	case MetadataSignature:
+		element.SetFilenameOverwrite("metadata")
+		element.SetExtOverwrite(".sig")
+		break
+	default:
+		break
+	}
+
+	return element
 }
 
 func (e *UploadElement) SetFilenameOverwrite(filename string) {

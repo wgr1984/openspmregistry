@@ -62,6 +62,7 @@ func main() {
 
 	router.HandleFunc("GET /", c.MainAction)
 	router.HandleFunc("GET /{scope}/{package}", c.ListAction)
+	router.HandleFunc("GET /{scope}/{package}/{version}", c.InfoAction)
 	router.HandleFunc("PUT /{scope}/{package}/{version}", c.PublishAction)
 
 	srv := &http.Server{

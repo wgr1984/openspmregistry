@@ -1,10 +1,14 @@
 package controller
 
 import (
+	"OpenSPMRegistry/models"
 	"OpenSPMRegistry/responses"
 	"encoding/json"
 	"fmt"
+	"github.com/hashicorp/go-version"
+	"log"
 	"net/http"
+	"net/url"
 	"slices"
 	"strconv"
 	"strings"
@@ -71,4 +75,58 @@ func checkHeaders(r *http.Request) *HeaderError {
 	}
 
 	return NewHeaderError("wrong accept header")
+}
+
+func listElements(w http.ResponseWriter, c *Controller, scope string, packageName string) []models.ListElement {
+	elements, err := c.repo.List(scope, packageName)
+	if err != nil {
+		if e := writeError(fmt.Sprintf("error listing package %s.%s", scope, packageName), w); e != nil {
+			log.Fatal(e)
+		}
+	}
+	if elements == nil {
+		if e := writeErrorWithStatusCode(fmt.Sprintf("error package %s.%s was not found", scope, packageName), w, http.StatusNotFound); e != nil {
+			log.Fatal(e)
+		}
+	}
+
+	slices.SortFunc(elements, func(a models.ListElement, b models.ListElement) int {
+		v1, err := version.NewVersion(a.Version)
+		if err != nil {
+			return 0
+		}
+		v2, err := version.NewVersion(b.Version)
+		if err != nil {
+			return 0
+		}
+		return v2.Compare(v1)
+	})
+	return elements
+}
+
+func addFirstReleaseAsLatest(elements []models.ListElement, c *Controller, header http.Header) {
+	for i, element := range elements {
+		location := locationOfElement(c, element)
+		if i == 0 {
+			// TODO add missing header links!!!
+
+			// set latest element header
+			//Link: <https://github.com/mona/LinkedList>; rel="canonical",
+			//	<ssh://git@github.com:mona/LinkedList.git>; rel="alternate",
+			//	<https://packages.example.com/mona/LinkedList/1.1.1>; rel="latest-version",
+			//	<https://github.com/sponsors/mona>; rel="payment"
+
+			header.Set("Link", fmt.Sprintf("<%s>; rel=\"latest-version\"", location))
+			return
+		}
+	}
+}
+
+func locationOfElement(c *Controller, element models.ListElement) string {
+	location, _ := url.JoinPath(
+		"https://", fmt.Sprintf("%s:%d", c.config.Hostname, c.config.Port),
+		element.Scope,
+		element.PackageName,
+		element.Version)
+	return location
 }
