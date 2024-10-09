@@ -67,7 +67,7 @@ func (e *UploadElement) SetExtOverwrite(ext string) {
 func (e *UploadElement) FileName() string {
 	extensions, err := mime.ExtensionsByType(e.MimeType)
 
-	if len(extensions) > 0 {
+	if len(e.extOverwrite) > 0 {
 		if len(extensions) > 0 {
 			extensions[0] = e.extOverwrite
 		} else {
