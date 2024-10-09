@@ -15,6 +15,11 @@ type Repo interface {
 	// Returns error in case something went wrong
 	Write(element *models.UploadElement, reader io.Reader) error
 
+	// Read reads the element uploaded to the repo using
+	// a writer to gain access to the uploaded data
+	// Returns error in case something went wrong
+	Read(element *models.UploadElement, writer io.Writer) error
+
 	// List all versions of a certain package existing
 	// - `scope` of the package
 	// - `name` of the package

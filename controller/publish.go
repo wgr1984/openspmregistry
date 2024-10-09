@@ -126,20 +126,14 @@ func (c *Controller) PublishAction(w http.ResponseWriter, r *http.Request) {
 }
 
 func storeElements(w http.ResponseWriter, name string, scope string, packageName string, version string, mimeType string, c *Controller, part *multipart.Part) (bool, *models.UploadElement) {
-	element := models.NewElement(scope, packageName, version, mimeType)
+	uploadType := models.UploadElementType(name)
+	element := models.NewUploadElement(scope, packageName, version, mimeType, uploadType)
 
-	switch name {
-	case "source-archive":
-		break
-	case "source-archive-signature":
-		element.SetExtOverwrite(".sig")
-		break
-	case "metadata":
-		element.SetFilenameOverwrite("metadata")
-		break
-	case "metadata-signature":
-		element.SetFilenameOverwrite("metadata")
-		element.SetExtOverwrite(".sig")
+	switch uploadType {
+	case models.SourceArchive:
+	case models.SourceArchiveSignature:
+	case models.Metadata:
+	case models.MetadataSignature:
 		break
 	default:
 		return false, nil
