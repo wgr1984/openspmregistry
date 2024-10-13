@@ -9,6 +9,7 @@ import (
 	"log"
 	"log/slog"
 	"net/http"
+	"time"
 )
 
 func (c *Controller) InfoAction(w http.ResponseWriter, r *http.Request) {
@@ -78,7 +79,8 @@ func (c *Controller) InfoAction(w http.ResponseWriter, r *http.Request) {
 
 	// encode signature
 	// todo ask signature from repo!!!
-	signatureSourceArchive, signatureSourceArchiveErr := c.repo.EncodeBase64(sourceArchive.SetExtOverwrite(".sig"))
+	sourceArchiveSig := copyStruct(sourceArchive)
+	signatureSourceArchive, signatureSourceArchiveErr := c.repo.EncodeBase64(sourceArchiveSig.SetExtOverwrite(".sig"))
 	if signatureSourceArchiveErr != nil {
 		if slog.Default().Enabled(nil, slog.LevelDebug) {
 			slog.Info("Signature not found:")
@@ -95,6 +97,18 @@ func (c *Controller) InfoAction(w http.ResponseWriter, r *http.Request) {
 		signatureJson = nil
 	}
 
+	var modDate time.Time
+	dateTime, dateErr := c.repo.PublishDate(sourceArchive)
+	if dateErr != nil {
+		if slog.Default().Enabled(nil, slog.LevelDebug) {
+			slog.Info("Publish Date error:", dateErr)
+		}
+		modDate = time.Now()
+	} else {
+		modDate = *dateTime
+	}
+	dateString := modDate.Format("2006-01-02T15:04:05.999Z")
+
 	result := map[string]interface{}{
 		"id":      fmt.Sprintf("%s.%s", scope, packageName),
 		"version": version,
@@ -104,7 +118,7 @@ func (c *Controller) InfoAction(w http.ResponseWriter, r *http.Request) {
 			"checksum":    "TODO", // TODO!!!!!
 			"signing":     signatureJson,
 			"metadata":    metadataResult,
-			"publishedAt": "TODO", // TODO!!!!!
+			"publishedAt": dateString,
 		},
 	}
 

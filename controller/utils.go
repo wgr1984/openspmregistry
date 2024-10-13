@@ -130,3 +130,9 @@ func locationOfElement(c *Controller, element models.ListElement) string {
 		element.Version)
 	return location
 }
+
+func copyStruct[T any](src *T) T {
+	temp := *src
+	temp2 := temp
+	return temp2
+}

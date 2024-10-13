@@ -3,6 +3,7 @@ package repo
 import (
 	"OpenSPMRegistry/models"
 	"io"
+	"time"
 )
 
 type Repo interface {
@@ -30,4 +31,7 @@ type Repo interface {
 	// of the provided element
 	// returns (base64 string of content|nil if not exists, error)
 	EncodeBase64(element *models.UploadElement) (string, error)
+
+	// PublishDate returns the date element was upload / published
+	PublishDate(element *models.UploadElement) (*time.Time, error)
 }
