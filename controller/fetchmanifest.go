@@ -12,10 +12,10 @@ import (
 	"time"
 )
 
-func (c *Controller) InfoAction(w http.ResponseWriter, r *http.Request) {
+func (c *Controller) FetchManifestAction(w http.ResponseWriter, r *http.Request) {
 
 	if slog.Default().Enabled(nil, slog.LevelDebug) {
-		slog.Info("Info Request:")
+		slog.Info("FetchManifest Request:")
 		for name, values := range r.Header {
 			for _, value := range values {
 				slog.Debug("Header:", name, value)
@@ -25,7 +25,7 @@ func (c *Controller) InfoAction(w http.ResponseWriter, r *http.Request) {
 		slog.Info("Method", "method", r.Method)
 	}
 
-	if err := checkHeadersEnforce(r, "json"); err != nil {
+	if err := checkHeadersEnforce(r, "swift"); err != nil {
 		if e := err.writeResponse(w); e != nil {
 			log.Fatal(e)
 		}
@@ -35,7 +35,7 @@ func (c *Controller) InfoAction(w http.ResponseWriter, r *http.Request) {
 	// check scope name
 	scope := r.PathValue("scope")
 	packageName := r.PathValue("package")
-	version := stripExtension(r.PathValue("version"), ".json")
+	version := r.PathValue("version")
 
 	sourceArchive := models.NewUploadElement(scope, packageName, version, "application/zip", models.SourceArchive)
 
