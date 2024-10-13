@@ -11,6 +11,7 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
+	"time"
 )
 
 type FileRepo struct {
@@ -171,6 +172,20 @@ func (f *FileRepo) EncodeBase64(element *models.UploadElement) (string, error) {
 	}
 
 	return base64.StdEncoding.EncodeToString(b.Bytes()), nil
+}
+
+func (f *FileRepo) PublishDate(element *models.UploadElement) (*time.Time, error) {
+	pathFolder := filepath.Join(f.path, element.Scope, element.Name, element.Version)
+	if _, err := os.Stat(pathFolder); errors.Is(err, os.ErrNotExist) {
+		return nil, errors.New(fmt.Sprintf("path does not exists: %s", pathFolder))
+	}
+	pathFile := filepath.Join(pathFolder, element.FileName())
+	stat, err := os.Stat(pathFile)
+	if err != nil {
+		return nil, err
+	}
+	modTime := stat.ModTime()
+	return &modTime, nil
 }
 
 func writePackageSwiftFiles(pathFolder string) func(name string, r io.ReadCloser) error {
