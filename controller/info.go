@@ -76,17 +76,33 @@ func (c *Controller) InfoAction(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	// encode signature
+	// todo ask signature from repo!!!
+	signatureSourceArchive, signatureSourceArchiveErr := c.repo.EncodeBase64(sourceArchive.SetExtOverwrite(".sig"))
+	if signatureSourceArchiveErr != nil {
+		if slog.Default().Enabled(nil, slog.LevelDebug) {
+			slog.Info("Signature not found:")
+		}
+	}
+
+	var signatureJson map[string]interface{}
+	if len(signatureSourceArchive) > 0 {
+		signatureJson = map[string]interface{}{
+			"signatureBase64Encoded": signatureSourceArchive,
+			"signatureFormat":        "cms-1.0.0",
+		}
+	} else {
+		signatureJson = nil
+	}
+
 	result := map[string]interface{}{
 		"id":      fmt.Sprintf("%s.%s", scope, packageName),
 		"version": version,
 		"resources": map[string]interface{}{
-			"name":     "source-archive",
-			"type":     "application/zip",
-			"checksum": "TODO", // TODO!!!!!
-			"signing": map[string]interface{}{
-				"signatureBase64Encoded": "TODO", //TODO!!!!,
-				"signatureFormat":        "cms-1.0.0",
-			},
+			"name":        "source-archive",
+			"type":        "application/zip",
+			"checksum":    "TODO", // TODO!!!!!
+			"signing":     signatureJson,
 			"metadata":    metadataResult,
 			"publishedAt": "TODO", // TODO!!!!!
 		},

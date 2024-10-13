@@ -2,6 +2,9 @@ package repo
 
 import (
 	"OpenSPMRegistry/models"
+	"bufio"
+	"bytes"
+	"encoding/base64"
 	"errors"
 	"fmt"
 	"io"
@@ -149,6 +152,25 @@ func (f *FileRepo) List(scope string, name string) ([]models.ListElement, error)
 	})
 
 	return elements, err
+}
+
+func (f *FileRepo) EncodeBase64(element *models.UploadElement) (string, error) {
+	if !f.Exists(element) {
+		return "", errors.New(fmt.Sprintf("file not exists: %s", element.FileName()))
+	}
+
+	var b bytes.Buffer
+	writer := bufio.NewWriter(&b)
+
+	if err := f.Read(element, writer); err != nil {
+		return "", err
+	}
+
+	if err := writer.Flush(); err != nil {
+		return "", err
+	}
+
+	return base64.StdEncoding.EncodeToString(b.Bytes()), nil
 }
 
 func writePackageSwiftFiles(pathFolder string) func(name string, r io.ReadCloser) error {
