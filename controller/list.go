@@ -11,7 +11,7 @@ import (
 func (c *Controller) ListAction(w http.ResponseWriter, r *http.Request) {
 
 	if slog.Default().Enabled(nil, slog.LevelDebug) {
-		slog.Info("Publish Request:")
+		slog.Info("List Request:")
 		for name, values := range r.Header {
 			for _, value := range values {
 				slog.Debug("Header:", name, value)
@@ -21,7 +21,7 @@ func (c *Controller) ListAction(w http.ResponseWriter, r *http.Request) {
 		slog.Info("Method", "method", r.Method)
 	}
 
-	if err := checkHeaders(r); err != nil {
+	if err := checkHeadersEnforce(r, "json"); err != nil {
 		if e := err.writeResponse(w); e != nil {
 			log.Fatal(e)
 		}
@@ -30,7 +30,7 @@ func (c *Controller) ListAction(w http.ResponseWriter, r *http.Request) {
 
 	// check scope name
 	scope := r.PathValue("scope")
-	packageName := r.PathValue("package")
+	packageName := stripExtension(r.PathValue("package"), ".json")
 
 	elements := listElements(w, c, scope, packageName)
 

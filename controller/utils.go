@@ -52,6 +52,11 @@ var supportedMediaType = []string{"json", "swift", "zip"}
 //
 // - accept      = "application/vnd.swift.registry" [".v" version] ["+" mediatype]
 func checkHeaders(r *http.Request) *HeaderError {
+	return checkHeadersEnforce(r, "")
+}
+
+// checkHeadersEnforce checks headers and enforces a certain media type
+func checkHeadersEnforce(r *http.Request, enforceMediaType string) *HeaderError {
 	for _, value := range r.Header.Values("Accept") {
 		if strings.HasPrefix(value, acceptHeaderPrefix) {
 			versionMediaType := strings.Split(value[len(acceptHeaderPrefix):], "+")
@@ -63,7 +68,14 @@ func checkHeaders(r *http.Request) *HeaderError {
 					}
 					return NewHeaderError(fmt.Sprintf("unsupported API version: %s", version))
 				}
-				if !slices.Contains(supportedMediaType, mediaType) {
+				if len(enforceMediaType) > 0 {
+					if mediaType != enforceMediaType {
+						return &HeaderError{
+							errorMessage:   fmt.Sprintf("unsupported media type: %s", mediaType),
+							httpStatusCode: http.StatusUnsupportedMediaType,
+						}
+					}
+				} else if !slices.Contains(supportedMediaType, mediaType) {
 					return &HeaderError{
 						errorMessage:   fmt.Sprintf("unsupported media type: %s", mediaType),
 						httpStatusCode: http.StatusUnsupportedMediaType,
@@ -135,4 +147,12 @@ func copyStruct[T any](src *T) T {
 	temp := *src
 	temp2 := temp
 	return temp2
+}
+
+func stripExtension(s string, ext string) string {
+	if strings.HasSuffix(s, ext) {
+		return strings.TrimSuffix(s, ext)
+	} else {
+		return s
+	}
 }

@@ -25,7 +25,7 @@ func (c *Controller) PublishAction(w http.ResponseWriter, r *http.Request) {
 		slog.Info("Method", "method", r.Method)
 	}
 
-	if err := checkHeaders(r); err != nil {
+	if err := checkHeadersEnforce(r, "json"); err != nil {
 		if e := err.writeResponse(w); e != nil {
 			log.Fatal(e)
 		}
