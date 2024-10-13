@@ -25,4 +25,9 @@ type Repo interface {
 	// - `name` of the package
 	// returns (releases found|nil if not exists, error)
 	List(scope string, name string) ([]models.ListElement, error)
+
+	// EncodeBase64 returns the base64 representation of the content
+	// of the provided element
+	// returns (base64 string of content|nil if not exists, error)
+	EncodeBase64(element *models.UploadElement) (string, error)
 }

@@ -56,12 +56,14 @@ func NewUploadElement(scope string, name string, version string, mimeType string
 	return element
 }
 
-func (e *UploadElement) SetFilenameOverwrite(filename string) {
+func (e *UploadElement) SetFilenameOverwrite(filename string) *UploadElement {
 	e.filenameOverwrite = filename
+	return e
 }
 
-func (e *UploadElement) SetExtOverwrite(ext string) {
+func (e *UploadElement) SetExtOverwrite(ext string) *UploadElement {
 	e.extOverwrite = ext
+	return e
 }
 
 func (e *UploadElement) FileName() string {
