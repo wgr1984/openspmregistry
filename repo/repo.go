@@ -6,6 +6,8 @@ import (
 	"time"
 )
 
+// Repo is the interface that wraps the basic operations
+// that a repository should implement
 type Repo interface {
 	// Exists checks whether element to be published exists already
 	// Returns true in case it does otherwise false
@@ -33,5 +35,16 @@ type Repo interface {
 	EncodeBase64(element *models.UploadElement) (string, error)
 
 	// PublishDate returns the date element was upload / published
-	PublishDate(element *models.UploadElement) (*time.Time, error)
+	PublishDate(element *models.UploadElement) (time.Time, error)
+
+	// Checksum provides the sha256 checksum of the element
+	// returns (checksum string|empty string if not exists, error)
+	Checksum(element *models.UploadElement) (string, error)
+
+	// FetchMetadata retrieves the metadata of the package
+	// - `scope` of the package
+	// - `name` of the package
+	// - `version` of the package
+	// returns (metadata map|nil if not exists, error)
+	FetchMetadata(scope string, name string, version string) (map[string]interface{}, error)
 }
