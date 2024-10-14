@@ -4,7 +4,9 @@ import (
 	"OpenSPMRegistry/models"
 	"bufio"
 	"bytes"
+	"crypto/sha256"
 	"encoding/base64"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -174,18 +176,65 @@ func (f *FileRepo) EncodeBase64(element *models.UploadElement) (string, error) {
 	return base64.StdEncoding.EncodeToString(b.Bytes()), nil
 }
 
-func (f *FileRepo) PublishDate(element *models.UploadElement) (*time.Time, error) {
+func (f *FileRepo) PublishDate(element *models.UploadElement) (time.Time, error) {
 	pathFolder := filepath.Join(f.path, element.Scope, element.Name, element.Version)
 	if _, err := os.Stat(pathFolder); errors.Is(err, os.ErrNotExist) {
-		return nil, errors.New(fmt.Sprintf("path does not exists: %s", pathFolder))
+		return time.Now(), errors.New(fmt.Sprintf("path does not exists: %s", pathFolder))
 	}
 	pathFile := filepath.Join(pathFolder, element.FileName())
 	stat, err := os.Stat(pathFile)
 	if err != nil {
+		return time.Now(), err
+	}
+
+	return stat.ModTime(), nil
+}
+
+func (f *FileRepo) FetchMetadata(scope string, name string, version string) (map[string]interface{}, error) {
+	pathFolder := filepath.Join(f.path, scope, name, version)
+	if _, err := os.Stat(pathFolder); errors.Is(err, os.ErrNotExist) {
+		return nil, errors.New(fmt.Sprintf("path does not exists: %s", pathFolder))
+	}
+
+	metadata := models.NewUploadElement(scope, name, version, "application/json", models.Metadata)
+	if !f.Exists(metadata) {
+		return nil, errors.New(fmt.Sprintf("file not exists: %s", metadata.FileName()))
+	}
+
+	var b bytes.Buffer
+	writer := bufio.NewWriter(&b)
+	if err := f.Read(metadata, writer); err != nil {
 		return nil, err
 	}
-	modTime := stat.ModTime()
-	return &modTime, nil
+	if err := writer.Flush(); err != nil {
+		return nil, err
+	}
+
+	var metadataResult map[string]interface{}
+	if err := json.Unmarshal(b.Bytes(), &metadataResult); err != nil {
+		return nil, err
+	}
+
+	return metadataResult, nil
+}
+
+func (f *FileRepo) Checksum(element *models.UploadElement) (string, error) {
+	if !f.Exists(element) {
+		return "", errors.New(fmt.Sprintf("file not exists: %s", element.FileName()))
+	}
+
+	pathFile := filepath.Join(f.path, element.Scope, element.Name, element.Version, element.FileName())
+	file, err := os.Open(pathFile)
+	if err != nil {
+		return "", err
+	}
+
+	hash := sha256.New()
+	if _, err := io.Copy(hash, file); err != nil {
+		return "", err
+	}
+
+	return fmt.Sprintf("%x", hash.Sum(nil)), nil
 }
 
 func writePackageSwiftFiles(pathFolder string) func(name string, r io.ReadCloser) error {

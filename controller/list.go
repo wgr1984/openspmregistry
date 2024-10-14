@@ -4,22 +4,12 @@ import (
 	"OpenSPMRegistry/models"
 	"encoding/json"
 	"log"
-	"log/slog"
 	"net/http"
 )
 
 func (c *Controller) ListAction(w http.ResponseWriter, r *http.Request) {
 
-	if slog.Default().Enabled(nil, slog.LevelDebug) {
-		slog.Info("List Request:")
-		for name, values := range r.Header {
-			for _, value := range values {
-				slog.Debug("Header:", name, value)
-			}
-		}
-		slog.Info("URL", "url", r.RequestURI)
-		slog.Info("Method", "method", r.Method)
-	}
+	printCallInfo("List", r)
 
 	if err := checkHeadersEnforce(r, "json"); err != nil {
 		if e := err.writeResponse(w); e != nil {

@@ -14,16 +14,7 @@ import (
 
 func (c *Controller) FetchManifestAction(w http.ResponseWriter, r *http.Request) {
 
-	if slog.Default().Enabled(nil, slog.LevelDebug) {
-		slog.Info("FetchManifest Request:")
-		for name, values := range r.Header {
-			for _, value := range values {
-				slog.Debug("Header:", name, value)
-			}
-		}
-		slog.Info("URL", "url", r.RequestURI)
-		slog.Info("Method", "method", r.Method)
-	}
+	printCallInfo("FetchManifest", r)
 
 	if err := checkHeadersEnforce(r, "swift"); err != nil {
 		if e := err.writeResponse(w); e != nil {
@@ -96,17 +87,13 @@ func (c *Controller) FetchManifestAction(w http.ResponseWriter, r *http.Request)
 		signatureJson = nil
 	}
 
-	var modDate time.Time
+	// retrieve publish date from source archive
 	dateTime, dateErr := c.repo.PublishDate(sourceArchive)
 	if dateErr != nil {
-		if slog.Default().Enabled(nil, slog.LevelDebug) {
-			slog.Info("Publish Date error:", dateErr)
-		}
-		modDate = time.Now()
-	} else {
-		modDate = *dateTime
+		slog.Debug("Publish Date error:", dateErr)
+		dateTime = time.Now()
 	}
-	dateString := modDate.Format("2006-01-02T15:04:05.999Z")
+	dateString := dateTime.Format("2006-01-02T15:04:05.999Z")
 
 	result := map[string]interface{}{
 		"id":      fmt.Sprintf("%s.%s", scope, packageName),

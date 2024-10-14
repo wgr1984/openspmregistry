@@ -2,8 +2,6 @@ package controller
 
 import (
 	"OpenSPMRegistry/models"
-	"bufio"
-	"bytes"
 	"encoding/json"
 	"fmt"
 	"log"
@@ -13,17 +11,7 @@ import (
 )
 
 func (c *Controller) InfoAction(w http.ResponseWriter, r *http.Request) {
-
-	if slog.Default().Enabled(nil, slog.LevelDebug) {
-		slog.Info("Info Request:")
-		for name, values := range r.Header {
-			for _, value := range values {
-				slog.Debug("Header:", name, value)
-			}
-		}
-		slog.Info("URL", "url", r.RequestURI)
-		slog.Info("Method", "method", r.Method)
-	}
+	printCallInfo("Info", r)
 
 	if err := checkHeadersEnforce(r, "json"); err != nil {
 		if e := err.writeResponse(w); e != nil {
@@ -52,29 +40,12 @@ func (c *Controller) InfoAction(w http.ResponseWriter, r *http.Request) {
 
 	metadataResult := make(map[string]interface{})
 
-	metadata := models.NewUploadElement(scope, packageName, version, "application/json", models.Metadata)
-	if c.repo.Exists(metadata) {
-		var b bytes.Buffer
-		writer := bufio.NewWriter(&b)
-		if err := c.repo.Read(metadata, writer); err != nil {
-			if err := writeError("Meta data read failed", w); err != nil {
-				return
-			}
+	metadataResult, err := c.repo.FetchMetadata(scope, packageName, version)
+	if err != nil {
+		if err := writeError("Meta data read failed", w); err != nil {
 			return
 		}
-		if err := writer.Flush(); err != nil {
-			if err := writeError("Meta data read flush failed", w); err != nil {
-				return
-			}
-			return
-		}
-
-		if err := json.Unmarshal(b.Bytes(), &metadataResult); err != nil {
-			if err := writeError("Meta data decode failed", w); err != nil {
-				return
-			}
-			return
-		}
+		return
 	}
 
 	// encode signature
@@ -96,17 +67,22 @@ func (c *Controller) InfoAction(w http.ResponseWriter, r *http.Request) {
 		signatureJson = nil
 	}
 
-	var modDate time.Time
+	// retrieve publish date from source archive
 	dateTime, dateErr := c.repo.PublishDate(sourceArchive)
 	if dateErr != nil {
-		if slog.Default().Enabled(nil, slog.LevelDebug) {
-			slog.Info("Publish Date error:", dateErr)
-		}
-		modDate = time.Now()
-	} else {
-		modDate = *dateTime
+		slog.Debug("Publish Date error:", dateErr)
+		dateTime = time.Now()
 	}
-	dateString := modDate.Format("2006-01-02T15:04:05.999Z")
+	dateString := dateTime.Format("2006-01-02T15:04:05.999Z")
+
+	// retrieve checksum of source archive
+	checksum, err := c.repo.Checksum(sourceArchive)
+	if err != nil {
+		if slog.Default().Enabled(nil, slog.LevelDebug) {
+			slog.Info("Checksum error:", err)
+		}
+		checksum = ""
+	}
 
 	result := map[string]interface{}{
 		"id":      fmt.Sprintf("%s.%s", scope, packageName),
@@ -114,7 +90,7 @@ func (c *Controller) InfoAction(w http.ResponseWriter, r *http.Request) {
 		"resources": map[string]interface{}{
 			"name":        "source-archive",
 			"type":        "application/zip",
-			"checksum":    "TODO", // TODO!!!!!
+			"checksum":    checksum,
 			"signing":     signatureJson,
 			"metadata":    metadataResult,
 			"publishedAt": dateString,

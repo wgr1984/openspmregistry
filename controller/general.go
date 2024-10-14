@@ -5,6 +5,7 @@ import (
 	"OpenSPMRegistry/repo"
 	"OpenSPMRegistry/responses"
 	"encoding/json"
+	"fmt"
 	"log"
 	"log/slog"
 	"net/http"
@@ -57,4 +58,17 @@ func writeErrorWithStatusCode(msg string, w http.ResponseWriter, status int) err
 	return json.NewEncoder(w).Encode(responses.Error{
 		Detail: msg,
 	})
+}
+
+func printCallInfo(methodName string, r *http.Request) {
+	if slog.Default().Enabled(nil, slog.LevelDebug) {
+		slog.Info(fmt.Sprintf("%s Request:", methodName))
+		for name, values := range r.Header {
+			for _, value := range values {
+				slog.Debug("Header:", name, value)
+			}
+		}
+		slog.Info("URL", "url", r.RequestURI)
+		slog.Info("Method", "method", r.Method)
+	}
 }
