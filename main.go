@@ -11,6 +11,7 @@ import (
 	"log/slog"
 	"net/http"
 	"os"
+	"strings"
 )
 
 var (
@@ -62,7 +63,13 @@ func main() {
 
 	router.HandleFunc("GET /", c.MainAction)
 	router.HandleFunc("GET /{scope}/{package}", c.ListAction)
-	router.HandleFunc("GET /{scope}/{package}/{version}", c.InfoAction)
+	router.HandleFunc("GET /{scope}/{package}/{version}", func(w http.ResponseWriter, r *http.Request) {
+		if strings.HasSuffix(r.URL.Path, ".zip") {
+			c.DownloadSourceArchiveAction(w, r)
+		} else {
+			c.InfoAction(w, r)
+		}
+	})
 	router.HandleFunc("GET /{scope}/{package}/{version}/Package.swift", c.FetchManifestAction)
 	router.HandleFunc("PUT /{scope}/{package}/{version}", c.PublishAction)
 
