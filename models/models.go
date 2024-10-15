@@ -12,6 +12,7 @@ const (
 	SourceArchiveSignature                   = "source-archive-signature"
 	Metadata                                 = "metadata"
 	MetadataSignature                        = "metadata-signature"
+	Manifest                                 = "manifest"
 )
 
 type UploadElement struct {
@@ -49,6 +50,9 @@ func NewUploadElement(scope string, name string, version string, mimeType string
 		element.SetFilenameOverwrite("metadata")
 		element.SetExtOverwrite(".sig")
 		break
+	case Manifest:
+		element.SetFilenameOverwrite("Package")
+		element.SetExtOverwrite(".swift")
 	default:
 		break
 	}

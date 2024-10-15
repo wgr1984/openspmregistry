@@ -1,6 +1,7 @@
 package repo
 
 import (
+	"OpenSPMRegistry/mimetypes"
 	"OpenSPMRegistry/models"
 	"bufio"
 	"bytes"
@@ -13,6 +14,7 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 )
 
@@ -78,7 +80,7 @@ func (f *FileRepo) Write(element *models.UploadElement, reader io.Reader) error 
 		return fileCloseErr
 	}
 
-	if element.MimeType == "application/zip" {
+	if element.MimeType == mimetypes.ApplicationZip {
 		return ExtractPackageSwiftFiles(element, pathFile, writePackageSwiftFiles(pathFolder))
 	}
 
@@ -196,7 +198,7 @@ func (f *FileRepo) FetchMetadata(scope string, name string, version string) (map
 		return nil, errors.New(fmt.Sprintf("path does not exists: %s", pathFolder))
 	}
 
-	metadata := models.NewUploadElement(scope, name, version, "application/json", models.Metadata)
+	metadata := models.NewUploadElement(scope, name, version, mimetypes.ApplicationJson, models.Metadata)
 	if !f.Exists(metadata) {
 		return nil, errors.New(fmt.Sprintf("file not exists: %s", metadata.FileName()))
 	}
@@ -235,6 +237,66 @@ func (f *FileRepo) Checksum(element *models.UploadElement) (string, error) {
 	}
 
 	return fmt.Sprintf("%x", hash.Sum(nil)), nil
+}
+
+func (f *FileRepo) GetAlternativeManifests(element *models.UploadElement) ([]models.UploadElement, error) {
+	pathFolder := filepath.Join(f.path, element.Scope, element.Name, element.Version)
+	if _, err := os.Stat(pathFolder); errors.Is(err, os.ErrNotExist) {
+		return nil, errors.New(fmt.Sprintf("path does not exists: %s", pathFolder))
+	}
+
+	var manifests []models.UploadElement
+	// search for different versions of Package.swift manifest
+
+	// search for different versions of Package.swift manifest
+	err := filepath.WalkDir(pathFolder, func(p string, d os.DirEntry, err error) error {
+		// skip root
+		if p == pathFolder {
+			return nil
+		}
+		if err != nil {
+			return err
+		}
+		if d.IsDir() {
+			return nil
+		}
+		filename := d.Name()
+		if filename != "Package.swift" && strings.HasPrefix(filename, "Package") && filepath.Ext(p) == ".swift" {
+			manifest := models.NewUploadElement(element.Scope, element.Name, element.Version, mimetypes.TextXSwift, models.Manifest)
+			manifest.SetFilenameOverwrite(strings.TrimSuffix(filename, filepath.Ext(filename)))
+			manifests = append(manifests, *manifest)
+		}
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+	return manifests, nil
+}
+
+func (f *FileRepo) GetSwiftToolVersion(manifest *models.UploadElement) (string, error) {
+	if !f.Exists(manifest) {
+		return "", errors.New(fmt.Sprintf("file not exists: %s", manifest.FileName()))
+	}
+
+	pathFile := filepath.Join(f.path, manifest.Scope, manifest.Name, manifest.Version, manifest.FileName())
+	file, err := os.Open(pathFile)
+	if err != nil {
+		return "", err
+	}
+
+	const swiftVersionPrefix = "// swift-tools-version:"
+	scanner := bufio.NewScanner(file)
+	if scanner.Scan() {
+		line := scanner.Text()
+		if strings.HasPrefix(line, swiftVersionPrefix) {
+			return strings.TrimPrefix(line, swiftVersionPrefix), nil
+		}
+	}
+	if err := scanner.Err(); err != nil {
+		return "", err
+	}
+	return "", errors.New("swift-tools-version not found")
 }
 
 func writePackageSwiftFiles(pathFolder string) func(name string, r io.ReadCloser) error {

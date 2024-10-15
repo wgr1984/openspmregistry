@@ -1,6 +1,7 @@
 package repo
 
 import (
+	"OpenSPMRegistry/mimetypes"
 	"OpenSPMRegistry/models"
 	"archive/zip"
 	"io"
@@ -10,7 +11,7 @@ import (
 
 func ExtractPackageSwiftFiles(element *models.UploadElement, fileLocation string, packageSwiftReader func(name string, r io.ReadCloser) error) error {
 	// extract Package Swifts
-	if element.MimeType == "application/zip" {
+	if element.MimeType == mimetypes.ApplicationZip {
 		r, err := zip.OpenReader(fileLocation)
 		if err != nil {
 			if r != nil {
