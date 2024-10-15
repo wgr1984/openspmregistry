@@ -1,6 +1,7 @@
 package controller
 
 import (
+	"OpenSPMRegistry/mimetypes"
 	"OpenSPMRegistry/models"
 	"encoding/json"
 	"log"
@@ -36,7 +37,7 @@ func (c *Controller) ListAction(w http.ResponseWriter, r *http.Request) {
 	}
 
 	header.Set("Content-Version", "1")
-	header.Set("Content-Type", "application/json")
+	header.Set("Content-Type", mimetypes.ApplicationJson)
 	w.WriteHeader(http.StatusOK)
 	if err := json.NewEncoder(w).Encode(models.NewListRelease(releaseList)); err != nil {
 		log.Fatal(err)

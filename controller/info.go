@@ -1,6 +1,7 @@
 package controller
 
 import (
+	"OpenSPMRegistry/mimetypes"
 	"OpenSPMRegistry/models"
 	"encoding/json"
 	"fmt"
@@ -25,11 +26,13 @@ func (c *Controller) InfoAction(w http.ResponseWriter, r *http.Request) {
 	packageName := r.PathValue("package")
 	version := stripExtension(r.PathValue("version"), ".json")
 
-	sourceArchive := models.NewUploadElement(scope, packageName, version, "application/zip", models.SourceArchive)
+	sourceArchive := models.NewUploadElement(scope, packageName, version, mimetypes.ApplicationZip, models.SourceArchive)
 
 	if !c.repo.Exists(sourceArchive) {
 		if e := writeErrorWithStatusCode(fmt.Sprintf("source archive %s does not exist", sourceArchive.FileName()), w, http.StatusNotFound); e != nil {
-			log.Fatal(e)
+			if slog.Default().Enabled(nil, slog.LevelDebug) {
+				slog.Debug("Error writing response:", "error", e)
+			}
 		}
 		return
 	}
@@ -88,8 +91,8 @@ func (c *Controller) InfoAction(w http.ResponseWriter, r *http.Request) {
 		"id":      fmt.Sprintf("%s.%s", scope, packageName),
 		"version": version,
 		"resources": map[string]interface{}{
-			"name":        "source-archive",
-			"type":        "application/zip",
+			"name":        models.SourceArchive,
+			"type":        mimetypes.ApplicationZip,
 			"checksum":    checksum,
 			"signing":     signatureJson,
 			"metadata":    metadataResult,
@@ -98,7 +101,7 @@ func (c *Controller) InfoAction(w http.ResponseWriter, r *http.Request) {
 	}
 
 	header.Set("Content-Version", "1")
-	header.Set("Content-Type", "application/json")
+	header.Set("Content-Type", mimetypes.ApplicationJson)
 	w.WriteHeader(http.StatusOK)
 	if err := json.NewEncoder(w).Encode(result); err != nil {
 		log.Fatal(err)

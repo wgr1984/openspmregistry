@@ -1,15 +1,15 @@
 package controller
 
 import (
+	"OpenSPMRegistry/mimetypes"
 	"OpenSPMRegistry/models"
-	"bufio"
 	"bytes"
-	"encoding/json"
 	"fmt"
 	"log"
 	"log/slog"
 	"net/http"
-	"time"
+	"net/url"
+	"strings"
 )
 
 func (c *Controller) FetchManifestAction(w http.ResponseWriter, r *http.Request) {
@@ -28,90 +28,82 @@ func (c *Controller) FetchManifestAction(w http.ResponseWriter, r *http.Request)
 	packageName := r.PathValue("package")
 	version := r.PathValue("version")
 
-	sourceArchive := models.NewUploadElement(scope, packageName, version, "application/zip", models.SourceArchive)
+	element := models.NewUploadElement(scope, packageName, version, mimetypes.TextXSwift, models.Manifest)
 
-	if !c.repo.Exists(sourceArchive) {
-		if e := writeErrorWithStatusCode(fmt.Sprintf("source archive %s does not exist", sourceArchive.FileName()), w, http.StatusNotFound); e != nil {
-			log.Fatal(e)
+	swiftVersion := r.URL.Query().Get("swift-version")
+	if len(swiftVersion) > 0 {
+		element.SetFilenameOverwrite(fmt.Sprintf("Package@swift-%s", swiftVersion))
+	}
+
+	filename := element.FileName()
+
+	// load manifest Package.swift file
+	var buffer bytes.Buffer
+	err := c.repo.Read(element, &buffer)
+	if err != nil {
+		if err := writeError(fmt.Sprintf("%s not found", filename), w); err != nil {
+			return // error already logged
 		}
 		return
 	}
 
 	header := w.Header()
 
-	addFirstReleaseAsLatest(listElements(w, c, scope, packageName), c, header)
-
-	metadataResult := make(map[string]interface{})
-
-	metadata := models.NewUploadElement(scope, packageName, version, "application/json", models.Metadata)
-	if c.repo.Exists(metadata) {
-		var b bytes.Buffer
-		writer := bufio.NewWriter(&b)
-		if err := c.repo.Read(metadata, writer); err != nil {
-			if err := writeError("Meta data read failed", w); err != nil {
-				return
+	if len(swiftVersion) == 0 {
+		// check if alternative versions of Package.swift are present
+		manifests, err := c.repo.GetAlternativeManifests(element)
+		if err != nil {
+			if slog.Default().Enabled(nil, slog.LevelDebug) {
+				slog.Info("Alternative manifests not found:", "error", err)
 			}
-			return
+		} else {
+			// add alternative versions to header
+			header.Set("Link", c.manifestsToString(manifests))
 		}
-		if err := writer.Flush(); err != nil {
-			if err := writeError("Meta data read flush failed", w); err != nil {
-				return
-			}
-			return
-		}
-
-		if err := json.Unmarshal(b.Bytes(), &metadataResult); err != nil {
-			if err := writeError("Meta data decode failed", w); err != nil {
-				return
-			}
-			return
-		}
-	}
-
-	// encode signature
-	sourceArchiveSig := copyStruct(sourceArchive)
-	signatureSourceArchive, signatureSourceArchiveErr := c.repo.EncodeBase64(sourceArchiveSig.SetExtOverwrite(".sig"))
-	if signatureSourceArchiveErr != nil {
-		if slog.Default().Enabled(nil, slog.LevelDebug) {
-			slog.Info("Signature not found:")
-		}
-	}
-
-	var signatureJson map[string]interface{}
-	if len(signatureSourceArchive) > 0 {
-		signatureJson = map[string]interface{}{
-			"signatureBase64Encoded": signatureSourceArchive,
-			"signatureFormat":        "cms-1.0.0",
-		}
-	} else {
-		signatureJson = nil
-	}
-
-	// retrieve publish date from source archive
-	dateTime, dateErr := c.repo.PublishDate(sourceArchive)
-	if dateErr != nil {
-		slog.Debug("Publish Date error:", dateErr)
-		dateTime = time.Now()
-	}
-	dateString := dateTime.Format("2006-01-02T15:04:05.999Z")
-
-	result := map[string]interface{}{
-		"id":      fmt.Sprintf("%s.%s", scope, packageName),
-		"version": version,
-		"resources": map[string]interface{}{
-			"name":        "source-archive",
-			"type":        "application/zip",
-			"checksum":    "TODO", // TODO!!!!!
-			"signing":     signatureJson,
-			"metadata":    metadataResult,
-			"publishedAt": dateString,
-		},
 	}
 
 	header.Set("Content-Version", "1")
-	header.Set("Content-Type", "application/json")
+	header.Set("Content-Type", mimetypes.TextXSwift)
+	header.Set("Content-Disposition", fmt.Sprintf("attachment; filename=\"%s\"", filename))
+	header.Set("Cache-Control", "public, immutable")
 	w.WriteHeader(http.StatusOK)
-	if err := json.NewEncoder(w).Encode(result); err != nil {
+	if _, err := w.Write(buffer.Bytes()); err != nil {
 		log.Fatal(err)
 	}
+}
+
+func (c *Controller) manifestsToString(manifests []models.UploadElement) string {
+	var result string
+	for i, manifest := range manifests {
+		manifestFileName := manifest.FileName()
+		// leave only the version number
+		version := strings.Trim(manifestFileName, "Package@-.swift")
+		// create the location URL the alternative Manifest can be downloaded from
+		location, err := url.JoinPath(
+			"https://", fmt.Sprintf("%s:%d", c.config.Hostname, c.config.Port),
+			manifest.Scope,
+			manifest.Name,
+			manifest.Version,
+			"Package.swift",
+		)
+
+		if err == nil {
+			location := fmt.Sprintf("%s?swift-version=%s", location, version)
+
+			if i != 0 {
+				result += ", "
+			}
+			result += fmt.Sprintf("<%s>; rel=\"alternative\"; filename=\"%s\"", location, manifestFileName)
+
+			swiftToolVersion, err2 := c.repo.GetSwiftToolVersion(&manifest)
+			if err2 != nil {
+				if slog.Default().Enabled(nil, slog.LevelDebug) {
+					slog.Info("Swift tool version not found:", "error", err2)
+				}
+			} else {
+				result += fmt.Sprintf("; swift-tools-version=\"%s\"", swiftToolVersion)
+			}
+		}
+	}
+	return result
 }

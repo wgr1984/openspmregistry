@@ -47,4 +47,13 @@ type Repo interface {
 	// - `version` of the package
 	// returns (metadata map|nil if not exists, error)
 	FetchMetadata(scope string, name string, version string) (map[string]interface{}, error)
+
+	// GetAlternativeManifests returns the alternative versions of the manifest
+	// returns (alternative versions of the manifest|nil if not exists, error)
+	GetAlternativeManifests(element *models.UploadElement) ([]models.UploadElement, error)
+
+	// GetSwiftToolVersion returns the swift tool version
+	// specified in the first line of the manifest file
+	// returns (swift tool version|nil if not exists, error)
+	GetSwiftToolVersion(manifest *models.UploadElement) (string, error)
 }
