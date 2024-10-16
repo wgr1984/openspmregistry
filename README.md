@@ -13,12 +13,14 @@ https://github.com/swiftlang/swift-package-manager/blob/main/Documentation/Packa
 # Current Features
 Basic Publishing and retrieval of swift packages
 - ✔️ Listing / Browsing
-- ❌ Retrieval of Packages
+- ✔️Retrieval of Packages
 - ✔️ Publishing
-  - ✔ synchronous
-  - ✔ binary format
+  - ✔️ synchronous
+  - ✔️ binary format
+  - ✔️ Support Signatures
+  - ✔️ support metadata block
 - ✔️ Storage
-  - ✔ Filesystem
+  - ✔️ Filesystem
   
 # How To Use
 ## Run server
@@ -57,11 +59,9 @@ swift package-registry set https://127.0.0.1:1234
 ### 📋 Todos ❎
 - ✔️ Docker Image
 - ✔️ Publishing
-    - ❌ Support Signatures
     - ❌ Package Validity checking (checksum, manifest, etc)
     - ❌ asynchronous
     - ❌ base64 format
-    - ❌ support metadata block
 - ❌ Delete packages
 - ✔️ Storage
   - ❌ DB support (e.g. mysql, postgres)
