@@ -13,15 +13,17 @@ type Repo interface {
 	// Returns true in case it does otherwise false
 	Exists(element *models.UploadElement) bool
 
-	// Write writes the element uploaded into the repo using
-	// the reader to gain access to the uploaded data
-	// Returns error in case something went wrong
-	Write(element *models.UploadElement, reader io.Reader) error
+	// GetReader returns a reader for the specified in the element
+	// returns (reader for the file|error)
+	GetReader(element *models.UploadElement) (io.ReadSeekCloser, error)
 
-	// Read reads the element uploaded to the repo using
-	// a writer to gain access to the uploaded data
-	// Returns error in case something went wrong
-	Read(element *models.UploadElement, writer io.Writer) error
+	// GetWriter returns a writer for the specified element
+	// returns (writer for the file|error
+	GetWriter(element *models.UploadElement) (io.WriteCloser, error)
+
+	// ExtractManifestFiles extracts the manifest files from the provided
+	// source archive
+	ExtractManifestFiles(element *models.UploadElement) error
 
 	// List all versions of a certain package existing
 	// - `scope` of the package
@@ -56,8 +58,4 @@ type Repo interface {
 	// specified in the first line of the manifest file
 	// returns (swift tool version|nil if not exists, error)
 	GetSwiftToolVersion(manifest *models.UploadElement) (string, error)
-
-	// GetFileReader returns a reader for the specified in the element
-	// returns (reader for the file|error)
-	GetFileReader(element *models.UploadElement) (io.ReadSeeker, error)
 }

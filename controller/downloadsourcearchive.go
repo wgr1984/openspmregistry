@@ -4,7 +4,6 @@ import (
 	"OpenSPMRegistry/mimetypes"
 	"OpenSPMRegistry/models"
 	"fmt"
-	"log"
 	"log/slog"
 	"net/http"
 	"path/filepath"
@@ -16,10 +15,8 @@ func (c *Controller) DownloadSourceArchiveAction(w http.ResponseWriter, r *http.
 	printCallInfo("DownloadSourceArchive", r)
 
 	if err := checkHeadersEnforce(r, "zip"); err != nil {
-		if e := err.writeResponse(w); e != nil {
-			log.Fatal(e)
-		}
-		return
+		err.writeResponse(w)
+		return // error already logged
 	}
 
 	scope := r.PathValue("scope")
@@ -30,11 +27,7 @@ func (c *Controller) DownloadSourceArchiveAction(w http.ResponseWriter, r *http.
 	element := models.NewUploadElement(scope, packageName, version, mimetypes.ApplicationZip, models.SourceArchive)
 
 	if !c.repo.Exists(element) {
-		if e := writeErrorWithStatusCode(fmt.Sprintf("source archive %s does not exist", element.FileName()), w, http.StatusNotFound); e != nil {
-			if slog.Default().Enabled(nil, slog.LevelDebug) {
-				slog.Debug("Error writing response:", "error", e)
-			}
-		}
+		writeErrorWithStatusCode(fmt.Sprintf("source archive %s does not exist", element.FileName()), w, http.StatusNotFound)
 		return
 	}
 
@@ -45,9 +38,7 @@ func (c *Controller) DownloadSourceArchiveAction(w http.ResponseWriter, r *http.
 	header.Set("Cache-Control", "public, immutable")
 	checksum, err := c.repo.Checksum(element)
 	if err != nil {
-		if slog.Default().Enabled(nil, slog.LevelDebug) {
-			slog.Info("Error calculating checksum:", "error", err)
-		}
+		slog.Error("Error calculating checksum:", "error", err)
 	} else {
 		header.Set("Digest", fmt.Sprintf("sha-256=%s", checksum))
 	}
@@ -56,9 +47,7 @@ func (c *Controller) DownloadSourceArchiveAction(w http.ResponseWriter, r *http.
 	if c.repo.Exists(signatureElement) {
 		signature, err := c.repo.EncodeBase64(signatureElement)
 		if err != nil {
-			if slog.Default().Enabled(nil, slog.LevelDebug) {
-				slog.Info("Signature not found:")
-			}
+			slog.Info("Signature not found:")
 		} else {
 			header.Set("X-Swift-Package-Signature-Format", "cms-1.0.0")
 			header.Set("X-Swift-Package-Signature", signature)
@@ -67,13 +56,15 @@ func (c *Controller) DownloadSourceArchiveAction(w http.ResponseWriter, r *http.
 
 	header.Set("Accept-Ranges", "bytes")
 
-	reader, err := c.repo.GetFileReader(element)
+	reader, err := c.repo.GetReader(element)
 	if err != nil {
-		if e := writeError(fmt.Sprintf("error reading source archive %s", element.FileName()), w); e != nil {
-			return // error already logged
-		}
+		writeError(fmt.Sprintf("error reading source archive %s", element.FileName()), w)
 		return // error already logged
 	}
 	// Handle byte range requests
 	http.ServeContent(w, r, element.FileName(), time.Now(), reader)
+
+	if err := reader.Close(); err != nil {
+		slog.Error("Error closing reader:", "error", err)
+	}
 }

@@ -6,7 +6,6 @@ import (
 	"OpenSPMRegistry/responses"
 	"encoding/json"
 	"fmt"
-	"log"
 	"log/slog"
 	"net/http"
 )
@@ -34,30 +33,29 @@ func (c *Controller) MainAction(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := checkHeaders(r); err != nil {
-		if e := err.writeResponse(w); e != nil {
-			log.Fatal(e)
-		}
-		return
+		err.writeResponse(w)
+		return // error already logged
 	}
 
-	if e := writeError("general error", w); e != nil {
-		log.Fatal(e)
-	}
+	writeError("general error", w)
 }
 
-func writeError(msg string, w http.ResponseWriter) error {
-	return writeErrorWithStatusCode(msg, w, http.StatusBadRequest)
+func writeError(msg string, w http.ResponseWriter) {
+	writeErrorWithStatusCode(msg, w, http.StatusBadRequest)
 }
 
-func writeErrorWithStatusCode(msg string, w http.ResponseWriter, status int) error {
+func writeErrorWithStatusCode(msg string, w http.ResponseWriter, status int) {
 	header := w.Header()
 	header.Set("Content-Type", "application/problem+json")
 	header.Set("Content-Language", "en")
 	header.Set("Content-Version", "1")
 	w.WriteHeader(status)
-	return json.NewEncoder(w).Encode(responses.Error{
+	err := json.NewEncoder(w).Encode(responses.Error{
 		Detail: msg,
 	})
+	if err != nil {
+		slog.Error("Error writing response:", "error", err)
+	}
 }
 
 func printCallInfo(methodName string, r *http.Request) {

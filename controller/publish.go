@@ -4,7 +4,6 @@ import (
 	"OpenSPMRegistry/models"
 	"fmt"
 	"io"
-	"log"
 	"log/slog"
 	"mime/multipart"
 	"net/http"
@@ -17,10 +16,8 @@ func (c *Controller) PublishAction(w http.ResponseWriter, r *http.Request) {
 	printCallInfo("Publish", r)
 
 	if err := checkHeadersEnforce(r, "json"); err != nil {
-		if e := err.writeResponse(w); e != nil {
-			log.Fatal(e)
-		}
-		return
+		err.writeResponse(w)
+		return // error already logged
 	}
 
 	// check scope name
@@ -28,24 +25,18 @@ func (c *Controller) PublishAction(w http.ResponseWriter, r *http.Request) {
 	packageName := r.PathValue("package")
 	version := r.PathValue("version")
 	if match, err := regexp.MatchString("\\A[a-zA-Z0-9](?:[a-zA-Z0-9]|-[a-zA-Z0-9]){0,38}\\z", scope); err != nil || !match {
-		if e := writeError(fmt.Sprint("upload failed, incorrect scope:", scope), w); e != nil {
-			log.Fatal(e)
-		}
+		writeError(fmt.Sprint("upload failed, incorrect scope:", scope), w)
 		return
 	}
 
 	if match, err := regexp.MatchString("\\A[a-zA-Z0-9](?:[a-zA-Z0-9]|[-_][a-zA-Z0-9]){0,99}\\z", packageName); err != nil || !match {
-		if e := writeError(fmt.Sprint("upload failed, incorrect package:", packageName), w); e != nil {
-			log.Fatal(e)
-		}
+		writeError(fmt.Sprint("upload failed, incorrect package:", packageName), w)
 		return
 	}
 
 	reader, err := r.MultipartReader()
 	if err != nil {
-		if e := writeError("upload failed: parsing multipart form", w); e != nil {
-			log.Fatal(e)
-		}
+		writeError("upload failed: parsing multipart form", w)
 		return
 	}
 
@@ -99,9 +90,7 @@ func (c *Controller) PublishAction(w http.ResponseWriter, r *http.Request) {
 			packageElement.FileName())
 		if err != nil {
 			slog.Error("Error", "msg", err)
-			if e := writeError("upload failed", w); e != nil {
-				log.Fatal(e)
-			}
+			writeError("upload failed", w)
 		}
 		header := w.Header()
 		header.Set("Content-Version", "1")
@@ -111,9 +100,7 @@ func (c *Controller) PublishAction(w http.ResponseWriter, r *http.Request) {
 	}
 
 	slog.Error("Error", "msg", "nothing found to store")
-	if e := writeError("upload failed, nothing found to store", w); e != nil {
-		log.Fatal(e)
-	}
+	writeError("upload failed, nothing found to store", w)
 }
 
 func storeElements(w http.ResponseWriter, name string, scope string, packageName string, version string, mimeType string, c *Controller, part *multipart.Part) (bool, *models.UploadElement) {
@@ -134,19 +121,35 @@ func storeElements(w http.ResponseWriter, name string, scope string, packageName
 	if c.repo.Exists(element) {
 		msg := fmt.Sprint("upload failed, package exists:", element.FileName())
 		slog.Error("Error", "msg", msg)
-		if e := writeErrorWithStatusCode(msg, w, http.StatusConflict); e != nil {
-			log.Fatal(e)
-		}
+		writeErrorWithStatusCode(msg, w, http.StatusConflict)
 		return true, element
 	}
 
-	err := c.repo.Write(element, part)
+	writer, err := c.repo.GetWriter(element)
 	if err != nil {
 		slog.Error("Error", "msg", err)
-		if e := writeError("upload failed, error storing file", w); e != nil {
-			log.Fatal(e)
-		}
+		writeError("upload failed, error storing file", w)
 		return true, element
 	}
+
+	_, err1 := io.Copy(writer, part)
+	errs := []error{
+		err1,
+		writer.Close(),
+		part.Close(),
+	}
+
+	for _, err := range errs {
+		if err != nil {
+			slog.Error("Error", "msg", err)
+			writeError("upload failed, error storing file", w)
+			return true, element
+		}
+	}
+
+	if err := c.repo.ExtractManifestFiles(element); err != nil {
+		return false, nil
+	}
+
 	return false, element
 }
