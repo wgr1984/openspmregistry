@@ -299,6 +299,20 @@ func (f *FileRepo) GetSwiftToolVersion(manifest *models.UploadElement) (string, 
 	return "", errors.New("swift-tools-version not found")
 }
 
+func (f *FileRepo) GetFileReader(element *models.UploadElement) (io.ReadSeeker, error) {
+	if !f.Exists(element) {
+		return nil, errors.New(fmt.Sprintf("file not exists: %s", element.FileName()))
+	}
+
+	pathFile := filepath.Join(f.path, element.Scope, element.Name, element.Version, element.FileName())
+	file, err := os.Open(pathFile)
+	if err != nil {
+		return nil, err
+	}
+
+	return file, nil
+}
+
 func writePackageSwiftFiles(pathFolder string) func(name string, r io.ReadCloser) error {
 	return func(name string, r io.ReadCloser) error {
 		// write to file

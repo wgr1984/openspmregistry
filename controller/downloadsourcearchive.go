@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"path/filepath"
 	"strings"
+	"time"
 )
 
 func (c *Controller) DownloadSourceArchiveAction(w http.ResponseWriter, r *http.Request) {
@@ -64,12 +65,15 @@ func (c *Controller) DownloadSourceArchiveAction(w http.ResponseWriter, r *http.
 		}
 	}
 
-	// TODO add support for header.Set("Accept-Ranges", "bytes")
-	err2 := c.repo.Read(element, w)
-	if err2 != nil {
+	header.Set("Accept-Ranges", "bytes")
+
+	reader, err := c.repo.GetFileReader(element)
+	if err != nil {
 		if e := writeError(fmt.Sprintf("error reading source archive %s", element.FileName()), w); e != nil {
 			return // error already logged
 		}
 		return // error already logged
 	}
+	// Handle byte range requests
+	http.ServeContent(w, r, element.FileName(), time.Now(), reader)
 }
