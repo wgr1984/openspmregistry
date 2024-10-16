@@ -66,7 +66,7 @@ func (c *Controller) InfoAction(w http.ResponseWriter, r *http.Request) {
 		slog.Debug("Publish Date error:", dateErr)
 		dateTime = time.Now()
 	}
-	dateString := dateTime.Format("2006-01-02T15:04:05.999Z")
+	dateString := dateTime.Format("2006-01-02T15:04:05Z")
 
 	// retrieve checksum of source archive
 	checksum, err := c.repo.Checksum(sourceArchive)
