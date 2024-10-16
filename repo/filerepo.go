@@ -290,6 +290,7 @@ func (f *FileRepo) Lookup(url string) []string {
 				if repoURLStr, ok := repoURL.(string); ok && repoURLStr == url {
 					foundId := fmt.Sprintf("%s.%s", scope, packageName)
 					result = append(result, foundId)
+					// take first match found
 					return filepath.SkipAll
 				}
 			}

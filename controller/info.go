@@ -78,14 +78,16 @@ func (c *Controller) InfoAction(w http.ResponseWriter, r *http.Request) {
 	result := map[string]interface{}{
 		"id":      fmt.Sprintf("%s.%s", scope, packageName),
 		"version": version,
-		"resources": map[string]interface{}{
-			"name":        models.SourceArchive,
-			"type":        mimetypes.ApplicationZip,
-			"checksum":    checksum,
-			"signing":     signatureJson,
-			"metadata":    metadataResult,
-			"publishedAt": dateString,
+		"resources": []interface{}{
+			map[string]interface{}{
+				"name":     models.SourceArchive,
+				"type":     mimetypes.ApplicationZip,
+				"checksum": checksum,
+				"signing":  signatureJson,
+			},
 		},
+		"metadata":    metadataResult,
+		"publishedAt": dateString,
 	}
 
 	header.Set("Content-Version", "1")
