@@ -56,4 +56,8 @@ type Repo interface {
 	// specified in the first line of the manifest file
 	// returns (swift tool version|nil if not exists, error)
 	GetSwiftToolVersion(manifest *models.UploadElement) (string, error)
+
+	// GetFileReader returns a reader for the specified in the element
+	// returns (reader for the file|error)
+	GetFileReader(element *models.UploadElement) (io.ReadSeeker, error)
 }
