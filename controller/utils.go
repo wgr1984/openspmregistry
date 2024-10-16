@@ -140,17 +140,3 @@ func locationOfElement(c *Controller, element models.ListElement) string {
 		element.Version)
 	return location
 }
-
-func copyStruct[T any](src *T) T {
-	temp := *src
-	temp2 := temp
-	return temp2
-}
-
-func stripExtension(s string, ext string) string {
-	if strings.HasSuffix(s, ext) {
-		return strings.TrimSuffix(s, ext)
-	} else {
-		return s
-	}
-}

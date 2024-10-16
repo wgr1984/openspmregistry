@@ -3,6 +3,7 @@ package controller
 import (
 	"OpenSPMRegistry/mimetypes"
 	"OpenSPMRegistry/models"
+	"OpenSPMRegistry/utils"
 	"encoding/json"
 	"log"
 	"net/http"
@@ -19,7 +20,7 @@ func (c *Controller) ListAction(w http.ResponseWriter, r *http.Request) {
 
 	// check scope name
 	scope := r.PathValue("scope")
-	packageName := stripExtension(r.PathValue("package"), ".json")
+	packageName := utils.StripExtension(r.PathValue("package"), ".json")
 
 	elements := listElements(w, c, scope, packageName)
 
