@@ -266,6 +266,45 @@ func (f *FileRepo) GetReader(element *models.UploadElement) (io.ReadSeekCloser, 
 	return file, nil
 }
 
+func (f *FileRepo) Lookup(url string) []string {
+	var result []string
+
+	err := filepath.WalkDir(f.path, func(path string, d os.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		if d.IsDir() || !strings.HasSuffix(d.Name(), "metadata.json") {
+			return nil
+		}
+
+		version := filepath.Base(filepath.Dir(path))
+		scope := filepath.Base(filepath.Dir(filepath.Dir(filepath.Dir(path))))
+		packageName := filepath.Base(filepath.Dir(filepath.Dir(path)))
+		metadata, err := f.FetchMetadata(scope, packageName, version)
+		if err != nil {
+			return nil
+		}
+
+		if repositoryURLs, ok := metadata["repositoryURLs"].([]interface{}); ok {
+			for _, repoURL := range repositoryURLs {
+				if repoURLStr, ok := repoURL.(string); ok && repoURLStr == url {
+					foundId := fmt.Sprintf("%s.%s", scope, packageName)
+					result = append(result, foundId)
+					return filepath.SkipAll
+				}
+			}
+		}
+
+		return nil
+	})
+
+	if err != nil {
+		slog.Error("Error walking through directories:", "error", err)
+	}
+
+	return result
+}
+
 func writePackageSwiftFiles(pathFolder string) func(name string, r io.ReadCloser) error {
 	return func(name string, r io.ReadCloser) error {
 		// write to file
