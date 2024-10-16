@@ -3,6 +3,7 @@ package controller
 import (
 	"OpenSPMRegistry/mimetypes"
 	"OpenSPMRegistry/models"
+	"OpenSPMRegistry/utils"
 	"encoding/json"
 	"fmt"
 	"log/slog"
@@ -21,7 +22,7 @@ func (c *Controller) InfoAction(w http.ResponseWriter, r *http.Request) {
 	// check scope name
 	scope := r.PathValue("scope")
 	packageName := r.PathValue("package")
-	version := stripExtension(r.PathValue("version"), ".json")
+	version := utils.StripExtension(r.PathValue("version"), ".json")
 
 	sourceArchive := models.NewUploadElement(scope, packageName, version, mimetypes.ApplicationZip, models.SourceArchive)
 
@@ -43,7 +44,7 @@ func (c *Controller) InfoAction(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// encode signature
-	sourceArchiveSig := copyStruct(sourceArchive)
+	sourceArchiveSig := utils.CopyStruct(sourceArchive)
 	signatureSourceArchive, signatureSourceArchiveErr := c.repo.EncodeBase64(sourceArchiveSig.SetExtOverwrite(".sig"))
 	if signatureSourceArchiveErr != nil {
 		slog.Info("Signature not found:")

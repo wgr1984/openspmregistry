@@ -1,6 +1,9 @@
 package models
 
 import (
+	"OpenSPMRegistry/utils"
+	"bytes"
+	"encoding/json"
 	"fmt"
 	"mime"
 )
@@ -108,4 +111,58 @@ type ListRelease struct {
 
 func NewListRelease(releases map[string]Release) *ListRelease {
 	return &ListRelease{Releases: releases}
+}
+
+func (l *ListRelease) sortReleases() ([]string, []Release) {
+
+	keys := make([]string, 0, len(l.Releases))
+	for key := range l.Releases {
+		keys = append(keys, key)
+	}
+
+	keys = utils.SortVersions(keys)
+
+	sortedReleases := make([]Release, len(l.Releases))
+	for i, key := range keys {
+		sortedReleases[i] = l.Releases[key]
+	}
+
+	return keys, sortedReleases
+}
+
+func (l *ListRelease) MarshalJSON() ([]byte, error) {
+	var b bytes.Buffer
+
+	if l == nil {
+		b.WriteString("null")
+		return nil, nil
+	}
+
+	b.WriteByte('{')
+
+	b.WriteString("\"releases\":")
+	if l.Releases == nil {
+		b.WriteString("null")
+	} else {
+		b.WriteByte('{')
+		keys, sortedReleases := l.sortReleases()
+		for i, key := range keys {
+			b.WriteString("\"")
+			b.WriteString(key)
+			b.WriteString("\":")
+			data, err := json.Marshal(sortedReleases[i])
+			if err != nil {
+				b.WriteString("null")
+			} else {
+				b.Write(data)
+			}
+			b.WriteByte(',')
+		}
+		b.Truncate(b.Len() - 1)
+		b.WriteByte('}')
+	}
+
+	b.WriteByte('}')
+
+	return b.Bytes(), nil
 }
