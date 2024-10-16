@@ -41,6 +41,15 @@ func (c *Controller) FetchManifestAction(w http.ResponseWriter, r *http.Request)
 		return // error already logged
 	}
 
+	defer func() {
+		if reader == nil {
+			return
+		}
+		if err := reader.Close(); err != nil {
+			slog.Error("Error closing reader:", "error", err)
+		}
+	}()
+
 	header := w.Header()
 
 	if len(swiftVersion) == 0 {
@@ -67,10 +76,6 @@ func (c *Controller) FetchManifestAction(w http.ResponseWriter, r *http.Request)
 		slog.Error("Error getting publish date:", "error", err)
 	}
 	http.ServeContent(w, r, filename, modDate, reader)
-
-	if err := reader.Close(); err != nil {
-		slog.Error("Error closing reader:", "error", err)
-	}
 }
 
 func (c *Controller) manifestsToString(manifests []models.UploadElement) string {

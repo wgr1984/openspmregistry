@@ -132,10 +132,18 @@ func storeElements(w http.ResponseWriter, name string, scope string, packageName
 		return true, element
 	}
 
+	defer func() {
+		if writer == nil {
+			return
+		}
+		if err := writer.Close(); err != nil {
+			slog.Error("Error closing writer:", "error", err)
+		}
+	}()
+
 	_, err1 := io.Copy(writer, part)
 	errs := []error{
 		err1,
-		writer.Close(),
 		part.Close(),
 	}
 

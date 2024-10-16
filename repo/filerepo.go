@@ -100,6 +100,15 @@ func (f *FileRepo) EncodeBase64(element *models.UploadElement) (string, error) {
 		return "", err
 	}
 
+	defer func() {
+		if reader == nil {
+			return
+		}
+		if err := reader.Close(); err != nil {
+			slog.Error("Error closing reader:", "error", err)
+		}
+	}()
+
 	b, err2 := io.ReadAll(reader)
 	if err2 != nil {
 		return "", err2
@@ -137,6 +146,15 @@ func (f *FileRepo) FetchMetadata(scope string, name string, version string) (map
 	if err != nil {
 		return nil, err
 	}
+
+	defer func() {
+		if reader == nil {
+			return
+		}
+		if err := reader.Close(); err != nil {
+			slog.Error("Error closing reader:", "error", err)
+		}
+	}()
 
 	b, err2 := io.ReadAll(reader)
 	if err2 != nil {

@@ -61,10 +61,14 @@ func (c *Controller) DownloadSourceArchiveAction(w http.ResponseWriter, r *http.
 		writeError(fmt.Sprintf("error reading source archive %s", element.FileName()), w)
 		return // error already logged
 	}
+	defer func() {
+		if reader == nil {
+			return
+		}
+		if err := reader.Close(); err != nil {
+			slog.Error("Error closing reader:", "error", err)
+		}
+	}()
 	// Handle byte range requests
 	http.ServeContent(w, r, element.FileName(), time.Now(), reader)
-
-	if err := reader.Close(); err != nil {
-		slog.Error("Error closing reader:", "error", err)
-	}
 }
