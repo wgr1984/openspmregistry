@@ -4,7 +4,6 @@ import (
 	"OpenSPMRegistry/mimetypes"
 	"OpenSPMRegistry/models"
 	"bufio"
-	"bytes"
 	"crypto/sha256"
 	"encoding/base64"
 	"encoding/json"
@@ -34,7 +33,20 @@ func (f *FileRepo) Exists(element *models.UploadElement) bool {
 	return true
 }
 
-func (f *FileRepo) Write(element *models.UploadElement, reader io.Reader) error {
+func (f *FileRepo) GetWriter(element *models.UploadElement) (io.WriteCloser, error) {
+	pathFolder := filepath.Join(f.path, element.Scope, element.Name, element.Version)
+	if _, err := os.Stat(pathFolder); errors.Is(err, os.ErrNotExist) {
+		if err := os.MkdirAll(pathFolder, os.ModePerm); err != nil {
+			return nil, err
+		}
+	}
+
+	pathFile := filepath.Join(pathFolder, element.FileName())
+
+	return os.Create(pathFile)
+}
+
+func (f *FileRepo) ExtractManifestFiles(element *models.UploadElement) error {
 	pathFolder := filepath.Join(f.path, element.Scope, element.Name, element.Version)
 	if _, err := os.Stat(pathFolder); errors.Is(err, os.ErrNotExist) {
 		err := os.MkdirAll(pathFolder, os.ModePerm)
@@ -43,94 +55,13 @@ func (f *FileRepo) Write(element *models.UploadElement, reader io.Reader) error 
 		}
 	}
 
-	// write to file
 	pathFile := filepath.Join(pathFolder, element.FileName())
-	file, err := os.Create(pathFile)
-	if err != nil {
-		if fileCloseErr := closeFile(pathFile, file); fileCloseErr != nil {
-			return fileCloseErr
-		}
-		return err
-	}
-
-	b := make([]byte, 512)
-	for {
-		count, err := reader.Read(b)
-		slog.Debug("Filerepo read", "count", count)
-		wrote, writeErr := file.Write(b[:count])
-		if writeErr != nil {
-			if fileCloseErr := closeFile(pathFile, file); fileCloseErr != nil {
-				return fileCloseErr
-			}
-			return writeErr
-		}
-		slog.Debug("Filerepo wrote", "count", wrote)
-		if err == io.EOF {
-			slog.Debug("filerepo EOF", "filename", pathFile)
-			break
-		} else if err != nil {
-			if fileCloseErr := closeFile(pathFile, file); fileCloseErr != nil {
-				return fileCloseErr
-			}
-			return err
-		}
-	}
-
-	if fileCloseErr := closeFile(pathFile, file); fileCloseErr != nil {
-		return fileCloseErr
-	}
 
 	if element.MimeType == mimetypes.ApplicationZip {
 		return ExtractPackageSwiftFiles(element, pathFile, writePackageSwiftFiles(pathFolder))
 	}
 
-	return nil
-}
-
-func (f *FileRepo) Read(element *models.UploadElement, writer io.Writer) error {
-	pathFolder := filepath.Join(f.path, element.Scope, element.Name, element.Version)
-	if _, err := os.Stat(pathFolder); errors.Is(err, os.ErrNotExist) {
-		return errors.New(fmt.Sprintf("file not exists: %s", pathFolder))
-	}
-
-	// read file
-	pathFile := filepath.Join(pathFolder, element.FileName())
-	file, err := os.Open(pathFile)
-	if err != nil {
-		if fileCloseErr := closeFile(pathFile, file); fileCloseErr != nil {
-			return fileCloseErr
-		}
-		return err
-	}
-
-	b := make([]byte, 512)
-	for {
-		count, err := file.Read(b)
-		slog.Debug("Filerepo read", "count", count)
-		wrote, writeErr := writer.Write(b[:count])
-		if writeErr != nil {
-			if fileCloseErr := closeFile(pathFile, file); fileCloseErr != nil {
-				return fileCloseErr
-			}
-			return writeErr
-		}
-		slog.Debug("Filerepo wrote", "count", wrote)
-		if err == io.EOF {
-			slog.Debug("filerepo EOF", "filename", pathFile)
-			break
-		} else if err != nil {
-			if fileCloseErr := closeFile(pathFile, file); fileCloseErr != nil {
-				return fileCloseErr
-			}
-			return err
-		}
-	}
-
-	if fileCloseErr := closeFile(pathFile, file); fileCloseErr != nil {
-		return fileCloseErr
-	}
-
-	return nil
+	return errors.New("unsupported mime type")
 }
 
 func (f *FileRepo) List(scope string, name string) ([]models.ListElement, error) {
@@ -164,18 +95,17 @@ func (f *FileRepo) EncodeBase64(element *models.UploadElement) (string, error) {
 		return "", errors.New(fmt.Sprintf("file not exists: %s", element.FileName()))
 	}
 
-	var b bytes.Buffer
-	writer := bufio.NewWriter(&b)
-
-	if err := f.Read(element, writer); err != nil {
+	reader, err := f.GetReader(element)
+	if err != nil {
 		return "", err
 	}
 
-	if err := writer.Flush(); err != nil {
-		return "", err
+	b, err2 := io.ReadAll(reader)
+	if err2 != nil {
+		return "", err2
 	}
 
-	return base64.StdEncoding.EncodeToString(b.Bytes()), nil
+	return base64.StdEncoding.EncodeToString(b), nil
 }
 
 func (f *FileRepo) PublishDate(element *models.UploadElement) (time.Time, error) {
@@ -203,17 +133,18 @@ func (f *FileRepo) FetchMetadata(scope string, name string, version string) (map
 		return nil, errors.New(fmt.Sprintf("file not exists: %s", metadata.FileName()))
 	}
 
-	var b bytes.Buffer
-	writer := bufio.NewWriter(&b)
-	if err := f.Read(metadata, writer); err != nil {
-		return nil, err
-	}
-	if err := writer.Flush(); err != nil {
+	reader, err := f.GetReader(metadata)
+	if err != nil {
 		return nil, err
 	}
 
+	b, err2 := io.ReadAll(reader)
+	if err2 != nil {
+		return nil, err2
+	}
+
 	var metadataResult map[string]interface{}
-	if err := json.Unmarshal(b.Bytes(), &metadataResult); err != nil {
+	if err := json.Unmarshal(b, &metadataResult); err != nil {
 		return nil, err
 	}
 
@@ -233,6 +164,10 @@ func (f *FileRepo) Checksum(element *models.UploadElement) (string, error) {
 
 	hash := sha256.New()
 	if _, err := io.Copy(hash, file); err != nil {
+		return "", err
+	}
+
+	if err := file.Close(); err != nil {
 		return "", err
 	}
 
@@ -299,7 +234,7 @@ func (f *FileRepo) GetSwiftToolVersion(manifest *models.UploadElement) (string, 
 	return "", errors.New("swift-tools-version not found")
 }
 
-func (f *FileRepo) GetFileReader(element *models.UploadElement) (io.ReadSeeker, error) {
+func (f *FileRepo) GetReader(element *models.UploadElement) (io.ReadSeekCloser, error) {
 	if !f.Exists(element) {
 		return nil, errors.New(fmt.Sprintf("file not exists: %s", element.FileName()))
 	}

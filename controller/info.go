@@ -5,7 +5,6 @@ import (
 	"OpenSPMRegistry/models"
 	"encoding/json"
 	"fmt"
-	"log"
 	"log/slog"
 	"net/http"
 	"time"
@@ -15,10 +14,8 @@ func (c *Controller) InfoAction(w http.ResponseWriter, r *http.Request) {
 	printCallInfo("Info", r)
 
 	if err := checkHeadersEnforce(r, "json"); err != nil {
-		if e := err.writeResponse(w); e != nil {
-			log.Fatal(e)
-		}
-		return
+		err.writeResponse(w)
+		return // error already logged
 	}
 
 	// check scope name
@@ -29,11 +26,7 @@ func (c *Controller) InfoAction(w http.ResponseWriter, r *http.Request) {
 	sourceArchive := models.NewUploadElement(scope, packageName, version, mimetypes.ApplicationZip, models.SourceArchive)
 
 	if !c.repo.Exists(sourceArchive) {
-		if e := writeErrorWithStatusCode(fmt.Sprintf("source archive %s does not exist", sourceArchive.FileName()), w, http.StatusNotFound); e != nil {
-			if slog.Default().Enabled(nil, slog.LevelDebug) {
-				slog.Debug("Error writing response:", "error", e)
-			}
-		}
+		writeErrorWithStatusCode(fmt.Sprintf("source archive %s does not exist", sourceArchive.FileName()), w, http.StatusNotFound)
 		return
 	}
 
@@ -45,9 +38,7 @@ func (c *Controller) InfoAction(w http.ResponseWriter, r *http.Request) {
 
 	metadataResult, err := c.repo.FetchMetadata(scope, packageName, version)
 	if err != nil {
-		if err := writeError("Meta data read failed", w); err != nil {
-			return
-		}
+		writeError("Meta data read failed", w)
 		return
 	}
 
@@ -55,9 +46,7 @@ func (c *Controller) InfoAction(w http.ResponseWriter, r *http.Request) {
 	sourceArchiveSig := copyStruct(sourceArchive)
 	signatureSourceArchive, signatureSourceArchiveErr := c.repo.EncodeBase64(sourceArchiveSig.SetExtOverwrite(".sig"))
 	if signatureSourceArchiveErr != nil {
-		if slog.Default().Enabled(nil, slog.LevelDebug) {
-			slog.Info("Signature not found:")
-		}
+		slog.Info("Signature not found:")
 	}
 
 	var signatureJson map[string]interface{}
@@ -81,9 +70,7 @@ func (c *Controller) InfoAction(w http.ResponseWriter, r *http.Request) {
 	// retrieve checksum of source archive
 	checksum, err := c.repo.Checksum(sourceArchive)
 	if err != nil {
-		if slog.Default().Enabled(nil, slog.LevelDebug) {
-			slog.Info("Checksum error:", err)
-		}
+		slog.Info("Checksum error:", err)
 		checksum = ""
 	}
 
@@ -104,6 +91,6 @@ func (c *Controller) InfoAction(w http.ResponseWriter, r *http.Request) {
 	header.Set("Content-Type", mimetypes.ApplicationJson)
 	w.WriteHeader(http.StatusOK)
 	if err := json.NewEncoder(w).Encode(result); err != nil {
-		log.Fatal(err)
+		slog.Error("Error writing response:", "error", err)
 	}
 }

@@ -3,13 +3,12 @@ package controller
 import (
 	"OpenSPMRegistry/mimetypes"
 	"OpenSPMRegistry/models"
-	"bytes"
 	"fmt"
-	"log"
 	"log/slog"
 	"net/http"
 	"net/url"
 	"strings"
+	"time"
 )
 
 func (c *Controller) FetchManifestAction(w http.ResponseWriter, r *http.Request) {
@@ -17,10 +16,8 @@ func (c *Controller) FetchManifestAction(w http.ResponseWriter, r *http.Request)
 	printCallInfo("FetchManifest", r)
 
 	if err := checkHeadersEnforce(r, "swift"); err != nil {
-		if e := err.writeResponse(w); e != nil {
-			log.Fatal(e)
-		}
-		return
+		err.writeResponse(w)
+		return // error already logged
 	}
 
 	// check scope name
@@ -38,13 +35,10 @@ func (c *Controller) FetchManifestAction(w http.ResponseWriter, r *http.Request)
 	filename := element.FileName()
 
 	// load manifest Package.swift file
-	var buffer bytes.Buffer
-	err := c.repo.Read(element, &buffer)
+	reader, err := c.repo.GetReader(element)
 	if err != nil {
-		if err := writeError(fmt.Sprintf("%s not found", filename), w); err != nil {
-			return // error already logged
-		}
-		return
+		writeError(fmt.Sprintf("%s not found", filename), w)
+		return // error already logged
 	}
 
 	header := w.Header()
@@ -53,9 +47,7 @@ func (c *Controller) FetchManifestAction(w http.ResponseWriter, r *http.Request)
 		// check if alternative versions of Package.swift are present
 		manifests, err := c.repo.GetAlternativeManifests(element)
 		if err != nil {
-			if slog.Default().Enabled(nil, slog.LevelDebug) {
-				slog.Info("Alternative manifests not found:", "error", err)
-			}
+			slog.Info("Alternative manifests not found:", "error", err)
 		} else {
 			// add alternative versions to header
 			header.Set("Link", c.manifestsToString(manifests))
@@ -67,8 +59,17 @@ func (c *Controller) FetchManifestAction(w http.ResponseWriter, r *http.Request)
 	header.Set("Content-Disposition", fmt.Sprintf("attachment; filename=\"%s\"", filename))
 	header.Set("Cache-Control", "public, immutable")
 	w.WriteHeader(http.StatusOK)
-	if _, err := w.Write(buffer.Bytes()); err != nil {
-		log.Fatal(err)
+
+	modDate := time.Now()
+	if rawDate, err := c.repo.PublishDate(element); err == nil {
+		modDate = rawDate
+	} else {
+		slog.Error("Error getting publish date:", "error", err)
+	}
+	http.ServeContent(w, r, filename, modDate, reader)
+
+	if err := reader.Close(); err != nil {
+		slog.Error("Error closing reader:", "error", err)
 	}
 }
 
@@ -97,9 +98,7 @@ func (c *Controller) manifestsToString(manifests []models.UploadElement) string 
 
 			swiftToolVersion, err2 := c.repo.GetSwiftToolVersion(&manifest)
 			if err2 != nil {
-				if slog.Default().Enabled(nil, slog.LevelDebug) {
-					slog.Info("Swift tool version not found:", "error", err2)
-				}
+				slog.Info("Swift tool version not found:", "error", err2)
 			} else {
 				result += fmt.Sprintf("; swift-tools-version=\"%s\"", swiftToolVersion)
 			}

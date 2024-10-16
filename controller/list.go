@@ -13,10 +13,8 @@ func (c *Controller) ListAction(w http.ResponseWriter, r *http.Request) {
 	printCallInfo("List", r)
 
 	if err := checkHeadersEnforce(r, "json"); err != nil {
-		if e := err.writeResponse(w); e != nil {
-			log.Fatal(e)
-		}
-		return
+		err.writeResponse(w)
+		return // error already logged
 	}
 
 	// check scope name

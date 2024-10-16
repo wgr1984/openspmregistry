@@ -6,7 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"github.com/hashicorp/go-version"
-	"log"
+	"log/slog"
 	"net/http"
 	"net/url"
 	"slices"
@@ -27,7 +27,7 @@ func (e *HeaderError) Error() string {
 	return e.errorMessage
 }
 
-func (e *HeaderError) writeResponse(w http.ResponseWriter) error {
+func (e *HeaderError) writeResponse(w http.ResponseWriter) {
 	header := w.Header()
 	header.Set("Content-Type", "application/problem+json")
 	header.Set("Content-Language", "en")
@@ -35,7 +35,9 @@ func (e *HeaderError) writeResponse(w http.ResponseWriter) error {
 	err := json.NewEncoder(w).Encode(responses.Error{
 		Detail: e.errorMessage,
 	})
-	return err
+	if err != nil {
+		slog.Error("Error writing response:", "error", err)
+	}
 }
 
 const acceptHeaderPrefix = "application/vnd.swift.registry.v"
@@ -92,14 +94,10 @@ func checkHeadersEnforce(r *http.Request, enforceMediaType string) *HeaderError 
 func listElements(w http.ResponseWriter, c *Controller, scope string, packageName string) []models.ListElement {
 	elements, err := c.repo.List(scope, packageName)
 	if err != nil {
-		if e := writeError(fmt.Sprintf("error listing package %s.%s", scope, packageName), w); e != nil {
-			log.Fatal(e)
-		}
+		writeError(fmt.Sprintf("error listing package %s.%s", scope, packageName), w)
 	}
 	if elements == nil {
-		if e := writeErrorWithStatusCode(fmt.Sprintf("error package %s.%s was not found", scope, packageName), w, http.StatusNotFound); e != nil {
-			log.Fatal(e)
-		}
+		writeErrorWithStatusCode(fmt.Sprintf("error package %s.%s was not found", scope, packageName), w, http.StatusNotFound)
 	}
 
 	slices.SortFunc(elements, func(a models.ListElement, b models.ListElement) int {
