@@ -5,7 +5,7 @@ import (
 	"OpenSPMRegistry/models"
 	"OpenSPMRegistry/utils"
 	"encoding/json"
-	"log"
+	"log/slog"
 	"net/http"
 )
 
@@ -39,6 +39,6 @@ func (c *Controller) ListAction(w http.ResponseWriter, r *http.Request) {
 	header.Set("Content-Type", mimetypes.ApplicationJson)
 	w.WriteHeader(http.StatusOK)
 	if err := json.NewEncoder(w).Encode(models.NewListRelease(releaseList)); err != nil {
-		log.Fatal(err)
+		slog.Error("Error encoding JSON:", "error", err)
 	}
 }

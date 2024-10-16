@@ -71,6 +71,7 @@ func main() {
 		}
 	})
 	router.HandleFunc("GET /{scope}/{package}/{version}/Package.swift", c.FetchManifestAction)
+	router.HandleFunc("GET /identifiers", c.LookupAction)
 	router.HandleFunc("PUT /{scope}/{package}/{version}", c.PublishAction)
 
 	srv := &http.Server{
