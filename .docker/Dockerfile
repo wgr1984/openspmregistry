@@ -17,7 +17,7 @@ FROM scratch AS production-stage
 
 COPY --from=build-stage  /usr/share/zoneinfo /usr/share/zoneinfo
 COPY --from=build-stage  /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/
-COPY --from=build-stage  /etc/passwd /etc/passwd
+COPY --from=build-stage  /etc/passwd_server /etc/passwd
 COPY --from=build-stage  /etc/group /etc/group
 
 WORKDIR /app
