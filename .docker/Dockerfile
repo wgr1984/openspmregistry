@@ -22,4 +22,4 @@ EXPOSE 8080
 
 RUN addgroup -S server && adduser -S server -G server && chown -R server:server /app
 
-ENTRYPOINT ["/app/openspmreg", "-tls=false", "-v"]
+ENTRYPOINT ["/app/openspmreg", "-tls=true", "-v"]
