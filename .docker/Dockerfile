@@ -9,17 +9,26 @@ RUN go mod download
 
 RUN CGO_ENABLED=0 GOOS=linux go build -ldflags="-s -w" -o openspmreg .
 
-FROM alpine:latest AS production-stage
+RUN addgroup server &&  \
+     adduser --ingroup server --uid 19998 --shell /bin/false server && \
+     cat /etc/passwd | grep server > /etc/passwd_server
+
+FROM scratch AS production-stage
+
+COPY --from=build-stage  /usr/share/zoneinfo /usr/share/zoneinfo
+COPY --from=build-stage  /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/
+COPY --from=build-stage  /etc/passwd /etc/passwd
+COPY --from=build-stage  /etc/group /etc/group
 
 WORKDIR /app
 
-COPY --from=build-stage /app/openspmreg /app/openspmreg
+COPY --chown=server --from=build-stage /app/openspmreg /app/openspmreg
 
-COPY .docker/config.yml /app/config.yml
-COPY .docker/certs /app/certs
+COPY --chown=server .docker/config.yml /app/config.yml
+COPY --chown=server .docker/certs /app/certs
 
 EXPOSE 8080
 
-RUN addgroup -S server && adduser -S server -G server && chown -R server:server /app
+USER server
 
 ENTRYPOINT ["/app/openspmreg", "-tls=true", "-v"]
