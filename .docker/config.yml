@@ -2,8 +2,8 @@ server:
   hostname: 127.0.0.1
   port: 8080
   certs:
-    cert: /app/certs/client.crt
-    key: /app/certs/client.key
+    cert: /app/certs/server.crt
+    key: /app/certs/server.key
   repo:
     type: file
     path: ./files/
