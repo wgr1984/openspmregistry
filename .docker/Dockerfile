@@ -1,6 +1,17 @@
 FROM golang:1.23  AS build-stage
 LABEL authors="wolfgangreithmeier"
 
+ARG upx_version=4.2.2
+ARG GOPROXY
+ARG TARGETARCH=${TARGETARCH:-amd64}
+
+RUN apt-get update && apt-get install -y --no-install-recommends xz-utils && \
+  curl -Ls https://github.com/upx/upx/releases/download/v${upx_version}/upx-${upx_version}-${TARGETARCH}_linux.tar.xz -o - | tar xvJf - -C /tmp && \
+  cp /tmp/upx-${upx_version}-${TARGETARCH}_linux/upx /usr/local/bin/ && \
+  chmod +x /usr/local/bin/upx && \
+  apt-get remove -y xz-utils && \
+  rm -rf /var/lib/apt/lists/*
+
 WORKDIR /app
 
 COPY go.mod go.sum ./
@@ -8,6 +19,7 @@ COPY . .
 RUN go mod download
 
 RUN CGO_ENABLED=0 GOOS=linux go build -ldflags="-s -w" -o openspmreg .
+RUN upx --best --lzma openspmreg
 
 RUN addgroup server &&  \
      adduser --ingroup server --uid 19998 --shell /bin/false server && \
