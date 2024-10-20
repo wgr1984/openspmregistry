@@ -1,12 +1,46 @@
 package models
 
 import (
-	"OpenSPMRegistry/utils"
 	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"mime"
+	"slices"
+	"strconv"
+	"strings"
 )
+
+// Version represents a version of a package.
+// It is composed of a major, minor, patch version and an optional suffix.
+type Version struct {
+	Major  int
+	Minor  int
+	Patch  int
+	Suffix string
+}
+
+func (v Version) Compare(v1 *Version) int {
+	if v.Major != v1.Major {
+		return v.Major - v1.Major
+	}
+	if v.Minor != v1.Minor {
+		return v.Minor - v1.Minor
+	}
+	if v.Patch != v1.Patch {
+		return v.Patch - v1.Patch
+	}
+	if v.Suffix == v1.Suffix {
+		return 0
+	}
+	if v.Suffix == "" {
+		return 1
+	}
+	if v1.Suffix == "" {
+		return -1
+	}
+	return 0
+}
 
 type UploadElementType string
 
@@ -120,7 +154,7 @@ func (l *ListRelease) sortReleases() ([]string, []Release) {
 		keys = append(keys, key)
 	}
 
-	keys = utils.SortVersions(keys)
+	keys = SortVersions(keys)
 
 	sortedReleases := make([]Release, len(l.Releases))
 	for i, key := range keys {
@@ -165,4 +199,42 @@ func (l *ListRelease) MarshalJSON() ([]byte, error) {
 	b.WriteByte('}')
 
 	return b.Bytes(), nil
+}
+
+func ParseVersion(versionStr string) (*Version, error) {
+	v := &Version{}
+	if strings.Contains(versionStr, "-") {
+		split := strings.Split(versionStr, "-")
+		versionStr = split[0]
+		v.Suffix = split[1]
+	}
+	split := strings.Split(versionStr, ".")
+	if len(split) < 1 {
+		return nil, errors.New("version string must have at least 1 part")
+	}
+	if len(split) < 2 {
+		split = append(split, "0")
+	}
+	if len(split) < 3 {
+		split = append(split, "0")
+	}
+	v.Major, _ = strconv.Atoi(split[0])
+	v.Minor, _ = strconv.Atoi(split[1])
+	v.Patch, _ = strconv.Atoi(split[2])
+	return v, nil
+}
+
+func SortVersions(versions []string) []string {
+	slices.SortFunc(versions, func(a string, b string) int {
+		v1, err := ParseVersion(a)
+		if err != nil {
+			return 0
+		}
+		v2, err := ParseVersion(b)
+		if err != nil {
+			return 0
+		}
+		return v2.Compare(v1)
+	})
+	return versions
 }

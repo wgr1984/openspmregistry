@@ -5,7 +5,6 @@ import (
 	"OpenSPMRegistry/responses"
 	"encoding/json"
 	"fmt"
-	"github.com/hashicorp/go-version"
 	"log/slog"
 	"net/http"
 	"net/url"
@@ -101,11 +100,11 @@ func listElements(w http.ResponseWriter, c *Controller, scope string, packageNam
 	}
 
 	slices.SortFunc(elements, func(a models.ListElement, b models.ListElement) int {
-		v1, err := version.NewVersion(a.Version)
+		v1, err := models.ParseVersion(a.Version)
 		if err != nil {
 			return 0
 		}
-		v2, err := version.NewVersion(b.Version)
+		v2, err := models.ParseVersion(b.Version)
 		if err != nil {
 			return 0
 		}
