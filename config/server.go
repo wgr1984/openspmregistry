@@ -7,8 +7,14 @@ type ServerRoot struct {
 type ServerConfig struct {
 	Hostname string        `yaml:"hostname"`
 	Port     int           `yaml:"port"`
+	Certs    Certs         `yaml:"certs"`
 	Repo     Repo          `yaml:"repo"`
 	Publish  PublishConfig `yaml:"publish"`
+}
+
+type Certs struct {
+	CertFile string `yaml:"cert"`
+	KeyFile  string `yaml:"key"`
 }
 
 type PublishConfig struct {

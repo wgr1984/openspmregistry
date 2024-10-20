@@ -81,7 +81,9 @@ func main() {
 
 	if tlsFlag {
 		slog.Info("Starting HTTPS server on", "port", srv.Addr)
-		log.Fatal(srv.ListenAndServeTLS("server.crt", "server.key"))
+		certFile := serverConfig.Server.Certs.CertFile
+		keyFile := serverConfig.Server.Certs.KeyFile
+		log.Fatal(srv.ListenAndServeTLS(certFile, keyFile))
 	} else {
 		slog.Info("Starting HTTP server on", "port", srv.Addr)
 		log.Fatal(srv.ListenAndServe())

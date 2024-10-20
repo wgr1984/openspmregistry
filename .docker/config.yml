@@ -1,0 +1,11 @@
+server:
+  hostname: 127.0.0.1
+  port: 8080
+  certs:
+    cert: /app/certs/client.crt
+    key: /app/certs/client.key
+  repo:
+    type: file
+    path: ./files/
+  publish:
+    maxSize: 204800
