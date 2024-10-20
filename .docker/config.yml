@@ -6,6 +6,6 @@ server:
     key: /app/certs/server.key
   repo:
     type: file
-    path: ./files/
+    path: /data/repo
   publish:
     maxSize: 204800
