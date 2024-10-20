@@ -21,11 +21,19 @@ Basic Publishing and retrieval of swift packages
   - ✔️ support metadata block
 - ✔️ Storage
   - ✔️ Filesystem
-  
+- ✔️ Docker Image sample
+
 # How To Use
 ## Run server
 ### Using docker image
-TBD
+create image
+```
+make
+```
+run image
+```
+docker run -p 8080:8080 -v ./:/data -i -t openspmregistry:latest
+```
 ### From source
 fetch from git
 ```
@@ -54,10 +62,13 @@ e.g. `localhost` (be ware `swift package-registry` as for now accepts tls/ssl co
 ```
 swift package-registry set https://127.0.0.1:1234
 ```
+or if used **docker** image
+```
+swift package-registry set https://localhost:8080
+```
 ⚠️ on local setup we need to make sure ssl cert is set too trusted on system level
 
 ### 📋 Todos ❎
-- ✔️ Docker Image
 - ✔️ Publishing
     - ❌ Package Validity checking (checksum, manifest, etc)
     - ❌ asynchronous
