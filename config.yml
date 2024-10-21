@@ -1,6 +1,9 @@
 server:
   hostname: 127.0.0.1
-  port: 1234
+  port: 8080
+  certs:
+    cert: server.crt
+    key: server.key
   repo:
     type: file
     path: ./files/
