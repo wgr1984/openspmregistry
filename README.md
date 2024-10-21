@@ -25,6 +25,10 @@ Basic Publishing and retrieval of swift packages
 
 # How To Use
 ## Run server
+fetch from repo
+```
+git clone https://github.com/wgr1984/openspmregistry.git
+```
 ### Using docker image
 create image
 ```
@@ -35,14 +39,8 @@ run image
 docker run -p 8080:8080 -v ./:/data -i -t openspmregistry:latest
 ```
 ### From source
-fetch from git
-```
-git clone https://github.com/wgr1984/openspmregistry.git
-```
 build / run
-```
- go run main.go -tls=true -v
-```
+
 ⚠️ check `server.yml` to e.g. adapt path and port
 ```
  go run main.go -tls=true -v
@@ -53,21 +51,51 @@ build / run
 https://www.swift.org/documentation/package-manager/
 e.g.
 ```
-mkdir spm_test
-cd spm_test
-swift package init --type=executable 
+mkdir spm_test_lib
+cd spm_test_lib
+swift package init --type=library 
 ```
 ensure spm registry is known and setup
-e.g. `localhost` (be ware `swift package-registry` as for now accepts tls/ssl connections only)
-```
-swift package-registry set https://127.0.0.1:1234
-```
-or if used **docker** image
+e.g. `localhost` (be aware `swift package-registry` as for now accepts tls/ssl connections only)
 ```
 swift package-registry set https://localhost:8080
 ```
 ⚠️ on local setup we need to make sure ssl cert is set too trusted on system level
-
+```
+swift package-registry set https://localhost:8080
+```
+### Publish
+## Simple
+```
+swift package-registry publish test.TestLib 0.0.1
+```
+##Using metadata and signing
+```
+swift package-registry publish test.TestLib 0.0.1 --metadata-path package-metadata.json --signing-identity "[your identity]"
+```
+### package-metadata.json sample
+```
+{
+  "author": {
+    "name": "Wolfgang Reithmeier",
+    "email": "w.reithmeier@gmail.com",
+    "organization": {
+      "name": "wgr1984"
+    }
+  },
+  "description": "test spm app",
+  "licenseURL": "https://github.com/wgr1984/spm_test/LCENCE.TXT",
+  "readmeURL": "https://github.com/wgr1984/spm_test/README.md",
+  "repositoryURLs": [
+    "https://github.com/wgr1984/spm_test.git",
+    "git@github.com:wgr1984/spm_test.git"
+  ]
+}
+```
+### How to create a signing identity
+```
+TBD
+```
 ### 📋 Todos ❎
 - ✔️ Publishing
     - ❌ Package Validity checking (checksum, manifest, etc)
