@@ -35,12 +35,12 @@ func (c *Controller) InfoAction(w http.ResponseWriter, r *http.Request) {
 
 	addFirstReleaseAsLatest(listElements(w, c, scope, packageName), c, header)
 
-	metadataResult := make(map[string]interface{})
-
 	metadataResult, err := c.repo.FetchMetadata(scope, packageName, version)
-	if err != nil {
-		writeError("Meta data read failed", w)
-		return
+	if err != nil && slog.Default().Enabled(nil, slog.LevelDebug) {
+		slog.Debug("Error fetching metadata:", err)
+	}
+	if metadataResult == nil {
+		metadataResult = make(map[string]interface{})
 	}
 
 	// encode signature
