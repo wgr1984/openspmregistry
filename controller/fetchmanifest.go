@@ -67,7 +67,6 @@ func (c *Controller) FetchManifestAction(w http.ResponseWriter, r *http.Request)
 	header.Set("Content-Type", mimetypes.TextXSwift)
 	header.Set("Content-Disposition", fmt.Sprintf("attachment; filename=\"%s\"", filename))
 	header.Set("Cache-Control", "public, immutable")
-	w.WriteHeader(http.StatusOK)
 
 	modDate := time.Now()
 	if rawDate, err := c.repo.PublishDate(element); err == nil {
