@@ -123,6 +123,27 @@ openssl x509 -req -in ecdsa.csr -CA ca.crt -CAkey ca.key -CAcreateserial -outfor
 ```
 cp ca.crt ~/.swiftpm/security/trusted-root-certs/ca.cer
 ```
+##### trusted store configuration [~/.swiftpm/configuration/registries.json]
+(https://github.com/swiftlang/swift-package-manager/blob/main/Documentation/PackageRegistry/PackageRegistryUsage.md#security-configuration)
+```
+{
+    "security": {
+    "default": {
+      "signing": {
+        "onUnsigned": "error",
+        "onUntrustedCertificate": "error",
+        "trustedRootCertificatesPath": "/Users/[user]/.swiftpm/security/trusted-root-certs/",
+        "includeDefaultTrustedRootCertificates": true,
+        "validationChecks": {
+          "certificateExpiration": "disabled",
+          "certificateRevocation": "disabled"
+        }
+      }
+    }
+  },
+  ...
+}
+```
 #### publish with signing
 ```
 swift package-registry publish [scope].[Package] [version] --metadata-path package-metadata.json --vv --private-key-path ecdsa_pkcs8.key --cert-chain-paths ecdsa.crt
