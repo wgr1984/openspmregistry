@@ -37,7 +37,7 @@ func (c *Controller) InfoAction(w http.ResponseWriter, r *http.Request) {
 
 	metadataResult, err := c.repo.FetchMetadata(scope, packageName, version)
 	if err != nil && slog.Default().Enabled(nil, slog.LevelDebug) {
-		slog.Debug("Error fetching metadata:", err)
+		slog.Debug("Error fetching metadata:", "error", err)
 	}
 	if metadataResult == nil {
 		metadataResult = make(map[string]interface{})
