@@ -1,8 +1,10 @@
 package main
 
 import (
+	"OpenSPMRegistry/authenticator"
 	"OpenSPMRegistry/config"
 	"OpenSPMRegistry/controller"
+	"OpenSPMRegistry/middleware"
 	"OpenSPMRegistry/repo"
 	"flag"
 	"fmt"
@@ -21,10 +23,14 @@ var (
 )
 
 func loadServerConfig() (*config.ServerRoot, error) {
-	yamlData, err := os.ReadFile("config.yml")
+	yamlData, err := os.ReadFile("config.local.yml")
 	if err != nil {
-		return nil, err
+		yamlData, err = os.ReadFile("config.yml")
+		if err != nil {
+			return nil, err
+		}
 	}
+
 	var serverRoot *config.ServerRoot
 	err = yaml.Unmarshal(yamlData, &serverRoot)
 	if err != nil {
@@ -58,21 +64,25 @@ func main() {
 	}
 
 	r := repo.NewFileRepo(repoConfig.Path)
-
+	a := middleware.NewAuthentication(authenticator.NewAuthenticator(serverConfig.Server))
 	c := controller.NewController(serverConfig.Server, r)
 
+	// public routes
 	router.HandleFunc("GET /", c.MainAction)
-	router.HandleFunc("GET /{scope}/{package}", c.ListAction)
-	router.HandleFunc("GET /{scope}/{package}/{version}", func(w http.ResponseWriter, r *http.Request) {
+
+	// authorized routes
+	router.HandleFunc("POST /login", a.Authenticate(c.LoginAction))
+	router.HandleFunc("GET /{scope}/{package}", a.Authenticate(c.ListAction))
+	router.HandleFunc("GET /{scope}/{package}/{version}", a.Authenticate(func(w http.ResponseWriter, r *http.Request) {
 		if strings.HasSuffix(r.URL.Path, ".zip") {
 			c.DownloadSourceArchiveAction(w, r)
 		} else {
 			c.InfoAction(w, r)
 		}
-	})
-	router.HandleFunc("GET /{scope}/{package}/{version}/Package.swift", c.FetchManifestAction)
-	router.HandleFunc("GET /identifiers", c.LookupAction)
-	router.HandleFunc("PUT /{scope}/{package}/{version}", c.PublishAction)
+	}))
+	router.HandleFunc("GET /{scope}/{package}/{version}/Package.swift", a.Authenticate(c.FetchManifestAction))
+	router.HandleFunc("GET /identifiers", a.Authenticate(c.LookupAction))
+	router.HandleFunc("PUT /{scope}/{package}/{version}", a.Authenticate(c.PublishAction))
 
 	srv := &http.Server{
 		Addr:    fmt.Sprintf(":%d", serverConfig.Server.Port),

@@ -1,6 +1,8 @@
 package utils
 
 import (
+	"crypto/rand"
+	"encoding/base64"
 	"strings"
 )
 
@@ -16,4 +18,13 @@ func StripExtension(s string, ext string) string {
 	} else {
 		return s
 	}
+}
+
+func RandomString(i int) (string, error) {
+	b := make([]byte, i)
+	_, err := rand.Read(b)
+	if err != nil {
+		return "", err
+	}
+	return base64.URLEncoding.EncodeToString(b), nil
 }

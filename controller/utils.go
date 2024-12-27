@@ -139,3 +139,34 @@ func locationOfElement(c *Controller, element models.ListElement) string {
 		element.Version)
 	return location
 }
+
+func writeError(msg string, w http.ResponseWriter) {
+	writeErrorWithStatusCode(msg, w, http.StatusBadRequest)
+}
+
+func writeErrorWithStatusCode(msg string, w http.ResponseWriter, status int) {
+	header := w.Header()
+	header.Set("Content-Type", "application/problem+json")
+	header.Set("Content-Language", "en")
+	header.Set("Content-Version", "1")
+	w.WriteHeader(status)
+	err := json.NewEncoder(w).Encode(responses.Error{
+		Detail: msg,
+	})
+	if err != nil {
+		slog.Error("Error writing response:", "error", err)
+	}
+}
+
+func printCallInfo(methodName string, r *http.Request) {
+	if slog.Default().Enabled(nil, slog.LevelDebug) {
+		slog.Info(fmt.Sprintf("%s Request:", methodName))
+		for name, values := range r.Header {
+			for _, value := range values {
+				slog.Debug("Header:", name, value)
+			}
+		}
+		slog.Info("URL", "url", r.RequestURI)
+		slog.Info("Method", "method", r.Method)
+	}
+}

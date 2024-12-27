@@ -10,6 +10,7 @@ type ServerConfig struct {
 	Certs    Certs         `yaml:"certs"`
 	Repo     Repo          `yaml:"repo"`
 	Publish  PublishConfig `yaml:"publish"`
+	Auth     AuthConfig    `yaml:"auth"`
 }
 
 type Certs struct {
@@ -24,4 +25,13 @@ type PublishConfig struct {
 type Repo struct {
 	Path string `yaml:"path"`
 	Type string `yaml:"type"`
+}
+
+type AuthConfig struct {
+	Name           string `yaml:"name"`
+	ClientId       string `yaml:"client_id"`
+	ClientSecret   string `yaml:"client_secret"`
+	TokenEndpoint  string `yaml:"token_endpoint"`
+	UserIdEndpoint string `yaml:"userinfo_endpoint"`
+	PubKey         string `yaml:"pub_key"`
 }
