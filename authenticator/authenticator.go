@@ -43,11 +43,18 @@ func (a *Authenticator) Authenticate(username string, password string) error {
 		if valid, err := a.checkJWT(token); err != nil {
 			return err
 		} else if valid {
+			if slog.Default().Enabled(nil, slog.LevelDebug) {
+				slog.Debug("JWT token still valid")
+			}
 			return nil
 		}
 	}
 
 	// request token from auth provider
+	if slog.Default().Enabled(nil, slog.LevelDebug) {
+		slog.Debug("Requesting token from auth provider")
+	}
+
 	provider := a.config.Auth
 	resp, err := requestToken(&provider, username, password)
 	if err != nil {
