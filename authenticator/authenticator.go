@@ -36,9 +36,12 @@ func NewAuthenticator(config config.ServerConfig) *Authenticator {
 }
 
 func (a *Authenticator) Authenticate(username string, password string) error {
+	// generate cache key
+	hashedPassword := sha256.Sum256([]byte(password))
+	key := username + ":" + base64.StdEncoding.EncodeToString(hashedPassword[:])
 
 	// check cache
-	if token, ok := a.cache.Get(username); ok {
+	if token, ok := a.cache.Get(key); ok {
 		// check token
 		if valid, err := a.checkJWT(token); err != nil {
 			return err
@@ -68,7 +71,7 @@ func (a *Authenticator) Authenticate(username string, password string) error {
 	idTokenJWT := ""
 	if !ok {
 		// request user info
-		_, err := requestUserInfo(&provider, resp["access_token"].(string))
+		_, err := requestUserInfo(&provider)
 		if err != nil {
 			return err
 		}
@@ -79,7 +82,7 @@ func (a *Authenticator) Authenticate(username string, password string) error {
 	}
 
 	// store token in cache
-	a.cache.Add(username, idTokenJWT)
+	a.cache.Add(key, idTokenJWT)
 
 	return nil
 }
@@ -177,7 +180,7 @@ func requestToken(provider *config.AuthConfig, username string, password string)
 	return readResponse(err, resp)
 }
 
-func requestUserInfo(a *config.AuthConfig, s string) (map[string]interface{}, error) {
+func requestUserInfo(a *config.AuthConfig) (map[string]interface{}, error) {
 	// request user info from auth provider
 	resp, err := http.Get(a.UserIdEndpoint)
 	return readResponse(err, resp)
