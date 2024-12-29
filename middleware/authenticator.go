@@ -9,10 +9,10 @@ import (
 )
 
 type Authentication struct {
-	auth *authenticator.Authenticator
+	auth authenticator.Authenticator
 }
 
-func NewAuthentication(auth *authenticator.Authenticator) *Authentication {
+func NewAuthentication(auth authenticator.Authenticator) *Authentication {
 	return &Authentication{auth: auth}
 }
 

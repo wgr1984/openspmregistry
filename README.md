@@ -13,7 +13,7 @@ https://github.com/swiftlang/swift-package-manager/blob/main/Documentation/Packa
 # Current Features
 Basic Publishing and retrieval of swift packages
 - ✔️ Listing / Browsing
-- ✔️Retrieval of Packages
+- ✔️ Retrieval of Packages
 - ✔️ Publishing
   - ✔️ synchronous
   - ✔️ binary format
@@ -22,6 +22,9 @@ Basic Publishing and retrieval of swift packages
 - ✔️ Storage
   - ✔️ Filesystem
 - ✔️ Docker Image sample
+- ✔️User Management / Access Control
+  - ✔️Basic Auth
+  - ✔️Oauth token
 
 # How To Use
 ## Run server
@@ -63,6 +66,36 @@ swift package-registry set https://localhost:8080
 ⚠️ on local setup we need to make sure ssl cert is set too trusted on system level
 ```
 swift package-registry set https://localhost:8080
+```
+### Login / Authentification
+## No Auth
+```
+  auth:
+    enabled: false
+```
+## Basic Auth
+Add auth block to `config.yml` and set `auth` to `basic`
+```
+  auth:
+    type: basic
+    username: ******
+    password: ******
+```
+## Use OIDC provider
+Add auth block to `config.yml` and set `auth` to the name of the provider e.g. Auth0
+```
+  auth:
+    name: auth0
+    type: oidc
+    issuer: https://.....auth0.com/
+    client_id: ******
+    client_secret: ******
+```
+⚠️ Important currently only grant type `client_password` is supported.
+## Setup registry to use login credentials
+usnername / password ^= set by oauth provider or basic auth
+```
+swift package-registry login --username [username] --password [password]
 ```
 ### Publish
 ## Simple
@@ -158,5 +191,5 @@ swift package-registry publish [scope].[Package] [version] --metadata-path packa
   - ❌ DB support (e.g. mysql, postgres)
   - ❌ online storage (e.g S3, cloud drive)
 - ❌ User Management / Access Control
-  - ❌ Basic Auth
-  - ❌ Oauth token
+  - ❌ Permissions / roles
+  - ❌ Scope restrictions

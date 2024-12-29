@@ -6,7 +6,6 @@ import (
 	"OpenSPMRegistry/controller"
 	"OpenSPMRegistry/middleware"
 	"OpenSPMRegistry/repo"
-	"context"
 	"flag"
 	"fmt"
 	"gopkg.in/yaml.v3"
@@ -32,9 +31,14 @@ func loadServerConfig() (*config.ServerRoot, error) {
 		}
 	}
 
-	var serverRoot *config.ServerRoot
-	err = yaml.Unmarshal(yamlData, &serverRoot)
-	if err != nil {
+	serverRoot := &config.ServerRoot{
+		Server: config.ServerConfig{
+			Auth: config.AuthConfig{
+				Enabled: true, // enable authentication by default
+			},
+		},
+	}
+	if err := yaml.Unmarshal(yamlData, &serverRoot); err != nil {
 		return nil, err
 	}
 	return serverRoot, nil
@@ -65,7 +69,7 @@ func main() {
 	}
 
 	r := repo.NewFileRepo(repoConfig.Path)
-	a := middleware.NewAuthentication(authenticator.NewAuthenticator(context.Background(), serverConfig.Server))
+	a := middleware.NewAuthentication(authenticator.CreateAuthenticator(serverConfig.Server))
 	c := controller.NewController(serverConfig.Server, r)
 
 	// public routes
