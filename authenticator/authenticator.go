@@ -31,6 +31,8 @@ func CreateAuthenticator(config config.ServerConfig) Authenticator {
 	switch config.Auth.Type {
 	case "oidc":
 		return NewOIDCAuthenticator(context.Background(), config)
+	case "basic":
+		return NewBasicAuthenticator(config.Auth.Users)
 	default:
 		return &NoOpAuthenticator{}
 	}
