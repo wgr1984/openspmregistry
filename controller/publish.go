@@ -2,6 +2,7 @@ package controller
 
 import (
 	"OpenSPMRegistry/models"
+	"OpenSPMRegistry/utils"
 	"fmt"
 	"io"
 	"log/slog"
@@ -84,7 +85,7 @@ func (c *Controller) PublishAction(w http.ResponseWriter, r *http.Request) {
 	// https://github.com/swiftlang/swift-package-manager/blob/main/Documentation/PackageRegistry/Registry.md#4631-synchronous-publication
 	if packageElement != nil {
 		location, err := url.JoinPath(
-			"https://", fmt.Sprintf("%s:%d", c.config.Hostname, c.config.Port),
+			utils.BaseUrl(c.config),
 			scope,
 			packageName,
 			packageElement.FileName())

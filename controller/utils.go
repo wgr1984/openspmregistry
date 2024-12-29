@@ -3,6 +3,7 @@ package controller
 import (
 	"OpenSPMRegistry/models"
 	"OpenSPMRegistry/responses"
+	"OpenSPMRegistry/utils"
 	"encoding/json"
 	"fmt"
 	"log/slog"
@@ -133,7 +134,7 @@ func addFirstReleaseAsLatest(elements []models.ListElement, c *Controller, heade
 
 func locationOfElement(c *Controller, element models.ListElement) string {
 	location, _ := url.JoinPath(
-		"https://", fmt.Sprintf("%s:%d", c.config.Hostname, c.config.Port),
+		utils.BaseUrl(c.config),
 		element.Scope,
 		element.PackageName,
 		element.Version)

@@ -6,6 +6,7 @@ import (
 	"OpenSPMRegistry/controller"
 	"OpenSPMRegistry/middleware"
 	"OpenSPMRegistry/repo"
+	"context"
 	"flag"
 	"fmt"
 	"gopkg.in/yaml.v3"
@@ -64,7 +65,7 @@ func main() {
 	}
 
 	r := repo.NewFileRepo(repoConfig.Path)
-	a := middleware.NewAuthentication(authenticator.NewAuthenticator(serverConfig.Server))
+	a := middleware.NewAuthentication(authenticator.NewAuthenticator(context.Background(), serverConfig.Server))
 	c := controller.NewController(serverConfig.Server, r)
 
 	// public routes

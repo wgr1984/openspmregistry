@@ -28,10 +28,8 @@ type Repo struct {
 }
 
 type AuthConfig struct {
-	Name           string `yaml:"name"`
-	ClientId       string `yaml:"client_id"`
-	ClientSecret   string `yaml:"client_secret"`
-	TokenEndpoint  string `yaml:"token_endpoint"`
-	UserIdEndpoint string `yaml:"userinfo_endpoint"`
-	PubKey         string `yaml:"pub_key"`
+	Name         string `yaml:"name"`
+	ClientId     string `yaml:"client_id"`
+	ClientSecret string `yaml:"client_secret"`
+	Issuer       string `yaml:"issuer"`
 }
