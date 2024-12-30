@@ -83,15 +83,32 @@ Add auth block to `config.yml` and set `auth` to `basic`
 ```
 ## Use OIDC provider
 Add auth block to `config.yml` and set `auth` to the name of the provider e.g. Auth0
+
+⚠️ Important currently only grant type `password` or `code` is supported.
 ```
   auth:
     name: auth0
     type: oidc
+    grant_type: [password|code]
     issuer: https://.....auth0.com/
     client_id: ******
     client_secret: ******
 ```
-⚠️ Important currently only grant type `client_password` is supported.
+### Code
+in case of `code` grant type you need to set the redirect url in the provider to `https://server:port/callback`
+
+Excecute
+```
+swift package-registry login https://server:port --token #####
+```
+with the code you get from the browser invoke: `https://server:port/login`
+
+### Password
+In case of `password` grant type you need to set the username and password when executing the login command
+```
+swift package-registry login https://server:port --username ##### --password #####
+```
+
 ## Setup registry to use login credentials
 usnername / password ^= set by oauth provider or basic auth
 ```

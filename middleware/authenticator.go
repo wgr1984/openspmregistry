@@ -52,6 +52,7 @@ func (a *Authentication) authenticate(next http.HandlerFunc) http.HandlerFunc {
 
 		if authorizationHeader == "" {
 			if !ok || r.RequestURI != "/login" {
+				slog.Error("Authorization header not found")
 				http.Error(w, "Authorization header not found", http.StatusUnauthorized)
 				return
 			}
