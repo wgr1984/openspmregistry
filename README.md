@@ -22,9 +22,9 @@ Basic Publishing and retrieval of swift packages
 - ✔️ Storage
   - ✔️ Filesystem
 - ✔️ Docker Image sample
-- ✔️User Management / Access Control
-  - ✔️Basic Auth
-  - ✔️Oauth password and token
+- ✔️ User Management / Access Control
+  - ✔️ Basic Auth
+  - ✔️ Oauth password and token
 
 # How To Use
 ## Run server
