@@ -4,7 +4,6 @@ import (
 	"OpenSPMRegistry/config"
 	"context"
 	"golang.org/x/oauth2"
-	"log/slog"
 )
 
 // Authenticator is an interface for authenticating users
@@ -13,6 +12,9 @@ type Authenticator interface {
 	// Authenticate authenticates a user based on their username and password
 	// returns an error if the authentication fails
 	Authenticate(username string, password string) error
+
+	// SkipAuth returns true if the authenticator is disabled
+	SkipAuth() bool
 }
 
 type TokenAuthenticator interface {
@@ -27,15 +29,6 @@ type TokenAuthenticator interface {
 	// Callback returns the token based on the provided state and code
 	// returns an error if the token cannot be retrieved
 	Callback(state string, code string) (string, error)
-}
-
-type NoOpAuthenticator struct{}
-
-func (a *NoOpAuthenticator) Authenticate(username string, password string) error {
-	if slog.Default().Enabled(nil, slog.LevelDebug) {
-		slog.Debug("Authentication disabled")
-	}
-	return nil
 }
 
 func CreateAuthenticator(config config.ServerConfig) Authenticator {

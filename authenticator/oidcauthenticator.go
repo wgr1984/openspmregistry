@@ -46,3 +46,7 @@ func NewOIDCAuthenticator(ctx context.Context, config config.ServerConfig) *Oidc
 		cache:     utils.NewLRUCache[string](CacheSize, CacheTtl),
 	}
 }
+
+func (a *OidcAuthenticator) SkipAuth() bool {
+	return false
+}

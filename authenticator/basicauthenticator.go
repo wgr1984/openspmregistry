@@ -28,6 +28,10 @@ func (a *BasicAuthenticator) Authenticate(username string, password string) erro
 	return errors.New("invalid username or password")
 }
 
+func (a *BasicAuthenticator) SkipAuth() bool {
+	return false
+}
+
 func hashPassword(password string) string {
 	hash := sha256.Sum256([]byte(password))
 	return hex.EncodeToString(hash[:])

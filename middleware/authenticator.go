@@ -39,6 +39,12 @@ func (a *Authentication) HandleFunc(pattern string, handler http.HandlerFunc) {
 // if the request is authorized, it calls the next handler
 func (a *Authentication) authenticate(next http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
+		// Check if authentication is enabled
+		if a.auth.SkipAuth() {
+			next.ServeHTTP(w, r)
+			return
+		}
+
 		// Check if the request is authorized
 		authorizationHeader := r.Header.Get("Authorization")
 

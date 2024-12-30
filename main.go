@@ -17,10 +17,13 @@ import (
 )
 
 var (
-	tlsFlag      bool
-	verboseFlag  bool
-	serverConfig config.ServerRoot
+	tlsFlag     bool
+	verboseFlag bool
 )
+
+type H interface {
+	HandleFunc(pattern string, handler http.HandlerFunc)
+}
 
 func loadServerConfig() (*config.ServerRoot, error) {
 	yamlData, err := os.ReadFile("config.local.yml")
