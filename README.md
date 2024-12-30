@@ -24,7 +24,7 @@ Basic Publishing and retrieval of swift packages
 - ✔️ Docker Image sample
 - ✔️User Management / Access Control
   - ✔️Basic Auth
-  - ✔️Oauth token
+  - ✔️Oauth password and token
 
 # How To Use
 ## Run server
