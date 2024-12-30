@@ -164,7 +164,17 @@ func printCallInfo(methodName string, r *http.Request) {
 		slog.Info(fmt.Sprintf("%s Request:", methodName))
 		for name, values := range r.Header {
 			for _, value := range values {
-				slog.Debug("Header:", name, value)
+				if name == "Authorization" {
+					if strings.HasPrefix(value, "Bearer ") {
+						slog.Debug("Header:", name, "Bearer "+strings.Repeat("*", 4))
+					} else if strings.HasPrefix(value, "Basic ") {
+						slog.Debug("Header:", name, "Basic "+strings.Repeat("*", 4))
+					} else {
+						slog.Debug("Header:", name, value)
+					}
+				} else {
+					slog.Debug("Header:", name, value)
+				}
 			}
 		}
 		slog.Info("URL", "url", r.RequestURI)

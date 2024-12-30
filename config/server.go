@@ -34,6 +34,7 @@ type AuthConfig struct {
 	ClientId     string `yaml:"client_id"`
 	ClientSecret string `yaml:"client_secret"`
 	Issuer       string `yaml:"issuer"`
+	GrantType    string `yaml:"grant_type"`
 	Users        []User `yaml:"users"`
 }
 

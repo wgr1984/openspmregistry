@@ -69,29 +69,31 @@ func main() {
 	}
 
 	r := repo.NewFileRepo(repoConfig.Path)
-	a := middleware.NewAuthentication(authenticator.CreateAuthenticator(serverConfig.Server))
+	a := middleware.NewAuthentication(authenticator.CreateAuthenticator(serverConfig.Server), router)
 	c := controller.NewController(serverConfig.Server, r)
 
-	// public routes
-	router.HandleFunc("GET /", c.MainAction)
-
 	// authorized routes
-	router.HandleFunc("POST /login", a.Authenticate(c.LoginAction))
-	router.HandleFunc("GET /{scope}/{package}", a.Authenticate(c.ListAction))
-	router.HandleFunc("GET /{scope}/{package}/{version}", a.Authenticate(func(w http.ResponseWriter, r *http.Request) {
+	a.HandleFunc("GET /login", c.LoginAction)
+	a.HandleFunc("POST /login", c.LoginAction)
+	a.HandleFunc("GET /{scope}/{package}", c.ListAction)
+	a.HandleFunc("GET /{scope}/{package}/{version}", func(w http.ResponseWriter, r *http.Request) {
 		if strings.HasSuffix(r.URL.Path, ".zip") {
 			c.DownloadSourceArchiveAction(w, r)
 		} else {
 			c.InfoAction(w, r)
 		}
-	}))
-	router.HandleFunc("GET /{scope}/{package}/{version}/Package.swift", a.Authenticate(c.FetchManifestAction))
-	router.HandleFunc("GET /identifiers", a.Authenticate(c.LookupAction))
-	router.HandleFunc("PUT /{scope}/{package}/{version}", a.Authenticate(c.PublishAction))
+	})
+	a.HandleFunc("GET /{scope}/{package}/{version}/Package.swift", c.FetchManifestAction)
+	a.HandleFunc("GET /identifiers", c.LookupAction)
+	a.HandleFunc("PUT /{scope}/{package}/{version}", c.PublishAction)
+
+	// public routes
+	router.HandleFunc("GET /", c.MainAction)
+	router.HandleFunc("GET /callback", a.CallbackAction)
 
 	srv := &http.Server{
 		Addr:    fmt.Sprintf(":%d", serverConfig.Server.Port),
-		Handler: http.Handler(router),
+		Handler: a,
 	}
 
 	if tlsFlag {
