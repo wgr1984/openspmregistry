@@ -1,12 +1,14 @@
-```
+<div style="display: flex; align-items: center;">
+    <img src="static/favicon.svg" style="padding-top: 30px; padding-bottom: 20px" height="200">
+    <pre>
   ___                   ____  ____  __  __ ____            _     _              
  / _ \ _ __   ___ _ __ / ___||  _ \|  \/  |  _ \ ___  __ _(_)___| |_ _ __ _   _ 
 | | | | '_ \ / _ \ '_ \\___ \| |_) | |\/| | |_) / _ \/ _` | / __| __| '__| | | |
 | |_| | |_) |  __/ | | |___) |  __/| |  | |  _ <  __/ (_| | \__ \ |_| |  | |_| |
  \___/| .__/ \___|_| |_|____/|_|   |_|  |_|_| \_\___|\__, |_|___/\__|_|   \__, |
       |_|                                            |___/                |___/ 
-```
-
+    </pre>
+</div>
 Simple (using as much go std. lib and as less external dependencies as possible) implementation of Swift Package Manager Registry according to
 https://github.com/swiftlang/swift-package-manager/blob/main/Documentation/PackageRegistry/Registry.md
 
@@ -49,7 +51,7 @@ build / run
  go run main.go -tls=true -v
 ```
 
-## Usage in SPM
+## Use SPM Registry
 ### Create New Project
 https://www.swift.org/documentation/package-manager/
 e.g.
@@ -67,19 +69,27 @@ swift package-registry set https://localhost:8080
 ```
 swift package-registry set https://localhost:8080
 ```
-### Login / Authentification
+# Login / Authentification
+There are different methods to authenticate against the registry.
+Therefor you need to add an `auth` block to the `config.yml` file.
 ## No Auth
+Add auth block to `config.yml` and set `auth.enabled` to `false`
 ```
   auth:
     enabled: false
 ```
 ## Basic Auth
-Add auth block to `config.yml` and set `auth` to `basic`
+Add auth block to `config.yml` and set `auth.type` to `basic`
 ```
   auth:
     type: basic
-    username: ******
-    password: ******
+    users:
+      - username: admin
+        password: 937e8d5fbb48bd4949536cd65b8d35c426b80d2f830c5c308e2cdec422ae2244
+```
+### Setup registry to use login credentials
+```
+swift package-registry login --username [username] --password sha265([password])
 ```
 ## Use OIDC provider
 Add auth block to `config.yml` and set `auth` to the name of the provider e.g. Auth0
@@ -109,17 +119,13 @@ In case of `password` grant type you need to set the username and password when 
 swift package-registry login https://server:port --username ##### --password #####
 ```
 
-## Setup registry to use login credentials
-usnername / password ^= set by oauth provider or basic auth
-```
-swift package-registry login --username [username] --password [password]
-```
-### Publish
+# Publish
+Navigate to the root of the package and execute
 ## Simple
 ```
 swift package-registry publish test.TestLib 0.0.1
 ```
-##Using metadata and signing
+## Using metadata and signing
 ```
 swift package-registry publish test.TestLib 0.0.1 --metadata-path package-metadata.json --signing-identity "[your identity]"
 ```
@@ -142,7 +148,7 @@ swift package-registry publish test.TestLib 0.0.1 --metadata-path package-metada
   ]
 }
 ```
-### How to create a signing identity
+### How to create a signing identity (manually)
 #### Create a CA
 ```
 openssl genpkey -algorithm RSA  -outform der -out ca.key -pkeyopt rsa_keygen_bits:2048
@@ -173,8 +179,8 @@ openssl x509 -req -in ecdsa.csr -CA ca.crt -CAkey ca.key -CAcreateserial -outfor
 ```
 cp ca.crt ~/.swiftpm/security/trusted-root-certs/ca.cer
 ```
-##### trusted store configuration [~/.swiftpm/configuration/registries.json]
-(https://github.com/swiftlang/swift-package-manager/blob/main/Documentation/PackageRegistry/PackageRegistryUsage.md#security-configuration)
+##### Trusted store configuration ```~/.swiftpm/configuration/registries.json```
+https://github.com/swiftlang/swift-package-manager/blob/main/Documentation/PackageRegistry/PackageRegistryUsage.md#security-configuration
 ```
 {
     "security": {

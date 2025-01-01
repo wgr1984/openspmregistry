@@ -92,6 +92,7 @@ func main() {
 
 	// public routes
 	router.HandleFunc("GET /", c.MainAction)
+	router.HandleFunc("GET /favicon.ico", c.FavIcon)
 	router.HandleFunc("GET /callback", a.CallbackAction)
 
 	srv := &http.Server{
