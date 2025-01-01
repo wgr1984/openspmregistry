@@ -1,4 +1,4 @@
-<table>
+<table cellspacing="0" cellpadding="0" style="border: none">
   <tr>
     <td>
       <img src="static/favicon.svg" style="padding-top: 30px; padding-bottom: 20px" height="200">
