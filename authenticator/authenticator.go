@@ -6,15 +6,10 @@ import (
 	"golang.org/x/oauth2"
 )
 
-// Authenticator is an interface for authenticating users
-// based on their username and password
-type Authenticator interface {
+type UsernamePasswordAuthenticator interface {
 	// Authenticate authenticates a user based on their username and password
 	// returns an error if the authentication fails
 	Authenticate(username string, password string) error
-
-	// SkipAuth returns true if the authenticator is disabled
-	SkipAuth() bool
 }
 
 type TokenAuthenticator interface {
@@ -31,14 +26,19 @@ type TokenAuthenticator interface {
 	Callback(state string, code string) (string, error)
 }
 
-func CreateAuthenticator(config config.ServerConfig) Authenticator {
+func CreateAuthenticator(config config.ServerConfig) interface{} {
 	if !config.Auth.Enabled {
 		return &NoOpAuthenticator{}
 	}
 
 	switch config.Auth.Type {
 	case "oidc":
-		return NewOIDCAuthenticator(context.Background(), config)
+		switch config.Auth.GrantType {
+		case "code":
+			return NewOIDCAuthenticatorCode(context.Background(), config)
+		default:
+			return NewOIDCAuthenticatorPassword(context.Background(), config)
+		}
 	case "basic":
 		return NewBasicAuthenticator(config.Auth.Users)
 	default:

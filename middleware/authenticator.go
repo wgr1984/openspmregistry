@@ -14,11 +14,15 @@ import (
 )
 
 type Authentication struct {
-	auth  authenticator.Authenticator
+	auth  interface{}
 	muxer *http.ServeMux
 }
 
-func NewAuthentication(auth authenticator.Authenticator, router *http.ServeMux) *Authentication {
+// NewAuthentication creates a new authentication middleware
+// based on the provided authenticator
+// supported authenticators are: TokenAuthenticator and UsernamePasswordAuthenticator
+// every other authenticator will be treated as a no-op authenticator
+func NewAuthentication(auth interface{}, router *http.ServeMux) *Authentication {
 	return &Authentication{
 		auth:  auth,
 		muxer: router,
@@ -39,19 +43,22 @@ func (a *Authentication) HandleFunc(pattern string, handler http.HandlerFunc) {
 // if the request is authorized, it calls the next handler
 func (a *Authentication) authenticate(next http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		// Check if authentication is enabled
-		if a.auth.SkipAuth() {
+		// Check if the request is authorized
+		authorizationHeader := r.Header.Get("Authorization")
+
+		tokenAuthentication, isTokenAuth := a.auth.(authenticator.TokenAuthenticator)
+		usernamePasswordAuthenticator, isPwdAuth := a.auth.(authenticator.UsernamePasswordAuthenticator)
+
+		// check if running on no-op authenticator
+		if !isTokenAuth && !isPwdAuth {
 			next.ServeHTTP(w, r)
 			return
 		}
 
-		// Check if the request is authorized
-		authorizationHeader := r.Header.Get("Authorization")
-
-		tokenAuthentication, ok := a.auth.(interface{}).(authenticator.TokenAuthenticator)
-
 		if authorizationHeader == "" {
-			if !ok || r.RequestURI != "/login" {
+			// Password authentication needs authorization header
+			// Token authentication can be skipped if the request is for the login endpoint
+			if !isTokenAuth || r.RequestURI != "/login" {
 				slog.Error("Authorization header not found")
 				http.Error(w, "Authorization header not found", http.StatusUnauthorized)
 				return
@@ -75,26 +82,35 @@ func (a *Authentication) authenticate(next http.HandlerFunc) http.HandlerFunc {
 			return
 		}
 
-		username, password, err := getBasicAuthCredentials(authorizationHeader)
-		token, err2 := getBearerToken(authorizationHeader)
-		if err != nil && err2 != nil {
-			writeAuthorizationHeaderError(w, err)
-			return
-		}
-		if err == nil {
-			if err := a.auth.Authenticate(username, password); err != nil {
+		// handle token authentication
+		if isTokenAuth {
+			token, err := getBearerToken(authorizationHeader)
+			if err != nil {
 				writeAuthorizationHeaderError(w, err)
 				return
 			}
-		} else if !ok {
-			w.WriteHeader(http.StatusUnauthorized)
-			return
-		} else if err := tokenAuthentication.AuthenticateToken(token); err != nil {
-			writeAuthorizationHeaderError(w, err)
-			return
+
+			if err := tokenAuthentication.AuthenticateToken(token); err != nil {
+				writeAuthorizationHeaderError(w, err)
+				return
+			}
+		} else if isPwdAuth {
+			username, password, err := getBasicAuthCredentials(authorizationHeader)
+			if err != nil {
+				writeAuthorizationHeaderError(w, err)
+				return
+			}
+
+			if err := usernamePasswordAuthenticator.Authenticate(username, password); err != nil {
+				writeAuthorizationHeaderError(w, err)
+				return
+			}
 		}
 
-		// If authorized, call the next handler
+		if slog.Default().Enabled(nil, slog.LevelDebug) {
+			slog.Debug("Request authorized")
+		}
+		// Once authorization checked, call the next handler
 		next.ServeHTTP(w, r)
 	}
 }

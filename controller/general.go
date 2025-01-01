@@ -3,7 +3,6 @@ package controller
 import (
 	"OpenSPMRegistry/config"
 	"OpenSPMRegistry/repo"
-	"log/slog"
 	"net/http"
 )
 
@@ -17,22 +16,12 @@ func NewController(config config.ServerConfig, repo repo.Repo) *Controller {
 }
 
 func (c *Controller) MainAction(w http.ResponseWriter, r *http.Request) {
+	printCallInfo("MainAction", r)
+	// 404 if no route matches
+	writeErrorWithStatusCode("Not found", w, http.StatusNotFound)
+}
 
-	if slog.Default().Enabled(nil, slog.LevelDebug) {
-		slog.Debug("Request:")
-		for name, values := range r.Header {
-			for _, value := range values {
-				slog.Debug("Header:", name, value)
-			}
-		}
-		slog.Debug("URL", r.RequestURI)
-		slog.Debug("Method", r.Method)
-	}
-
-	if err := checkHeaders(r); err != nil {
-		err.writeResponse(w)
-		return // error already logged
-	}
-
-	writeError("general error", w)
+func (c *Controller) FavIcon(w http.ResponseWriter, r *http.Request) {
+	printCallInfo("FavIcon", r)
+	http.ServeFile(w, r, "static/favicon.ico")
 }

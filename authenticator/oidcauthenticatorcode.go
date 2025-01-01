@@ -21,7 +21,7 @@ func NewOIDCAuthenticatorCode(ctx context.Context, config config.ServerConfig) *
 	}
 }
 
-func (a *OidcAuthenticator) AuthenticateToken(token string) error {
+func (a *OidcAuthenticatorCode) AuthenticateToken(token string) error {
 	if a.grantType != "code" {
 		return errors.New("invalid grant type")
 	}
@@ -36,11 +36,11 @@ func (a *OidcAuthenticator) AuthenticateToken(token string) error {
 	return err
 }
 
-func (a *OidcAuthenticator) AuthCodeURL(state string, nonce oauth2.AuthCodeOption) string {
+func (a *OidcAuthenticatorCode) AuthCodeURL(state string, nonce oauth2.AuthCodeOption) string {
 	return a.config.AuthCodeURL(state, nonce)
 }
 
-func (a *OidcAuthenticator) Callback(state string, code string) (string, error) {
+func (a *OidcAuthenticatorCode) Callback(state string, code string) (string, error) {
 	token, err := a.config.Exchange(a.ctx, code)
 	if err != nil {
 		return "", err

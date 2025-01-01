@@ -18,7 +18,7 @@ type OidcAuthenticatorPassword struct {
 	*OidcAuthenticator
 }
 
-// NewOIDCAuthenticator creates a new OIDC authenticator
+// NewOIDCAuthenticatorPassword OidcAuthenticatorPassword creates a new OIDC authenticator
 // based on the provided configuration
 func NewOIDCAuthenticatorPassword(ctx context.Context, config config.ServerConfig) *OidcAuthenticatorPassword {
 	return &OidcAuthenticatorPassword{
@@ -26,7 +26,7 @@ func NewOIDCAuthenticatorPassword(ctx context.Context, config config.ServerConfi
 	}
 }
 
-func (a *OidcAuthenticator) Authenticate(username string, password string) error {
+func (a *OidcAuthenticatorPassword) Authenticate(username string, password string) error {
 	if a.grantType != "password" {
 		return errors.New("invalid grant type")
 	}
@@ -64,7 +64,7 @@ func (a *OidcAuthenticator) Authenticate(username string, password string) error
 	return nil
 }
 
-func (a *OidcAuthenticator) requestToken(username string, password string) (string, error) {
+func (a *OidcAuthenticatorPassword) requestToken(username string, password string) (string, error) {
 	// request token from auth provider
 	token, err := a.config.PasswordCredentialsToken(a.ctx, username, password)
 	if err != nil {
