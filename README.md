@@ -107,6 +107,12 @@ Add auth block to `config.yml` and set `auth` to the name of the provider e.g. A
     name: auth0
     type: oidc
     grant_type: [password|code]
+    # ==============================
+    # for grant_type=password new need a cache for the token
+    # configuration for the cache, by your needs
+    jwt_cache_ttl_hours: 24 # time to live for JWT cache
+    jwt_cache_size: 1000 # max number of JWTs to cache
+    # ==============================
     issuer: https://.....auth0.com/
     client_id: ******
     client_secret: ******

@@ -7,6 +7,7 @@ import (
 	"github.com/coreos/go-oidc/v3/oidc"
 	"golang.org/x/oauth2"
 	"log/slog"
+	"time"
 )
 
 // OidcAuthenticator is an authenticator that uses OpenID Connect
@@ -43,6 +44,6 @@ func NewOIDCAuthenticator(ctx context.Context, config config.ServerConfig) *Oidc
 		grantType: config.Auth.GrantType,
 		verifier:  verifier,
 		provider:  provider,
-		cache:     utils.NewLRUCache[string](CacheSize, CacheTtl),
+		cache:     utils.NewLRUCache[string](config.Auth.JWTCacheSize, time.Duration(config.Auth.JWTCacheTTLHours)*time.Hour),
 	}
 }

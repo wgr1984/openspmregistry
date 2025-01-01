@@ -37,7 +37,9 @@ func loadServerConfig() (*config.ServerRoot, error) {
 	serverRoot := &config.ServerRoot{
 		Server: config.ServerConfig{
 			Auth: config.AuthConfig{
-				Enabled: true, // enable authentication by default
+				Enabled:          true, // enable authentication by default
+				JWTCacheSize:     1000, // cache 1000 JWTs
+				JWTCacheTTLHours: 24,   // cache JWTs for 24 hours
 			},
 		},
 	}

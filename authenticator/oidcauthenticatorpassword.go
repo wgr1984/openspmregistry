@@ -7,11 +7,7 @@ import (
 	"encoding/base64"
 	"errors"
 	"log/slog"
-	"time"
 )
-
-const CacheSize = 100
-const CacheTtl = 24 * time.Hour // 1 hour
 
 // OidcAuthenticatorPassword is an authenticator that uses OpenID Connect with password grant
 type OidcAuthenticatorPassword struct {
