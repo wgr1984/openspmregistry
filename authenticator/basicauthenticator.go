@@ -16,16 +16,16 @@ func NewBasicAuthenticator(users []config.User) *BasicAuthenticator {
 	return &BasicAuthenticator{users: users}
 }
 
-func (a *BasicAuthenticator) Authenticate(username string, password string) error {
+func (a *BasicAuthenticator) Authenticate(username string, password string) (error, string) {
 	if slog.Default().Enabled(nil, slog.LevelDebug) {
 		slog.Debug("Basic authentication")
 	}
 	for _, user := range a.users {
-		if user.Username == username && user.Password == hashPassword(password) {
-			return nil
+		if hashedPwd := hashPassword(password); user.Password == hashedPwd && user.Username == username {
+			return nil, hashedPwd
 		}
 	}
-	return errors.New("invalid username or password")
+	return errors.New("invalid username or password"), ""
 }
 
 func (a *BasicAuthenticator) SkipAuth() bool {

@@ -22,9 +22,9 @@ func NewOIDCAuthenticatorPassword(ctx context.Context, config config.ServerConfi
 	}
 }
 
-func (a *OidcAuthenticatorPassword) Authenticate(username string, password string) error {
+func (a *OidcAuthenticatorPassword) Authenticate(username string, password string) (error, string) {
 	if a.grantType != "password" {
-		return errors.New("invalid grant type")
+		return errors.New("invalid grant type"), ""
 	}
 
 	// generate cache key
@@ -35,12 +35,12 @@ func (a *OidcAuthenticatorPassword) Authenticate(username string, password strin
 	if token, ok := a.cache.Get(key); ok {
 		// check token
 		if _, err := a.verifier.Verify(a.ctx, token); err != nil {
-			return err
+			return err, ""
 		} else {
 			if slog.Default().Enabled(nil, slog.LevelDebug) {
 				slog.Debug("Token still valid")
 			}
-			return nil
+			return nil, token
 		}
 	}
 
@@ -51,13 +51,13 @@ func (a *OidcAuthenticatorPassword) Authenticate(username string, password strin
 
 	idToken, err := a.requestToken(username, password)
 	if err != nil {
-		return err
+		return err, ""
 	}
 
 	// store token in cache
 	a.cache.Add(key, idToken)
 
-	return nil
+	return nil, idToken
 }
 
 func (a *OidcAuthenticatorPassword) requestToken(username string, password string) (string, error) {

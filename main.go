@@ -21,10 +21,6 @@ var (
 	verboseFlag bool
 )
 
-type H interface {
-	HandleFunc(pattern string, handler http.HandlerFunc)
-}
-
 func loadServerConfig() (*config.ServerRoot, error) {
 	yamlData, err := os.ReadFile("config.local.yml")
 	if err != nil {

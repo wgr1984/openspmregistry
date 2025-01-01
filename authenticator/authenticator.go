@@ -8,8 +8,8 @@ import (
 
 type UsernamePasswordAuthenticator interface {
 	// Authenticate authenticates a user based on their username and password
-	// returns an error if the authentication fails
-	Authenticate(username string, password string) error
+	// returns an error if the authentication fails else returns the token
+	Authenticate(username string, password string) (error, string)
 }
 
 type TokenAuthenticator interface {

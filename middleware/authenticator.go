@@ -101,7 +101,8 @@ func (a *Authentication) authenticate(next http.HandlerFunc) http.HandlerFunc {
 				return
 			}
 
-			if err := usernamePasswordAuthenticator.Authenticate(username, password); err != nil {
+			err, _ = usernamePasswordAuthenticator.Authenticate(username, password)
+			if err != nil {
 				writeAuthorizationHeaderError(w, err)
 				return
 			}
