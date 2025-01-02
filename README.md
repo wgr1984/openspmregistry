@@ -1,19 +1,28 @@
-```
+<table cellspacing="0" cellpadding="0" style="border: none">
+  <tr>
+    <td>
+      <img src="static/favicon.svg" style="padding-top: 30px; padding-bottom: 20px" height="200">
+    </td>
+    <td>
+      <pre>
   ___                   ____  ____  __  __ ____            _     _              
  / _ \ _ __   ___ _ __ / ___||  _ \|  \/  |  _ \ ___  __ _(_)___| |_ _ __ _   _ 
 | | | | '_ \ / _ \ '_ \\___ \| |_) | |\/| | |_) / _ \/ _` | / __| __| '__| | | |
 | |_| | |_) |  __/ | | |___) |  __/| |  | |  _ <  __/ (_| | \__ \ |_| |  | |_| |
  \___/| .__/ \___|_| |_|____/|_|   |_|  |_|_| \_\___|\__, |_|___/\__|_|   \__, |
       |_|                                            |___/                |___/ 
-```
-
+      </pre>
+    </td>
+  </tr>
+</table>
+  
 Simple (using as much go std. lib and as less external dependencies as possible) implementation of Swift Package Manager Registry according to
 https://github.com/swiftlang/swift-package-manager/blob/main/Documentation/PackageRegistry/Registry.md
 
 # Current Features
 Basic Publishing and retrieval of swift packages
 - ✔️ Listing / Browsing
-- ✔️Retrieval of Packages
+- ✔️ Retrieval of Packages
 - ✔️ Publishing
   - ✔️ synchronous
   - ✔️ binary format
@@ -22,6 +31,9 @@ Basic Publishing and retrieval of swift packages
 - ✔️ Storage
   - ✔️ Filesystem
 - ✔️ Docker Image sample
+- ✔️ User Management / Access Control
+  - ✔️ Basic Auth
+  - ✔️ Oauth password and token
 
 # How To Use
 ## Run server
@@ -46,7 +58,7 @@ build / run
  go run main.go -tls=true -v
 ```
 
-## Usage in SPM
+## Use SPM Registry
 ### Create New Project
 https://www.swift.org/documentation/package-manager/
 e.g.
@@ -64,12 +76,83 @@ swift package-registry set https://localhost:8080
 ```
 swift package-registry set https://localhost:8080
 ```
-### Publish
+# Login / Authentification
+There are different methods to authenticate against the registry.
+Therefor you need to add an `auth` block to the `config.yml` file.
+## No Auth
+_just for testing purposes or proxied through external auth provider_
+
+Add auth block to `config.yml` and set `auth.enabled` to `false`
+```
+  auth:
+    enabled: false
+```
+## Basic Auth
+_in case just basic security is needed, not recommended for public registries_
+
+Add auth block to `config.yml` and set `auth.type` to `basic`
+```
+  auth:
+    type: basic
+    users:
+      - username: admin
+        password: 937e8d5fbb48bd4949536cd65b8d35c426b80d2f830c5c308e2cdec422ae2244
+```
+now setup login using
+```
+swift package-registry login --username [username] --password sha265([password])
+```
+## Use OIDC provider
+Add auth block to `config.yml` and set `auth` to the name of the provider e.g. Auth0
+
+⚠️ Important currently only grant type `password` or `code` is supported.
+```
+  auth:
+    name: auth0
+    type: oidc
+    grant_type: [password|code]
+    issuer: (e.g. https://.....auth0.com/)
+    client_id: ******
+    client_secret: ******
+```
+### Code
+https://oauth.net/2/grant-types/authorization-code/
+
+_recommended for public auth providers eg. Auth0, Google, etc_
+
+in case of `code` grant type you need to set the redirect url in the provider to `https://server:port/callback`
+
+Excecute
+```
+swift package-registry login https://server:port --token #####
+```
+with the code you get from the browser invoke: `https://server:port/login`
+
+### Password
+https://oauth.net/2/grant-types/password/
+
+_not recommended for public auth providers, only in case provider should be hidden / not exposed to the users and trusted_
+
+In case of `password` grant type also go to `https://server:port/login` and enter your credentials
+
+⚠️ Warning
+- Be aware the password is transmitted in clear text (well base64 encoded) to this server
+- Therefore it is recommended to use `https` at least for the connection.
+- Login will be CSRF protected though
+- DO NOT USE `swift package-registry login https://server:port --username [username] --password [password]` (it will not work)
+
+once obtained token login similar to `code` grant type
+```
+swift package-registry login https://server:port --token #####
+```
+
+# Publish
+Navigate to the root of the package and execute
 ## Simple
 ```
 swift package-registry publish test.TestLib 0.0.1
 ```
-##Using metadata and signing
+## Using metadata and signing
 ```
 swift package-registry publish test.TestLib 0.0.1 --metadata-path package-metadata.json --signing-identity "[your identity]"
 ```
@@ -92,7 +175,7 @@ swift package-registry publish test.TestLib 0.0.1 --metadata-path package-metada
   ]
 }
 ```
-### How to create a signing identity
+### How to create a signing identity (manually)
 #### Create a CA
 ```
 openssl genpkey -algorithm RSA  -outform der -out ca.key -pkeyopt rsa_keygen_bits:2048
@@ -123,8 +206,8 @@ openssl x509 -req -in ecdsa.csr -CA ca.crt -CAkey ca.key -CAcreateserial -outfor
 ```
 cp ca.crt ~/.swiftpm/security/trusted-root-certs/ca.cer
 ```
-##### trusted store configuration [~/.swiftpm/configuration/registries.json]
-(https://github.com/swiftlang/swift-package-manager/blob/main/Documentation/PackageRegistry/PackageRegistryUsage.md#security-configuration)
+##### Trusted store configuration ```~/.swiftpm/configuration/registries.json```
+https://github.com/swiftlang/swift-package-manager/blob/main/Documentation/PackageRegistry/PackageRegistryUsage.md#security-configuration
 ```
 {
     "security": {
@@ -158,5 +241,5 @@ swift package-registry publish [scope].[Package] [version] --metadata-path packa
   - ❌ DB support (e.g. mysql, postgres)
   - ❌ online storage (e.g S3, cloud drive)
 - ❌ User Management / Access Control
-  - ❌ Basic Auth
-  - ❌ Oauth token
+  - ❌ Permissions / roles
+  - ❌ Scope restrictions

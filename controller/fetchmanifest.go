@@ -3,6 +3,7 @@ package controller
 import (
 	"OpenSPMRegistry/mimetypes"
 	"OpenSPMRegistry/models"
+	"OpenSPMRegistry/utils"
 	"fmt"
 	"log/slog"
 	"net/http"
@@ -85,7 +86,7 @@ func (c *Controller) manifestsToString(manifests []models.UploadElement) string 
 		version := strings.Trim(manifestFileName, "Package@-.swift")
 		// create the location URL the alternative Manifest can be downloaded from
 		location, err := url.JoinPath(
-			"https://", fmt.Sprintf("%s:%d", c.config.Hostname, c.config.Port),
+			utils.BaseUrl(c.config),
 			manifest.Scope,
 			manifest.Name,
 			manifest.Version,

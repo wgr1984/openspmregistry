@@ -3,6 +3,7 @@ package controller
 import (
 	"OpenSPMRegistry/models"
 	"OpenSPMRegistry/responses"
+	"OpenSPMRegistry/utils"
 	"encoding/json"
 	"fmt"
 	"log/slog"
@@ -133,9 +134,50 @@ func addFirstReleaseAsLatest(elements []models.ListElement, c *Controller, heade
 
 func locationOfElement(c *Controller, element models.ListElement) string {
 	location, _ := url.JoinPath(
-		"https://", fmt.Sprintf("%s:%d", c.config.Hostname, c.config.Port),
+		utils.BaseUrl(c.config),
 		element.Scope,
 		element.PackageName,
 		element.Version)
 	return location
+}
+
+func writeError(msg string, w http.ResponseWriter) {
+	writeErrorWithStatusCode(msg, w, http.StatusBadRequest)
+}
+
+func writeErrorWithStatusCode(msg string, w http.ResponseWriter, status int) {
+	header := w.Header()
+	header.Set("Content-Type", "application/problem+json")
+	header.Set("Content-Language", "en")
+	header.Set("Content-Version", "1")
+	w.WriteHeader(status)
+	err := json.NewEncoder(w).Encode(responses.Error{
+		Detail: msg,
+	})
+	if err != nil {
+		slog.Error("Error writing response:", "error", err)
+	}
+}
+
+func printCallInfo(methodName string, r *http.Request) {
+	if slog.Default().Enabled(nil, slog.LevelDebug) {
+		slog.Info(fmt.Sprintf("%s Request:", methodName))
+		for name, values := range r.Header {
+			for _, value := range values {
+				if name == "Authorization" {
+					if strings.HasPrefix(value, "Bearer ") {
+						slog.Debug("Header:", name, "Bearer "+strings.Repeat("*", 4))
+					} else if strings.HasPrefix(value, "Basic ") {
+						slog.Debug("Header:", name, "Basic "+strings.Repeat("*", 4))
+					} else {
+						slog.Debug("Header:", name, value)
+					}
+				} else {
+					slog.Debug("Header:", name, value)
+				}
+			}
+		}
+		slog.Info("URL", "url", r.RequestURI)
+		slog.Info("Method", "method", r.Method)
+	}
 }
