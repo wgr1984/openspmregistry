@@ -80,12 +80,16 @@ swift package-registry set https://localhost:8080
 There are different methods to authenticate against the registry.
 Therefor you need to add an `auth` block to the `config.yml` file.
 ## No Auth
+_just for testing purposes or proxied through external auth provider_
+
 Add auth block to `config.yml` and set `auth.enabled` to `false`
 ```
   auth:
     enabled: false
 ```
 ## Basic Auth
+_in case just basic security is needed, not recommended for public registries_
+
 Add auth block to `config.yml` and set `auth.type` to `basic`
 ```
   auth:
@@ -94,7 +98,7 @@ Add auth block to `config.yml` and set `auth.type` to `basic`
       - username: admin
         password: 937e8d5fbb48bd4949536cd65b8d35c426b80d2f830c5c308e2cdec422ae2244
 ```
-### Setup registry to use login credentials
+now setup login using
 ```
 swift package-registry login --username [username] --password sha265([password])
 ```
@@ -107,17 +111,15 @@ Add auth block to `config.yml` and set `auth` to the name of the provider e.g. A
     name: auth0
     type: oidc
     grant_type: [password|code]
-    # ==============================
-    # for grant_type=password new need a cache for the token
-    # configuration for the cache, by your needs
-    jwt_cache_ttl_hours: 24 # time to live for JWT cache
-    jwt_cache_size: 1000 # max number of JWTs to cache
-    # ==============================
-    issuer: https://.....auth0.com/
+    issuer: (e.g. https://.....auth0.com/)
     client_id: ******
     client_secret: ******
 ```
 ### Code
+https://oauth.net/2/grant-types/authorization-code/
+
+_recommended for public auth providers eg. Auth0, Google, etc_
+
 in case of `code` grant type you need to set the redirect url in the provider to `https://server:port/callback`
 
 Excecute
@@ -127,9 +129,21 @@ swift package-registry login https://server:port --token #####
 with the code you get from the browser invoke: `https://server:port/login`
 
 ### Password
-In case of `password` grant type you need to set the username and password when executing the login command
+https://oauth.net/2/grant-types/password/
+
+_not recommended for public auth providers, only in case provider should be hidden / not exposed to the users and trusted_
+
+In case of `password` grant type also go to `https://server:port/login` and enter your credentials
+
+⚠️ Warning
+- Be aware the password is transmitted in clear text (well base64 encoded) to this server
+- Therefore it is recommended to use `https` at least for the connection.
+- Login will be CSRF protected though
+- DO NOT USE `swift package-registry login https://server:port --username [username] --password [password]` (it will not work)
+
+once obtained token login similar to `code` grant type
 ```
-swift package-registry login https://server:port --username ##### --password #####
+swift package-registry login https://server:port --token #####
 ```
 
 # Publish

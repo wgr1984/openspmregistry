@@ -2,52 +2,105 @@ package authenticator
 
 import (
 	"OpenSPMRegistry/config"
+	"OpenSPMRegistry/utils"
 	"context"
-	"errors"
+	"github.com/coreos/go-oidc/v3/oidc"
 	"golang.org/x/oauth2"
 	"log/slog"
+	"net/http"
+	"time"
 )
 
 // OidcAuthenticatorCode is an authenticator that uses OpenID Connect with code grant
-type OidcAuthenticatorCode struct {
-	*OidcAuthenticator
+type OidcAuthenticatorCode interface {
+	OidcAuthenticator
+	AuthCodeURL(state string, nonce oauth2.AuthCodeOption) string
+	Callback(w http.ResponseWriter, r *http.Request)
+}
+
+type OidcAuthenticatorCodeImpl struct {
+	*OidcAuthenticatorImpl
 }
 
 // NewOIDCAuthenticatorCode  creates a new OIDC authenticator with code grant
 // based on the provided configuration
-func NewOIDCAuthenticatorCode(ctx context.Context, config config.ServerConfig) *OidcAuthenticatorCode {
-	return &OidcAuthenticatorCode{
+func NewOIDCAuthenticatorCode(ctx context.Context, config config.ServerConfig) *OidcAuthenticatorCodeImpl {
+	return &OidcAuthenticatorCodeImpl{
 		NewOIDCAuthenticator(ctx, config),
 	}
 }
 
-func (a *OidcAuthenticatorCode) AuthenticateToken(token string) error {
-	if a.grantType != "code" {
-		return errors.New("invalid grant type")
-	}
-
-	_, err := a.verifier.Verify(a.ctx, token)
-	if err == nil {
-		if slog.Default().Enabled(nil, slog.LevelDebug) {
-			slog.Debug("Token still valid")
-		}
-		return nil
-	}
-	return err
-}
-
-func (a *OidcAuthenticatorCode) AuthCodeURL(state string, nonce oauth2.AuthCodeOption) string {
+func (a *OidcAuthenticatorCodeImpl) AuthCodeURL(state string, nonce oauth2.AuthCodeOption) string {
 	return a.config.AuthCodeURL(state, nonce)
 }
 
-func (a *OidcAuthenticatorCode) Callback(state string, code string) (string, error) {
+func (a *OidcAuthenticatorCodeImpl) Callback(w http.ResponseWriter, r *http.Request) {
+	state, err := r.Cookie("state")
+	if err != nil {
+		slog.Error("Error getting state cookie:", "error", err)
+		http.Error(w, "state not found", http.StatusUnauthorized)
+		return
+	}
+	if r.URL.Query().Get("state") != state.Value {
+		slog.Error("State did not match")
+		http.Error(w, "state did not match", http.StatusUnauthorized)
+		return
+	}
+
+	code := r.URL.Query().Get("code")
 	token, err := a.config.Exchange(a.ctx, code)
 	if err != nil {
-		return "", err
+		slog.Error("Failed to exchange code for token", err)
+		http.Error(w, "Failed to exchange code for token", http.StatusUnauthorized)
+		return
 	}
 	idToken, ok := token.Extra("id_token").(string)
 	if !ok {
-		return "", errors.New("missing id token")
+		slog.Error("Failed to get id token")
+		http.Error(w, "Failed to get id token", http.StatusUnauthorized)
+		return
 	}
-	return idToken, nil
+
+	writeTokenOutput(w, idToken)
+}
+
+func (a *OidcAuthenticatorCodeImpl) Login(w http.ResponseWriter, r *http.Request) {
+	if a.CheckAuthHeaderPresent(w, r) {
+		return
+	}
+
+	// Otherwise redirect to oauth login
+	state, err := utils.RandomString(16)
+	if err != nil {
+		utils.WriteAuthorizationHeaderError(w, err)
+		return
+	}
+	nonce, err := utils.RandomString(16)
+	if err != nil {
+		utils.WriteAuthorizationHeaderError(w, err)
+		return
+	}
+	setCallbackCookie(w, r, "state", state)
+	setCallbackCookie(w, r, "nonce", nonce)
+
+	http.Redirect(w, r, a.config.AuthCodeURL(state, oidc.Nonce(nonce)), http.StatusFound)
+	return
+}
+
+// setCallbackCookie sets a cookie with the provided name and value
+// the cookie is set to expire in 1 hour
+// the cookie is secure if the request is over TLS
+// the cookie is http only
+// the cookie is set to SameSiteStrictMode
+// the cookie is set on the response writer
+func setCallbackCookie(w http.ResponseWriter, r *http.Request, name, value string) {
+	c := &http.Cookie{
+		Name:     name,
+		Value:    value,
+		MaxAge:   int(time.Hour.Seconds()),
+		Secure:   r.TLS != nil,
+		HttpOnly: true,
+		SameSite: http.SameSiteStrictMode,
+	}
+	http.SetCookie(w, c)
 }

@@ -6,6 +6,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"log/slog"
+	"net/http"
 )
 
 type BasicAuthenticator struct {
@@ -16,7 +17,17 @@ func NewBasicAuthenticator(users []config.User) *BasicAuthenticator {
 	return &BasicAuthenticator{users: users}
 }
 
-func (a *BasicAuthenticator) Authenticate(username string, password string) (error, string) {
+func (a *BasicAuthenticator) Authenticate(w http.ResponseWriter, r *http.Request) (error, string) {
+	authorizationHeader := r.Header.Get("Authorization")
+	if authorizationHeader == "" {
+		return errors.New("authorization header not found"), ""
+	}
+
+	username, password, ok := r.BasicAuth()
+	if !ok {
+		return errors.New("missing credentials"), ""
+	}
+
 	if slog.Default().Enabled(nil, slog.LevelDebug) {
 		slog.Debug("Basic authentication")
 	}
@@ -26,10 +37,6 @@ func (a *BasicAuthenticator) Authenticate(username string, password string) (err
 		}
 	}
 	return errors.New("invalid username or password"), ""
-}
-
-func (a *BasicAuthenticator) SkipAuth() bool {
-	return false
 }
 
 func hashPassword(password string) string {

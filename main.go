@@ -74,7 +74,6 @@ func main() {
 	c := controller.NewController(serverConfig.Server, r)
 
 	// authorized routes
-	a.HandleFunc("GET /login", c.LoginAction)
 	a.HandleFunc("POST /login", c.LoginAction)
 	a.HandleFunc("GET /{scope}/{package}", c.ListAction)
 	a.HandleFunc("GET /{scope}/{package}/{version}", func(w http.ResponseWriter, r *http.Request) {
@@ -91,7 +90,6 @@ func main() {
 	// public routes
 	router.HandleFunc("GET /", c.MainAction)
 	router.HandleFunc("GET /favicon.ico", c.FavIcon)
-	router.HandleFunc("GET /callback", a.CallbackAction)
 
 	srv := &http.Server{
 		Addr:    fmt.Sprintf(":%d", serverConfig.Server.Port),

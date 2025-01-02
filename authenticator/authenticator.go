@@ -3,30 +3,39 @@ package authenticator
 import (
 	"OpenSPMRegistry/config"
 	"context"
-	"golang.org/x/oauth2"
+	"html/template"
+	"net/http"
 )
 
-type UsernamePasswordAuthenticator interface {
+type Authenticator interface {
 	// Authenticate authenticates a user based on their username and password
 	// returns an error if the authentication fails else returns the token
-	Authenticate(username string, password string) (error, string)
+	Authenticate(w http.ResponseWriter, r *http.Request) (error, string)
 }
 
-type TokenAuthenticator interface {
-	// AuthenticateToken authenticates a user based on their token
-	// returns an error if the authentication fails
-	AuthenticateToken(token string) error
-
-	// AuthCodeURL returns the URL for the OAuth2 authorization endpoint
-	// based on the provided state and nonce
-	AuthCodeURL(state string, nonce oauth2.AuthCodeOption) string
-
-	// Callback returns the token based on the provided state and code
-	// returns an error if the token cannot be retrieved
-	Callback(state string, code string) (string, error)
+// writeTokenOutput writes the token to the response
+// to be used by the client to authenticate via --token flag
+func writeTokenOutput(w http.ResponseWriter, token string) {
+	files, err := template.New("token.gohtml").ParseFiles("static/token.gohtml")
+	if err != nil {
+		http.Error(w, "Error parsing template", http.StatusInternalServerError)
+		return
+	}
+	err = files.Execute(w, struct {
+		Token string
+	}{Token: token})
+	if err != nil {
+		http.Error(w, "Error executing template", http.StatusInternalServerError)
+		return
+	}
 }
 
-func CreateAuthenticator(config config.ServerConfig) interface{} {
+// CreateAuthenticator creates an authenticator based on the provided configuration
+// if authentication is disabled, it returns a NoOpAuthenticator
+// if the authentication type is oidc, it returns an OIDCAuthenticator (code or password)
+// if the authentication type is basic, it returns a BasicAuthenticator
+// else it returns a NoOpAuthenticator
+func CreateAuthenticator(config config.ServerConfig) Authenticator {
 	if !config.Auth.Enabled {
 		return &NoOpAuthenticator{}
 	}
