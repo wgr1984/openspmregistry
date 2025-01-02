@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{.Title}}</title>
+    <script>
+        function setBasicAuthHeader(form) {
+            console.log("setBasicAuthHeader");
+            const username = form.username.value;
+            const password = form.password.value;
+            const headers = new Headers();
+            headers.set('Authorization', 'Basic ' + btoa(username + ':' + password));
+            headers.set('X-CSRF-Token', '{{.CsrfToken}}');
+            fetch(form.action, {
+                method: form.method,
+                headers: headers
+            }).then(response => {
+                if (response.ok) {
+                    response.text().then(data => {
+                        document.querySelector('html').innerHTML = data;
+                    });
+                } else {
+                    alert('Login failed');
+                }
+            });
+            return false;
+        }
+    </script>
+</head>
+
+<body>
+    <h1>Login</h1>
+    <p>
+        <form method="POST" action="/login" onsubmit="return setBasicAuthHeader(this)">
+            <label for="username">Username:</label>
+            <input type="text" id="username" name="username">
+            <br>
+            <label for="password">Password:</label>
+            <input type="password" id="password" name="password">
+            <br>
+            <input type="submit" value="Login">
+        </form>
+    </p>
+</body>
+</html>

@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="utf-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 500 500" width="500px" height="500">
+    <g transform="matrix(1.1906960010528564, 0, 0, 1.1906960010528564, -62.2225341796875, -22.848089218139663)" style="">
+        <g transform="matrix(1, 0, 0, 1, 13.860018, 3.303978)">
+            <rect width="80" height="80" rx="10" ry="10" fill="#c69c6d" stroke="#9b7a57" stroke-width="2" x="210" y="50"/>
+            <rect width="20" height="26.727" fill="#e3c7a1" style="" x="240.811" y="50.067"/>
+            <rect width="15.588" height="20" fill="#815f3f" style="" x="261.551" y="97.785" rx="3.577" ry="3.577"/>
+        </g>
+        <g transform="matrix(1, 0, 0, 1, 11.860018, 8.303979)">
+            <rect width="80" height="80" rx="10" ry="10" fill="#c69c6d" stroke="#9b7a57" stroke-width="2" x="259.815" y="137.282"/>
+            <rect width="20" height="26.727" fill="#e3c7a1" style="" x="290.626" y="137.349"/>
+            <rect width="15.588" height="20" fill="#815f3f" style="" x="311.366" y="185.067" rx="3.577" ry="3.577"/>
+        </g>
+        <g transform="matrix(1, 0, 0, 1, 11.860018, 8.40397)">
+            <rect width="80" height="80" rx="10" ry="10" fill="#c69c6d" stroke="#9b7a57" stroke-width="2" x="160.502" y="137.182"/>
+            <rect width="20" height="26.727" fill="#e3c7a1" style="" x="191.313" y="137.249"/>
+            <rect width="15.588" height="20" fill="#815f3f" style="" x="212.053" y="184.967" rx="3.577" ry="3.577"/>
+        </g>
+        <g transform="matrix(1, 0, 0, 1, 16.169504, 3.555993)">
+            <rect width="80" height="80" rx="10" ry="10" fill="#c69c6d" stroke="#9b7a57" stroke-width="2" x="206.049" y="232.888"/>
+            <rect width="20" height="26.727" fill="#e3c7a1" style="" x="236.86" y="232.955"/>
+            <rect width="15.588" height="20" fill="#815f3f" style="" x="257.6" y="280.673" rx="3.577" ry="3.577"/>
+        </g>
+        <g transform="matrix(1, 0, 0, 1, 17.860018, 3.655998)">
+            <rect width="80" height="80" rx="10" ry="10" fill="#c69c6d" stroke="#9b7a57" stroke-width="2" x="106.736" y="232.788"/>
+            <rect width="20" height="26.727" fill="#e3c7a1" style="" x="137.547" y="232.855"/>
+            <rect width="15.588" height="20" fill="#815f3f" style="" x="158.287" y="280.573" rx="3.577" ry="3.577"/>
+        </g>
+        <g transform="matrix(1, 0, 0, 1, 17.860018, 3.303978)">
+            <g>
+                <rect width="80" height="80" rx="10" ry="10" fill="#c69c6d" stroke="#9b7a57" stroke-width="2" x="301.981" y="233.14"/>
+                <rect width="20" height="26.727" fill="#e3c7a1" style="" x="332.792" y="233.207"/>
+                <rect width="15.588" height="20" fill="#815f3f" style="" x="353.532" y="280.925" rx="3.577" ry="3.577"/>
+            </g>
+        </g>
+    </g>
+    <text x="220.147" y="443.966" text-anchor="middle" font-family="Arial, sans-serif" font-size="48" fill="#333" style="white-space: pre; font-size: 51.9px;" transform="matrix(1, 0, 0, 1, 0, -1.4210854715202004e-14)">
+        OpenSPMRegistry
+    </text>
+</svg>

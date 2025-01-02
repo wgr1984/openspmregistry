@@ -1,8 +1,10 @@
 package main
 
 import (
+	"OpenSPMRegistry/authenticator"
 	"OpenSPMRegistry/config"
 	"OpenSPMRegistry/controller"
+	"OpenSPMRegistry/middleware"
 	"OpenSPMRegistry/repo"
 	"flag"
 	"fmt"
@@ -15,19 +17,27 @@ import (
 )
 
 var (
-	tlsFlag      bool
-	verboseFlag  bool
-	serverConfig config.ServerRoot
+	tlsFlag     bool
+	verboseFlag bool
 )
 
 func loadServerConfig() (*config.ServerRoot, error) {
-	yamlData, err := os.ReadFile("config.yml")
+	yamlData, err := os.ReadFile("config.local.yml")
 	if err != nil {
-		return nil, err
+		yamlData, err = os.ReadFile("config.yml")
+		if err != nil {
+			return nil, err
+		}
 	}
-	var serverRoot *config.ServerRoot
-	err = yaml.Unmarshal(yamlData, &serverRoot)
-	if err != nil {
+
+	serverRoot := &config.ServerRoot{
+		Server: config.ServerConfig{
+			Auth: config.AuthConfig{
+				Enabled: true, // enable authentication by default
+			},
+		},
+	}
+	if err := yaml.Unmarshal(yamlData, &serverRoot); err != nil {
 		return nil, err
 	}
 	return serverRoot, nil
@@ -58,25 +68,30 @@ func main() {
 	}
 
 	r := repo.NewFileRepo(repoConfig.Path)
-
+	a := middleware.NewAuthentication(authenticator.CreateAuthenticator(serverConfig.Server), router)
 	c := controller.NewController(serverConfig.Server, r)
 
-	router.HandleFunc("GET /", c.MainAction)
-	router.HandleFunc("GET /{scope}/{package}", c.ListAction)
-	router.HandleFunc("GET /{scope}/{package}/{version}", func(w http.ResponseWriter, r *http.Request) {
+	// authorized routes
+	a.HandleFunc("POST /login", c.LoginAction)
+	a.HandleFunc("GET /{scope}/{package}", c.ListAction)
+	a.HandleFunc("GET /{scope}/{package}/{version}", func(w http.ResponseWriter, r *http.Request) {
 		if strings.HasSuffix(r.URL.Path, ".zip") {
 			c.DownloadSourceArchiveAction(w, r)
 		} else {
 			c.InfoAction(w, r)
 		}
 	})
-	router.HandleFunc("GET /{scope}/{package}/{version}/Package.swift", c.FetchManifestAction)
-	router.HandleFunc("GET /identifiers", c.LookupAction)
-	router.HandleFunc("PUT /{scope}/{package}/{version}", c.PublishAction)
+	a.HandleFunc("GET /{scope}/{package}/{version}/Package.swift", c.FetchManifestAction)
+	a.HandleFunc("GET /identifiers", c.LookupAction)
+	a.HandleFunc("PUT /{scope}/{package}/{version}", c.PublishAction)
+
+	// public routes
+	router.HandleFunc("GET /", c.MainAction)
+	router.HandleFunc("GET /favicon.ico", c.FavIcon)
 
 	srv := &http.Server{
 		Addr:    fmt.Sprintf(":%d", serverConfig.Server.Port),
-		Handler: http.Handler(router),
+		Handler: a,
 	}
 
 	if tlsFlag {
