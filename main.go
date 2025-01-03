@@ -87,7 +87,11 @@ func main() {
 
 	// public routes
 	router.HandleFunc("GET /", c.MainAction)
-	router.HandleFunc("GET /favicon.ico", c.FavIcon)
+
+	// static routes
+	router.HandleFunc("GET /favicon.ico", c.StaticAction)
+	router.HandleFunc("GET /favicon.svg", c.StaticAction)
+	router.HandleFunc("GET /output.css", c.StaticAction)
 
 	srv := &http.Server{
 		Addr:    fmt.Sprintf(":%d", serverConfig.Server.Port),

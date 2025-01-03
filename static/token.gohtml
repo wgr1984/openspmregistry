@@ -1,11 +1,26 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link href="./output.css" rel="stylesheet" />
     <title>Received Token</title>
 </head>
 <body>
-    <h1>Received Token</h1>
-    <p>{{.Token}}</p>
+<div class="relative flex min-h-screen flex-col justify-center overflow-hidden bg-gray-50">
+    <div class="relative mx-2 max-w-screen-sm rounded-lg bg-white px-6 pb-8 shadow-xl ring-1 ring-gray-900/5 sm:mx-auto sm:min-w-[640px] sm:px-10">
+        <div class="divide-y divide-gray-300/5">
+            <div class="space-y-2 py-2 text-base text-gray-600">
+                <img src="./favicon.svg" class="h-[120px] w-[120px]" alt="Tailwind Play" />
+                <p class="text-xl font-bold">Received Token</p>
+                <div class="sm:max-h-[240px] max-h-14 overflow-y-scroll">
+                    <p class=" break-words rounded-sm bg-slate-200/50 p-2 font-mono">
+                        {{.Token}}
+                    </p>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
 </body>
 </html>

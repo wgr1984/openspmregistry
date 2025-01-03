@@ -21,7 +21,7 @@ func (c *Controller) MainAction(w http.ResponseWriter, r *http.Request) {
 	writeErrorWithStatusCode("Not found", w, http.StatusNotFound)
 }
 
-func (c *Controller) FavIcon(w http.ResponseWriter, r *http.Request) {
+func (c *Controller) StaticAction(w http.ResponseWriter, r *http.Request) {
 	printCallInfo("FavIcon", r)
-	http.ServeFile(w, r, "static/favicon.ico")
+	http.ServeFile(w, r, "static"+r.URL.Path)
 }
