@@ -1,9 +1,9 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
-
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link href="./output.css" rel="stylesheet" />
     <title>{{.Title}}</title>
     <script>
         function setBasicAuthHeader(form) {
@@ -29,19 +29,26 @@
         }
     </script>
 </head>
-
 <body>
-    <h1>Login</h1>
-    <p>
-        <form method="POST" action="/login" onsubmit="return setBasicAuthHeader(this)">
-            <label for="username">Username:</label>
-            <input type="text" id="username" name="username">
-            <br>
-            <label for="password">Password:</label>
-            <input type="password" id="password" name="password">
-            <br>
-            <input type="submit" value="Login">
-        </form>
-    </p>
+<div class="relative flex min-h-screen flex-col justify-center overflow-hidden bg-gray-50">
+    <img src="./favicon.svg" class="absolute top-10 left-10 w-[120px] h-[120px] z-10" alt="Open SPM Registry" />
+    <div class="z-20 relative mx-2 max-w-screen-sm rounded-lg bg-white px-6 py-8 shadow-xl ring-1 ring-gray-900/5 sm:mx-auto sm:min-w-[640px] sm:px-10">
+        <div class="divide-y divide-gray-300/5">
+            <div class="space-y-2 py-2 text-base text-gray-600">
+                <p class="text-xl font-bold">Login</p>
+                <div class="overflow-y-scroll">
+                    <form class="text-lg" method="POST" action="/login" onsubmit="return setBasicAuthHeader(this)">
+                        <label class="inline-block w-3/12 -mr-2" for="username">Username:</label>
+                        <input class="border rounded-lg sm:w-9/12 w-full p-2" type="text" id="username" name="username">
+                        <label class="inline-block mt-5 w-3/12 -mr-2" for="password">Password:</label>
+                        <input class="justify-end border rounded-lg sm:w-9/12 w-full p-2" type="password" id="password" name="password">
+                        <br>
+                        <input class="font-bold bg-sky-600/30 mt-5 mx-[calc((100%-200px)/2)] p-2 min-w-[200px] rounded-md text-slate-500 hover:text-sky-800 hover:bg-sky-600/60" type="submit" value="Login">
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
 </body>
 </html>
