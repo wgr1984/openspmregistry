@@ -1957,3 +1957,4 @@ go.work.sum
 /node_modules/yaml/README.md
 /node_modules/yaml/util.js
 /node_modules/.package-lock.json
+/static/output.css
