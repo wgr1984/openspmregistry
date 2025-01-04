@@ -1,3 +1,25 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+input[type="text"], input[type="password"] {
+  @apply rounded-lg border p-2 dark:border-slate-500 dark:bg-slate-800 dark:focus:border-slate-100/60 dark:focus:outline-none;
+}
+
+input[type="submit"] {
+  @apply rounded-md bg-sky-600/30 p-2 font-bold text-slate-500 hover:bg-sky-600/60 hover:text-sky-800 dark:text-slate-300 dark:hover:text-slate-100 dark:focus:border dark:focus:border-slate-500 dark:focus:outline-none;
+}
+
+.v-center {
+  @apply relative flex min-h-screen flex-col justify-center overflow-hidden bg-gray-50 dark:bg-slate-900;
+}
+
+.h-center {
+    @apply relative mx-2 max-w-screen-sm rounded-lg bg-white px-6 py-8 shadow-xl ring-1 ring-gray-900/5 sm:mx-auto sm:min-w-[640px] sm:px-10 dark:bg-slate-800 dark:ring-gray-50/15;
+}
+
+@layer base {
+  .text-base {
+    @apply text-gray-600 dark:text-gray-300;
+  }
+}
