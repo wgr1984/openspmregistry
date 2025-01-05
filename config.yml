@@ -9,3 +9,5 @@ server:
     path: ./files/
   publish:
     maxSize: 204800
+  auth:
+    enabled: false

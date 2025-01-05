@@ -1,11 +1,1 @@
-server:
-  hostname: 127.0.0.1
-  port: 8080
-  certs:
-    cert: /app/certs/server.crt
-    key: /app/certs/server.key
-  repo:
-    type: file
-    path: /data/repo
-  publish:
-    maxSize: 204800
+../config.yml
