@@ -36,9 +36,9 @@ WORKDIR /app
 
 COPY --chown=server --from=build-stage /app/openspmreg /app/openspmreg
 
-COPY --chown=server .docker/config.yml /app/config.yml
-COPY --chown=server .docker/config.local.yml /app/config.local.yml
-COPY --chown=server .docker/certs /app/certs
+COPY --chown=server config.yml /app/config.yml
+COPY --chown=server server.crt /app/server.crt
+COPY --chown=server server.key /app/server.key
 COPY --chown=server static  /app/static
 
 EXPOSE 8080
