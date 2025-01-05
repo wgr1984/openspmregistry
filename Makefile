@@ -6,7 +6,7 @@ build: tailwind
 	go build -o openspmregistry main.go
 
 build-docker: tailwind
-	docker build -t openspmregistry -f .docker/Dockerfile .
+	docker build -t wgr1984/openspmregistry .
 
 run: tailwind
 	go run main.go -tls=true -v
