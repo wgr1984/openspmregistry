@@ -1,12 +1,12 @@
 ![GitHub release (latest by date)](https://img.shields.io/github/v/release/wgr1984/openspmregistry)
 [![Docker Hub](https://img.shields.io/docker/pulls/wgr1984/openspmregistry)](https://hub.docker.com/r/wgr1984/openspmregistry)
 
-<table cellspacing="0" cellpadding="0" style="border: none">
+<table>
   <tr>
-    <td>
-      <img src="static/favicon.svg" style="padding-top: 30px; padding-bottom: 20px" height="200">
+    <td style="border: none; outline: none">
+      <img src="static/favicon.svg" style="margin-top: 15px; min-width: 200px; min-height: 200px" height="200px" width="200px">
     </td>
-    <td>
+    <td style="border: none; outline: none">
       <pre>
   ___                   ____  ____  __  __ ____            _     _              
  / _ \ _ __   ___ _ __ / ___||  _ \|  \/  |  _ \ ___  __ _(_)___| |_ _ __ _   _ 
