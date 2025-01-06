@@ -34,10 +34,32 @@ Quick links:
 Browsing, Publishing (including signing) and retrieving of swift packages
 [More](https://wgr1984.github.io/docs/openspmregistry/#features)
 
+## Use Docker
+
+Pull the image
+```shell
+docker pull wgr1984/openspmregistry:latest
+```
+then we can run it
+```shell
+docker run -p 8080:8080  \
+  -v ./files:/app/files \
+  -i -t wgr1984/openspmregistry:latest
+```
+or with a custom config (check [config.local.yml](#modify-config-optional))
+```shell
+docker run -p 8080:8080 \
+  -v ./files:/app/files \
+  -v ./config.local.yml:/app/config.yml \
+  -i -t wgr1984/openspmregistry:latest
+```
+
 ## Use source
+### Checkout
 ```
 git clone https://github.com/wgr1984/openspmregistry.git
 ```
+### Modify config (optional)
 copy `config.yml` to `config.yml.local` and adjust to your needs
 ```yaml
 # config.local.yml:
