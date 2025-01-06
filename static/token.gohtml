@@ -1,11 +1,26 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link href="./output.css" rel="stylesheet" />
     <title>Received Token</title>
 </head>
 <body>
-    <h1>Received Token</h1>
-    <p>{{.Token}}</p>
+<div class="v-center">
+    <img src="./favicon.svg" class="absolute top-10 left-10 w-[120px] h-[120px] z-10" alt="Open SPM Registry" />
+    <div class="z-20 h-center">
+        <div class="divide-y divide-gray-300/5">
+            <div class="space-y-2 py-2 text-base">
+                <p class="text-xl font-bold">Received Token</p>
+                <div class="sm:max-h-[240px] max-h-14 overflow-y-scroll">
+                    <p class="break-words rounded-sm bg-slate-200/50 dark:bg-slate-700 p-2 font-mono">
+                        {{.Token}}
+                    </p>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
 </body>
 </html>

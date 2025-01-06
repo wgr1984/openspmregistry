@@ -28,3 +28,6 @@ go.work.sum
 .idea
 /files/
 **/config.local.yml
+/node_modules/
+/static/output.css
+**/.DS_Store
