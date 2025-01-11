@@ -52,15 +52,22 @@ type (
 		FetchMetadata(scope string, name string, version string) (map[string]interface{}, error)
 
 		// GetAlternativeManifests returns the alternative versions of the manifest
+		// - `element` to be checked for alternative versions
 		// returns (alternative versions of the manifest|nil if not exists, error)
 		GetAlternativeManifests(element *models.UploadElement) ([]models.UploadElement, error)
 
 		// GetSwiftToolVersion returns the swift tool version
 		// specified in the first line of the manifest file
+		// - `manifest` to be checked for the swift tool version
 		// returns (swift tool version|nil if not exists, error)
 		GetSwiftToolVersion(manifest *models.UploadElement) (string, error)
 
 		// Lookup returns the list of identifiers for the provided url
 		Lookup(url string) []string
+
+		// Remove deletes the provided element
+		// - `element` to be removed
+		// returns nil if successful otherwise error
+		Remove(element *models.UploadElement) error
 	}
 )

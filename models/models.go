@@ -169,7 +169,7 @@ func (l *ListRelease) MarshalJSON() ([]byte, error) {
 
 	if l == nil {
 		b.WriteString("null")
-		return nil, nil
+		return b.Bytes(), nil
 	}
 
 	b.WriteByte('{')
@@ -192,7 +192,9 @@ func (l *ListRelease) MarshalJSON() ([]byte, error) {
 			}
 			b.WriteByte(',')
 		}
-		b.Truncate(b.Len() - 1)
+		if len(keys) > 0 {
+			b.Truncate(b.Len() - 1)
+		}
 		b.WriteByte('}')
 	}
 
@@ -201,6 +203,12 @@ func (l *ListRelease) MarshalJSON() ([]byte, error) {
 	return b.Bytes(), nil
 }
 
+// ParseVersion parses a version string and returns a Version struct
+// If the version string contains a suffix, it is stored in the Version struct
+// as well.
+// The version string must have at least 1 part.
+// If the version string has less than 2 parts, the missing parts are set to 0.
+// In case of invalid version string, an error is returned.
 func ParseVersion(versionStr string) (*Version, error) {
 	v := &Version{}
 	if strings.Contains(versionStr, "-") {
@@ -218,9 +226,18 @@ func ParseVersion(versionStr string) (*Version, error) {
 	if len(split) < 3 {
 		split = append(split, "0")
 	}
-	v.Major, _ = strconv.Atoi(split[0])
-	v.Minor, _ = strconv.Atoi(split[1])
-	v.Patch, _ = strconv.Atoi(split[2])
+
+	var err error
+
+	if v.Major, err = strconv.Atoi(split[0]); err != nil {
+		return nil, err
+	}
+	if v.Minor, err = strconv.Atoi(split[1]); err != nil {
+		return nil, err
+	}
+	if v.Patch, err = strconv.Atoi(split[2]); err != nil {
+		return nil, err
+	}
 	return v, nil
 }
 

@@ -306,6 +306,14 @@ func (f *FileRepo) Lookup(url string) []string {
 	return result
 }
 
+func (f *FileRepo) Remove(element *models.UploadElement) error {
+	path := filepath.Join(f.path, element.Scope, element.Name, element.Version, element.FileName())
+	if f.Exists(element) {
+		return os.Remove(path)
+	}
+	return errors.New(fmt.Sprintf("file not exists: %s", element.FileName()))
+}
+
 func writePackageSwiftFiles(pathFolder string) func(name string, r io.ReadCloser) error {
 	return func(name string, r io.ReadCloser) error {
 		// write to file
