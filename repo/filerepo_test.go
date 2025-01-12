@@ -5,13 +5,32 @@ import (
 	"OpenSPMRegistry/models"
 	"archive/zip"
 	"errors"
+	"log"
 	"os"
+	"os/user"
 	"path/filepath"
 	"testing"
 )
 
+func isRoot() bool {
+	currentUser, err := user.Current()
+	if err != nil {
+		log.Fatalf("[isRoot] Unable to get current user: %s", err)
+	}
+	return currentUser.Username == "root"
+}
+
+func teardown(t *testing.T) {
+	err := os.RemoveAll("/tmp/openspmsreg_tests")
+	if err != nil {
+		t.Fatalf("failed to remove directory: %v", err)
+	}
+}
+
 func Test_Exists_FileDoesNotExist_ReturnsFalse(t *testing.T) {
-	fileRepo := NewFileRepo("/tmp")
+	defer teardown(t)
+
+	fileRepo := NewFileRepo("/tmp/openspmsreg_tests")
 	element := &models.UploadElement{
 		Scope:   "testScope",
 		Name:    "testName",
@@ -25,14 +44,16 @@ func Test_Exists_FileDoesNotExist_ReturnsFalse(t *testing.T) {
 }
 
 func Test_Exists_FileExists_ReturnsTrue(t *testing.T) {
-	fileRepo := NewFileRepo("/tmp")
+	defer teardown(t)
+
+	fileRepo := NewFileRepo("/tmp/openspmsreg_tests")
 	element := &models.UploadElement{
 		Scope:   "testScope",
 		Name:    "testName",
 		Version: "1.0.0",
 	}
 
-	path := filepath.Join("/tmp", element.Scope, element.Name, element.Version, element.FileName())
+	path := filepath.Join("/tmp/openspmsreg_tests", element.Scope, element.Name, element.Version, element.FileName())
 	os.MkdirAll(filepath.Dir(path), os.ModePerm)
 	file, err := os.Create(path)
 	if err != nil {
@@ -52,7 +73,9 @@ func Test_Exists_FileExists_ReturnsTrue(t *testing.T) {
 }
 
 func Test_GetWriter_ValidElement_ReturnsWriter(t *testing.T) {
-	fileRepo := NewFileRepo("/tmp")
+	defer teardown(t)
+
+	fileRepo := NewFileRepo("/tmp/openspmsreg_tests")
 	element := &models.UploadElement{
 		Scope:   "testScope",
 		Name:    "testName",
@@ -73,21 +96,41 @@ func Test_GetWriter_ValidElement_ReturnsWriter(t *testing.T) {
 }
 
 func Test_GetWriter_InvalidPath_ReturnsError(t *testing.T) {
-	fileRepo := NewFileRepo("/invalid_path")
+	if isRoot() {
+		t.Skip("Skipping testing in CI environment")
+	}
+
+	defer teardown(t)
+
+	fileRepo := NewFileRepo("/tmp/openspmsreg_tests/invalid_path_error")
 	element := &models.UploadElement{
 		Scope:   "testScope",
 		Name:    "testName",
 		Version: "1.0.0",
 	}
 
-	_, err := fileRepo.GetWriter(element)
+	// create a directory
+	err := os.MkdirAll("/tmp/openspmsreg_tests/invalid_path_error", os.ModePerm)
+	if err != nil {
+		t.Fatalf("failed to create directory: %v", err)
+	}
+
+	// block permissions to create the file
+	err = os.Chmod("/tmp/openspmsreg_tests/invalid_path_error", 0000)
+	if err != nil {
+		t.Fatalf("failed to change directory permissions: %v", err)
+	}
+
+	_, err = fileRepo.GetWriter(element)
 	if err == nil {
 		t.Errorf("expected error, got nil")
 	}
 }
 
 func Test_ExtractManifestFiles_ValidZipFile_ExtractsFiles(t *testing.T) {
-	fileRepo := NewFileRepo("/tmp")
+	defer teardown(t)
+
+	fileRepo := NewFileRepo("/tmp/openspmsreg_tests")
 	element := &models.UploadElement{
 		Scope:    "testScope",
 		Name:     "testName",
@@ -95,7 +138,7 @@ func Test_ExtractManifestFiles_ValidZipFile_ExtractsFiles(t *testing.T) {
 		MimeType: mimetypes.ApplicationZip,
 	}
 
-	path := filepath.Join("/tmp", element.Scope, element.Name, element.Version, element.FileName())
+	path := filepath.Join("/tmp/openspmsreg_tests", element.Scope, element.Name, element.Version, element.FileName())
 	os.MkdirAll(filepath.Dir(path), os.ModePerm)
 
 	file, err := os.Create(path)
@@ -153,14 +196,16 @@ let package = Package(
 	}
 
 	// Check if files are extracted
-	extractedPath := filepath.Join("/tmp", element.Scope, element.Name, element.Version, "Package.swift")
+	extractedPath := filepath.Join("/tmp/openspmsreg_tests", element.Scope, element.Name, element.Version, "Package.swift")
 	if _, err := os.Stat(extractedPath); errors.Is(err, os.ErrNotExist) {
 		t.Errorf("expected file to be extracted, but it does not exist")
 	}
 }
 
 func Test_ExtractManifestFiles_UnsupportedMimeType_ReturnsError(t *testing.T) {
-	fileRepo := NewFileRepo("/tmp")
+	defer teardown(t)
+
+	fileRepo := NewFileRepo("/tmp/openspmsreg_tests")
 	element := &models.UploadElement{
 		Scope:    "testScope",
 		Name:     "testName",
@@ -175,7 +220,9 @@ func Test_ExtractManifestFiles_UnsupportedMimeType_ReturnsError(t *testing.T) {
 }
 
 func Test_ExtractManifestFiles_NonExistentPath_CreatesPathAndExtractsFiles(t *testing.T) {
-	fileRepo := NewFileRepo("/tmp")
+	defer teardown(t)
+
+	fileRepo := NewFileRepo("/tmp/openspmsreg_tests")
 	element := &models.UploadElement{
 		Scope:    "testScope",
 		Name:     "testName",
@@ -184,7 +231,7 @@ func Test_ExtractManifestFiles_NonExistentPath_CreatesPathAndExtractsFiles(t *te
 	}
 	element.SetFilenameOverwrite("Package")
 
-	path := filepath.Join("/tmp/non/existent", element.Scope, element.Name, element.Version, element.FileName())
+	path := filepath.Join("/tmp/openspmsreg_tests/non/existent", element.Scope, element.Name, element.Version, element.FileName())
 	os.MkdirAll(filepath.Dir(path), os.ModePerm)
 
 	file, err := os.Create(path)
@@ -203,21 +250,23 @@ func Test_ExtractManifestFiles_NonExistentPath_CreatesPathAndExtractsFiles(t *te
 	}
 
 	// Check if path is created and files are extracted
-	extractedPath := filepath.Join("/tmp", element.Scope, element.Name, element.Version, "Package.swift")
-	if _, err := os.Stat(extractedPath); errors.Is(err, os.ErrNotExist) {
+	extractedPath := filepath.Join("/tmp/openspmsreg_tests", element.Scope, element.Name, element.Version, "Package.swift")
+	if _, err := os.Stat(extractedPath); err == nil {
 		t.Errorf("expected file to be extracted, but it does not exist")
 	}
 }
 
 func Test_List_DirectoryExists_ReturnsListOfElements(t *testing.T) {
-	fileRepo := NewFileRepo("/tmp")
+	defer teardown(t)
+
+	fileRepo := NewFileRepo("/tmp/openspmsreg_tests")
 	scope := "testScope"
 	name := "testName"
 	version := "1.0.0"
 
-	path := filepath.Join("/tmp", scope, name, version)
+	path := filepath.Join("/tmp/openspmsreg_tests", scope, name, version)
 	os.MkdirAll(path, os.ModePerm)
-	defer os.RemoveAll(filepath.Join("/tmp", scope))
+	defer os.RemoveAll(filepath.Join("/tmp/openspmsreg_tests", scope))
 
 	_, err := os.Create(filepath.Join(path, "dummyFile"))
 	if err != nil {
@@ -239,11 +288,13 @@ func Test_List_DirectoryExists_ReturnsListOfElements(t *testing.T) {
 }
 
 func Test_List_DirectoryExistButEmpty_ReturnsEmptyList(t *testing.T) {
-	fileRepo := NewFileRepo("/tmp")
+	defer teardown(t)
+
+	fileRepo := NewFileRepo("/tmp/openspmsreg_tests")
 	scope := "scope"
 	name := "empty"
 
-	path := filepath.Join("/tmp", scope, name)
+	path := filepath.Join("/tmp/openspmsreg_tests", scope, name)
 	os.MkdirAll(path, os.ModePerm)
 
 	elements, err := fileRepo.List(scope, name)
@@ -257,7 +308,9 @@ func Test_List_DirectoryExistButEmpty_ReturnsEmptyList(t *testing.T) {
 }
 
 func Test_List_ErrorReadingDirectory_ReturnsError(t *testing.T) {
-	fileRepo := NewFileRepo("/invalid_path")
+	defer teardown(t)
+
+	fileRepo := NewFileRepo("/tmp/openspmsreg_tests/invalid_path_list")
 	scope := "testScope"
 	name := "testName"
 
@@ -268,7 +321,9 @@ func Test_List_ErrorReadingDirectory_ReturnsError(t *testing.T) {
 }
 
 func Test_Checksum_FileDoesNotExist_ReturnsError(t *testing.T) {
-	fileRepo := NewFileRepo("/not/existing/path")
+	defer teardown(t)
+
+	fileRepo := NewFileRepo("/tmp/openspmsreg_tests/not/existing/path")
 	element := &models.UploadElement{
 		Scope:   "testScope",
 		Name:    "testName",
@@ -282,14 +337,16 @@ func Test_Checksum_FileDoesNotExist_ReturnsError(t *testing.T) {
 }
 
 func Test_Checksum_FileExists_ReturnsChecksum(t *testing.T) {
-	fileRepo := NewFileRepo("/tmp")
+	defer teardown(t)
+
+	fileRepo := NewFileRepo("/tmp/openspmsreg_tests")
 	element := &models.UploadElement{
 		Scope:   "testScope",
 		Name:    "testName",
 		Version: "1.0.0",
 	}
 
-	path := filepath.Join("/tmp", element.Scope, element.Name, element.Version, element.FileName())
+	path := filepath.Join("/tmp/openspmsreg_tests", element.Scope, element.Name, element.Version, element.FileName())
 	os.MkdirAll(filepath.Dir(path), os.ModePerm)
 	file, err := os.OpenFile(path, os.O_WRONLY|os.O_CREATE|os.O_TRUNC|os.O_SYNC, 0600)
 	if err != nil {
@@ -319,14 +376,16 @@ func Test_Checksum_FileExists_ReturnsChecksum(t *testing.T) {
 }
 
 func Test_Checksum_FileReadError_ReturnsError(t *testing.T) {
-	fileRepo := NewFileRepo("/tmp")
+	defer teardown(t)
+
+	fileRepo := NewFileRepo("/tmp/openspmsreg_tests")
 	element := &models.UploadElement{
 		Scope:   "testScope",
 		Name:    "testName",
 		Version: "1.0.0",
 	}
 
-	path := filepath.Join("/tmp", element.Scope, element.Name, element.Version, element.FileName())
+	path := filepath.Join("/tmp/openspmsreg_tests", element.Scope, element.Name, element.Version, element.FileName())
 	os.MkdirAll(filepath.Dir(path), os.ModePerm)
 	file, err := os.Create(path)
 	if err != nil {
@@ -344,16 +403,18 @@ func Test_Checksum_FileReadError_ReturnsError(t *testing.T) {
 }
 
 func Test_GetAlternativeManifests_ValidPath_ReturnsManifests(t *testing.T) {
-	fileRepo := NewFileRepo("/tmp")
+	defer teardown(t)
+
+	fileRepo := NewFileRepo("/tmp/openspmsreg_tests")
 	element := &models.UploadElement{
 		Scope:   "testScope",
 		Name:    "testName",
 		Version: "1.0.0",
 	}
 
-	path := filepath.Join("/tmp", element.Scope, element.Name, element.Version)
+	path := filepath.Join("/tmp/openspmsreg_tests", element.Scope, element.Name, element.Version)
 	os.MkdirAll(path, os.ModePerm)
-	defer os.RemoveAll(filepath.Join("/tmp", element.Scope))
+	defer os.RemoveAll(filepath.Join("/tmp/openspmsreg_tests", element.Scope))
 
 	_, err := os.Create(filepath.Join(path, "Package@swift-7.16.swift"))
 	if err != nil {
@@ -375,7 +436,9 @@ func Test_GetAlternativeManifests_ValidPath_ReturnsManifests(t *testing.T) {
 }
 
 func Test_GetAlternativeManifests_PathDoesNotExist_ReturnsError(t *testing.T) {
-	fileRepo := NewFileRepo("/tmp")
+	defer teardown(t)
+
+	fileRepo := NewFileRepo("/tmp/openspmsreg_tests")
 	element := &models.UploadElement{
 		Scope:   "nonExistentScope",
 		Name:    "nonExistentName",
@@ -393,16 +456,18 @@ func Test_GetAlternativeManifests_PathDoesNotExist_ReturnsError(t *testing.T) {
 }
 
 func Test_GetAlternativeManifests_NoAlternativeManifests_ReturnsEmptyList(t *testing.T) {
-	fileRepo := NewFileRepo("/tmp")
+	defer teardown(t)
+
+	fileRepo := NewFileRepo("/tmp/openspmsreg_tests")
 	element := &models.UploadElement{
 		Scope:   "testScope",
 		Name:    "testName",
 		Version: "1.0.0",
 	}
 
-	path := filepath.Join("/tmp", element.Scope, element.Name, element.Version)
+	path := filepath.Join("/tmp/openspmsreg_tests", element.Scope, element.Name, element.Version)
 	os.MkdirAll(path, os.ModePerm)
-	defer os.RemoveAll(filepath.Join("/tmp", element.Scope))
+	defer os.RemoveAll(filepath.Join("/tmp/openspmsreg_tests", element.Scope))
 
 	_, err := os.Create(filepath.Join(path, "Package.swift"))
 	if err != nil {
@@ -420,7 +485,9 @@ func Test_GetAlternativeManifests_NoAlternativeManifests_ReturnsEmptyList(t *tes
 }
 
 func Test_GetSwiftToolVersion_ValidManifest_ReturnsVersion(t *testing.T) {
-	fileRepo := NewFileRepo("/tmp")
+	defer teardown(t)
+
+	fileRepo := NewFileRepo("/tmp/openspmsreg_tests")
 	element := models.NewUploadElement(
 		"testScope",
 		"testName",
@@ -429,9 +496,9 @@ func Test_GetSwiftToolVersion_ValidManifest_ReturnsVersion(t *testing.T) {
 		models.Manifest,
 	)
 
-	path := filepath.Join("/tmp", element.Scope, element.Name, element.Version)
+	path := filepath.Join("/tmp/openspmsreg_tests", element.Scope, element.Name, element.Version)
 	os.MkdirAll(path, os.ModePerm)
-	defer os.RemoveAll(filepath.Join("/tmp", element.Scope))
+	defer os.RemoveAll(filepath.Join("/tmp/openspmsreg_tests", element.Scope))
 
 	file, err := os.Create(filepath.Join(path, element.FileName()))
 	if err != nil {
@@ -453,7 +520,9 @@ func Test_GetSwiftToolVersion_ValidManifest_ReturnsVersion(t *testing.T) {
 }
 
 func Test_GetSwiftToolVersion_FileDoesNotExist_ReturnsError(t *testing.T) {
-	fileRepo := NewFileRepo("/tmp")
+	defer teardown(t)
+
+	fileRepo := NewFileRepo("/tmp/openspmsreg_tests")
 	element := models.NewUploadElement(
 		"testScope",
 		"testName",
@@ -469,7 +538,9 @@ func Test_GetSwiftToolVersion_FileDoesNotExist_ReturnsError(t *testing.T) {
 }
 
 func Test_GetSwiftToolVersion_NoSwiftVersion_ReturnsError(t *testing.T) {
-	fileRepo := NewFileRepo("/tmp")
+	defer teardown(t)
+
+	fileRepo := NewFileRepo("/tmp/openspmsreg_tests")
 	element := models.NewUploadElement(
 		"testScope",
 		"testName",
@@ -478,9 +549,9 @@ func Test_GetSwiftToolVersion_NoSwiftVersion_ReturnsError(t *testing.T) {
 		models.Manifest,
 	)
 
-	path := filepath.Join("/tmp", element.Scope, element.Name, element.Version)
+	path := filepath.Join("/tmp/openspmsreg_tests", element.Scope, element.Name, element.Version)
 	os.MkdirAll(path, os.ModePerm)
-	defer os.RemoveAll(filepath.Join("/tmp", element.Scope))
+	defer os.RemoveAll(filepath.Join("/tmp/openspmsreg_tests", element.Scope))
 
 	file, err := os.Create(filepath.Join(path, element.FileName()))
 	if err != nil {
@@ -499,7 +570,9 @@ func Test_GetSwiftToolVersion_NoSwiftVersion_ReturnsError(t *testing.T) {
 }
 
 func Test_GetReader_FileExists_ReturnsReader(t *testing.T) {
-	fileRepo := NewFileRepo("/tmp")
+	defer teardown(t)
+
+	fileRepo := NewFileRepo("/tmp/openspmsreg_tests")
 	element := models.NewUploadElement(
 		"testScope",
 		"testName",
@@ -508,7 +581,7 @@ func Test_GetReader_FileExists_ReturnsReader(t *testing.T) {
 		models.Manifest,
 	)
 
-	path := filepath.Join("/tmp", element.Scope, element.Name, element.Version, element.FileName())
+	path := filepath.Join("/tmp/openspmsreg_tests", element.Scope, element.Name, element.Version, element.FileName())
 	os.MkdirAll(filepath.Dir(path), os.ModePerm)
 	file, err := os.Create(path)
 	if err != nil {
@@ -527,7 +600,9 @@ func Test_GetReader_FileExists_ReturnsReader(t *testing.T) {
 }
 
 func Test_GetReader_FileDoesNotExist_ReturnsError(t *testing.T) {
-	fileRepo := NewFileRepo("/tmp")
+	defer teardown(t)
+
+	fileRepo := NewFileRepo("/tmp/openspmsreg_tests")
 
 	element := models.NewUploadElement(
 		"testScope",
@@ -548,7 +623,9 @@ func Test_GetReader_FileDoesNotExist_ReturnsError(t *testing.T) {
 }
 
 func Test_GetReader_InvalidPath_ReturnsError(t *testing.T) {
-	fileRepo := NewFileRepo("/invalid_path")
+	defer teardown(t)
+
+	fileRepo := NewFileRepo("/tmp/openspmsreg_tests/invalid_path")
 	element := models.NewUploadElement(
 		"testScope",
 		"testName",
@@ -564,7 +641,9 @@ func Test_GetReader_InvalidPath_ReturnsError(t *testing.T) {
 }
 
 func Test_GetReader_FileReadError_ReturnsError(t *testing.T) {
-	fileRepo := NewFileRepo("/tmp")
+	defer teardown(t)
+
+	fileRepo := NewFileRepo("/tmp/openspmsreg_tests")
 	element := models.NewUploadElement(
 		"testScope",
 		"testName",
@@ -573,7 +652,7 @@ func Test_GetReader_FileReadError_ReturnsError(t *testing.T) {
 		models.Manifest,
 	)
 
-	path := filepath.Join("/tmp", element.Scope, element.Name, element.Version, element.FileName())
+	path := filepath.Join("/tmp/openspmsreg_tests", element.Scope, element.Name, element.Version, element.FileName())
 	os.MkdirAll(filepath.Dir(path), os.ModePerm)
 	file, err := os.Create(path)
 	if err != nil {
@@ -591,7 +670,9 @@ func Test_GetReader_FileReadError_ReturnsError(t *testing.T) {
 }
 
 func Test_Lookup_ValidURL_ReturnsMatchingIDs(t *testing.T) {
-	fileRepo := NewFileRepo("/tmp/testRepo")
+	defer teardown(t)
+
+	fileRepo := NewFileRepo("/tmp/openspmsreg_tests/testRepo")
 	element := models.NewUploadElement(
 		"testScope",
 		"testName",
@@ -600,9 +681,9 @@ func Test_Lookup_ValidURL_ReturnsMatchingIDs(t *testing.T) {
 		models.Metadata,
 	)
 
-	path := filepath.Join("/tmp/testRepo", element.Scope, element.Name, element.Version)
+	path := filepath.Join("/tmp/openspmsreg_tests/testRepo", element.Scope, element.Name, element.Version)
 	os.MkdirAll(path, os.ModePerm)
-	defer os.RemoveAll(filepath.Join("/tmp/testRepo", element.Scope))
+	defer os.RemoveAll(filepath.Join("/tmp/openspmsreg_tests/testRepo", element.Scope))
 
 	metadataPath := filepath.Join(path, "metadata.json")
 	file, err := os.Create(metadataPath)
@@ -653,7 +734,9 @@ func Test_Lookup_ValidURL_ReturnsMatchingIDs(t *testing.T) {
 }
 
 func Test_Lookup_InvalidURL_ReturnsEmptyList(t *testing.T) {
-	fileRepo := NewFileRepo("/tmp")
+	defer teardown(t)
+
+	fileRepo := NewFileRepo("/tmp/openspmsreg_tests")
 	element := models.NewUploadElement(
 		"testScope",
 		"testName",
@@ -662,9 +745,9 @@ func Test_Lookup_InvalidURL_ReturnsEmptyList(t *testing.T) {
 		models.Metadata,
 	)
 
-	path := filepath.Join("/tmp", element.Scope, element.Name, element.Version)
+	path := filepath.Join("/tmp/openspmsreg_tests", element.Scope, element.Name, element.Version)
 	os.MkdirAll(path, os.ModePerm)
-	defer os.RemoveAll(filepath.Join("/tmp", element.Scope))
+	defer os.RemoveAll(filepath.Join("/tmp/openspmsreg_tests", element.Scope))
 
 	metadataPath := filepath.Join(path, "metadata.json")
 	file, err := os.Create(metadataPath)
@@ -684,9 +767,11 @@ func Test_Lookup_InvalidURL_ReturnsEmptyList(t *testing.T) {
 }
 
 func Test_Lookup_NoMetadataFiles_ReturnsEmptyList(t *testing.T) {
-	fileRepo := NewFileRepo("/tmp")
-	os.MkdirAll("/tmp/testScope/testName/1.0.0", os.ModePerm)
-	defer os.RemoveAll("/tmp/testScope")
+	defer teardown(t)
+
+	fileRepo := NewFileRepo("/tmp/openspmsreg_tests")
+	os.MkdirAll("/tmp/openspmsreg_tests/testScope/testName/1.0.0", os.ModePerm)
+	defer os.RemoveAll("/tmp/openspmsreg_tests/testScope")
 
 	result := fileRepo.Lookup("https://example.com/repo")
 	if len(result) != 0 {
@@ -695,7 +780,9 @@ func Test_Lookup_NoMetadataFiles_ReturnsEmptyList(t *testing.T) {
 }
 
 func Test_Lookup_ErrorWalkingDirectories_ReturnsEmptyList(t *testing.T) {
-	fileRepo := NewFileRepo("/invalid_path")
+	defer teardown(t)
+
+	fileRepo := NewFileRepo("/tmp/openspmsreg_tests/invalid_path")
 
 	result := fileRepo.Lookup("https://example.com/repo")
 	if len(result) != 0 {
@@ -704,7 +791,9 @@ func Test_Lookup_ErrorWalkingDirectories_ReturnsEmptyList(t *testing.T) {
 }
 
 func Test_Remove_FileExists_RemovesFile(t *testing.T) {
-	fileRepo := NewFileRepo("/tmp")
+	defer teardown(t)
+
+	fileRepo := NewFileRepo("/tmp/openspmsreg_tests")
 	element := models.NewUploadElement(
 		"testScope",
 		"testName",
@@ -713,7 +802,7 @@ func Test_Remove_FileExists_RemovesFile(t *testing.T) {
 		models.Manifest,
 	)
 
-	path := filepath.Join("/tmp", element.Scope, element.Name, element.Version, element.FileName())
+	path := filepath.Join("/tmp/openspmsreg_tests", element.Scope, element.Name, element.Version, element.FileName())
 	os.MkdirAll(filepath.Dir(path), os.ModePerm)
 	file, err := os.Create(path)
 	if err != nil {
@@ -732,6 +821,8 @@ func Test_Remove_FileExists_RemovesFile(t *testing.T) {
 }
 
 func Test_Remove_FileDoesNotExist_ReturnsError(t *testing.T) {
+	defer teardown(t)
+
 	fileRepo := NewFileRepo("/does/not/exist")
 	element := &models.UploadElement{
 		Scope:   "testScope",

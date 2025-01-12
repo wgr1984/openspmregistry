@@ -35,10 +35,13 @@ func (f *FileRepo) Exists(element *models.UploadElement) bool {
 
 func (f *FileRepo) GetWriter(element *models.UploadElement) (io.WriteCloser, error) {
 	pathFolder := filepath.Join(f.path, element.Scope, element.Name, element.Version)
-	if _, err := os.Stat(pathFolder); errors.Is(err, os.ErrNotExist) {
+	_, err := os.Stat(pathFolder)
+	if errors.Is(err, os.ErrNotExist) {
 		if err := os.MkdirAll(pathFolder, os.ModePerm); err != nil {
 			return nil, err
 		}
+	} else if err != nil {
+		return nil, err
 	}
 
 	pathFile := filepath.Join(pathFolder, element.FileName())
@@ -48,11 +51,15 @@ func (f *FileRepo) GetWriter(element *models.UploadElement) (io.WriteCloser, err
 
 func (f *FileRepo) ExtractManifestFiles(element *models.UploadElement) error {
 	pathFolder := filepath.Join(f.path, element.Scope, element.Name, element.Version)
-	if _, err := os.Stat(pathFolder); errors.Is(err, os.ErrNotExist) {
+	_, err := os.Stat(pathFolder)
+	if errors.Is(err, os.ErrNotExist) {
 		err := os.MkdirAll(pathFolder, os.ModePerm)
 		if err != nil {
 			return err
 		}
+	}
+	if err != nil {
+		return err
 	}
 
 	pathFile := filepath.Join(pathFolder, element.FileName())
@@ -66,13 +73,17 @@ func (f *FileRepo) ExtractManifestFiles(element *models.UploadElement) error {
 
 func (f *FileRepo) List(scope string, name string) ([]models.ListElement, error) {
 	path := filepath.Join(f.path, scope, name)
-	if _, err := os.Stat(path); errors.Is(err, os.ErrNotExist) {
+	_, err := os.Stat(path)
+	if errors.Is(err, os.ErrNotExist) {
+		return nil, err
+	}
+	if err != nil {
 		return nil, err
 	}
 
 	var elements []models.ListElement
 
-	err := filepath.WalkDir(path, func(p string, d os.DirEntry, err error) error {
+	err = filepath.WalkDir(path, func(p string, d os.DirEntry, err error) error {
 		// skip root
 		if p == path {
 			return nil
@@ -119,8 +130,12 @@ func (f *FileRepo) EncodeBase64(element *models.UploadElement) (string, error) {
 
 func (f *FileRepo) PublishDate(element *models.UploadElement) (time.Time, error) {
 	pathFolder := filepath.Join(f.path, element.Scope, element.Name, element.Version)
-	if _, err := os.Stat(pathFolder); errors.Is(err, os.ErrNotExist) {
+	_, err := os.Stat(pathFolder)
+	if errors.Is(err, os.ErrNotExist) {
 		return time.Now(), errors.New(fmt.Sprintf("path does not exists: %s", pathFolder))
+	}
+	if err != nil {
+		return time.Now(), err
 	}
 	pathFile := filepath.Join(pathFolder, element.FileName())
 	stat, err := os.Stat(pathFile)
@@ -133,8 +148,12 @@ func (f *FileRepo) PublishDate(element *models.UploadElement) (time.Time, error)
 
 func (f *FileRepo) FetchMetadata(scope string, name string, version string) (map[string]interface{}, error) {
 	pathFolder := filepath.Join(f.path, scope, name, version)
-	if _, err := os.Stat(pathFolder); errors.Is(err, os.ErrNotExist) {
+	_, err := os.Stat(pathFolder)
+	if errors.Is(err, os.ErrNotExist) {
 		return nil, errors.New(fmt.Sprintf("path does not exists: %s", pathFolder))
+	}
+	if err != nil {
+		return nil, err
 	}
 
 	metadata := models.NewUploadElement(scope, name, version, mimetypes.ApplicationJson, models.Metadata)
@@ -194,15 +213,19 @@ func (f *FileRepo) Checksum(element *models.UploadElement) (string, error) {
 
 func (f *FileRepo) GetAlternativeManifests(element *models.UploadElement) ([]models.UploadElement, error) {
 	pathFolder := filepath.Join(f.path, element.Scope, element.Name, element.Version)
-	if _, err := os.Stat(pathFolder); errors.Is(err, os.ErrNotExist) {
+	_, err := os.Stat(pathFolder)
+	if errors.Is(err, os.ErrNotExist) {
 		return nil, errors.New(fmt.Sprintf("path does not exists: %s", pathFolder))
+	}
+	if err != nil {
+		return nil, err
 	}
 
 	var manifests []models.UploadElement
 	// search for different versions of Package.swift manifest
 
 	// search for different versions of Package.swift manifest
-	err := filepath.WalkDir(pathFolder, func(p string, d os.DirEntry, err error) error {
+	err = filepath.WalkDir(pathFolder, func(p string, d os.DirEntry, err error) error {
 		// skip root
 		if p == pathFolder {
 			return nil

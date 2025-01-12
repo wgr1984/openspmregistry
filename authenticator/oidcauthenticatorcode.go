@@ -50,7 +50,7 @@ func (a *OidcAuthenticatorCodeImpl) Callback(w http.ResponseWriter, r *http.Requ
 	code := r.URL.Query().Get("code")
 	token, err := a.config.Exchange(a.ctx, code)
 	if err != nil {
-		slog.Error("Failed to exchange code for token", err)
+		slog.Error("Failed to exchange code for token", "err", err)
 		http.Error(w, "Failed to exchange code for token", http.StatusUnauthorized)
 		return
 	}

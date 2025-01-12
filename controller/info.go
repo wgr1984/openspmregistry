@@ -63,7 +63,7 @@ func (c *Controller) InfoAction(w http.ResponseWriter, r *http.Request) {
 	// retrieve publish date from source archive
 	dateTime, dateErr := c.repo.PublishDate(sourceArchive)
 	if dateErr != nil {
-		slog.Debug("Publish Date error:", dateErr)
+		slog.Debug("Publish Date error:", "err", dateErr)
 		dateTime = time.Now()
 	}
 	dateString := dateTime.Format("2006-01-02T15:04:05Z")
@@ -71,7 +71,7 @@ func (c *Controller) InfoAction(w http.ResponseWriter, r *http.Request) {
 	// retrieve checksum of source archive
 	checksum, err := c.repo.Checksum(sourceArchive)
 	if err != nil {
-		slog.Info("Checksum error:", err)
+		slog.Info("Checksum error:", "err", err)
 		checksum = ""
 	}
 

@@ -41,7 +41,7 @@ type OidcAuthenticatorImpl struct {
 func NewOIDCAuthenticator(ctx context.Context, config config.ServerConfig) *OidcAuthenticatorImpl {
 	provider, err := oidc.NewProvider(ctx, config.Auth.Issuer)
 	if err != nil {
-		slog.Error("Failed to create OIDC provider", err)
+		slog.Error("Failed to create OIDC provider", "err", err)
 		return nil
 	}
 	verifier := provider.Verifier(&oidc.Config{ClientID: config.Auth.ClientId})

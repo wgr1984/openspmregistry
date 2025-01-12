@@ -19,6 +19,7 @@ type (
 		GetReader(element *models.UploadElement) (io.ReadSeekCloser, error)
 
 		// GetWriter returns a writer for the specified element
+		// in case element does not exist it creates the necessary sub-structures
 		// returns (writer for the file|error
 		GetWriter(element *models.UploadElement) (io.WriteCloser, error)
 

@@ -190,7 +190,7 @@ func (a *OidcAuthenticatorPasswordImpl) verifyToken(token string, value string) 
 		[]jose.ContentEncryption{jose.A128GCM},
 	)
 	if err != nil {
-		slog.Error("parsing JWT: %s", err)
+		slog.Error("parsing JWT: %s", "err", err)
 		return err
 	}
 
@@ -202,7 +202,7 @@ func (a *OidcAuthenticatorPasswordImpl) verifyToken(token string, value string) 
 
 	out := jwt.Claims{}
 	if err := tok.Claims(a.sharedEncryptionKey, &out, &privateClaim); err != nil {
-		slog.Error("verifying JWT: %s", err)
+		slog.Error("verifying JWT: %s", "err", err)
 		return err
 	}
 

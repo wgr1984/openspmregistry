@@ -14,9 +14,10 @@ RUN apt-get update && apt-get install -y --no-install-recommends xz-utils && \
 
 WORKDIR /app
 
-COPY go.mod go.sum ./
 COPY . .
+RUN go clean -cache
 RUN go mod download
+RUN go test ./...
 
 RUN CGO_ENABLED=0 GOOS=linux go build -ldflags="-s -w" -o openspmreg .
 RUN upx --best --lzma openspmreg
