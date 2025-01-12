@@ -67,7 +67,7 @@ func (f *FileRepo) ExtractManifestFiles(element *models.UploadElement) error {
 func (f *FileRepo) List(scope string, name string) ([]models.ListElement, error) {
 	path := filepath.Join(f.path, scope, name)
 	if _, err := os.Stat(path); errors.Is(err, os.ErrNotExist) {
-		return nil, nil
+		return nil, err
 	}
 
 	var elements []models.ListElement
