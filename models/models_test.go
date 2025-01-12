@@ -188,3 +188,59 @@ func Test_NewUploadElement_ValidInputs_ReturnsUploadElement(t *testing.T) {
 		t.Errorf("expected %s, %s, %s, %s, got %s, %s, %s, %s", scope, name, version, mimeType, element.Scope, element.Name, element.Version, element.MimeType)
 	}
 }
+
+func Test_NewUploadElement_WithFilenameOverwrite_ReturnsUploadElement(t *testing.T) {
+	scope := "testScope"
+	name := "testName"
+	version := "1.0.0"
+	mimeType := "application/zip"
+	uploadType := SourceArchive
+	filenameOverwrite := "custom"
+
+	element := NewUploadElement(scope, name, version, mimeType, uploadType)
+	element.SetFilenameOverwrite(filenameOverwrite)
+	if element.FileName() != filenameOverwrite+".zip" {
+		t.Errorf("expected %s, got %s", filenameOverwrite, element.FileName())
+	}
+}
+
+func Test_NewUploadElement_WithExtOverwrite_ReturnsUploadElement(t *testing.T) {
+	scope := "testScope"
+	name := "testName"
+	version := "1.0.0"
+	mimeType := "application/zip"
+	uploadType := SourceArchive
+	extOverwrite := ".tar.gz"
+
+	element := NewUploadElement(scope, name, version, mimeType, uploadType)
+	element.SetExtOverwrite(extOverwrite)
+	if element.FileName() != "testScope.testName-1.0.0.tar.gz" {
+		t.Errorf("expected testScope.testName-1.0.0.tar.gz, got %s", element.FileName())
+	}
+}
+
+func Test_NewUploadElement_WithUnsupportedUploadType_ReturnsUploadElement(t *testing.T) {
+	scope := "testScope"
+	name := "testName"
+	version := "1.0.0"
+	mimeType := "application/zip"
+	uploadType := "unsupported"
+
+	element := NewUploadElement(scope, name, version, mimeType, UploadElementType(uploadType))
+	if element.FileName() != "testScope.testName-1.0.0.zip" {
+		t.Errorf("expected testScope.testName-1.0.0.zip, got %s", element.FileName())
+	}
+}
+
+func Test_NewUploadElement_WithUnknownMimetype_ReturnsUploadElement(t *testing.T) {
+	scope := "testScope"
+	name := "testName"
+	version := "1.0.0"
+	mimeType := "unknown"
+	uploadType := SourceArchive
+
+	element := NewUploadElement(scope, name, version, mimeType, uploadType)
+	if element.FileName() != "testScope.testName-1.0.0" {
+		t.Errorf("expected testScope.testName-1.0.0, got %s", element.FileName())
+	}
+}
