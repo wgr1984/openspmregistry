@@ -498,13 +498,220 @@ func Test_GetSwiftToolVersion_NoSwiftVersion_ReturnsError(t *testing.T) {
 	}
 }
 
+func Test_GetReader_FileExists_ReturnsReader(t *testing.T) {
+	fileRepo := NewFileRepo("/tmp")
+	element := models.NewUploadElement(
+		"testScope",
+		"testName",
+		"1.0.0",
+		mimetypes.TextXSwift,
+		models.Manifest,
+	)
+
+	path := filepath.Join("/tmp", element.Scope, element.Name, element.Version, element.FileName())
+	os.MkdirAll(filepath.Dir(path), os.ModePerm)
+	file, err := os.Create(path)
+	if err != nil {
+		t.Fatalf("failed to create file: %v", err)
+	}
+	file.Close()
+
+	reader, err := fileRepo.GetReader(element)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if reader == nil {
+		t.Errorf("expected reader, got nil")
+	}
+	reader.Close()
+}
+
+func Test_GetReader_FileDoesNotExist_ReturnsError(t *testing.T) {
+	fileRepo := NewFileRepo("/tmp")
+
+	element := models.NewUploadElement(
+		"testScope",
+		"testName",
+		"1.0.0",
+		mimetypes.TextXSwift,
+		models.Manifest,
+	)
+	element.SetFilenameOverwrite("nonExistentFile.txt")
+
+	reader, err := fileRepo.GetReader(element)
+	if err == nil {
+		t.Errorf("expected error, got nil")
+	}
+	if reader != nil {
+		t.Errorf("expected nil reader, got %v", reader)
+	}
+}
+
+func Test_GetReader_InvalidPath_ReturnsError(t *testing.T) {
+	fileRepo := NewFileRepo("/invalid_path")
+	element := models.NewUploadElement(
+		"testScope",
+		"testName",
+		"1.0.0",
+		mimetypes.TextXSwift,
+		models.Manifest,
+	).SetFilenameOverwrite("nonExistentFile.txt")
+
+	_, err := fileRepo.GetReader(element)
+	if err == nil {
+		t.Errorf("expected error, got nil")
+	}
+}
+
+func Test_GetReader_FileReadError_ReturnsError(t *testing.T) {
+	fileRepo := NewFileRepo("/tmp")
+	element := models.NewUploadElement(
+		"testScope",
+		"testName",
+		"1.0.0",
+		mimetypes.TextXSwift,
+		models.Manifest,
+	)
+
+	path := filepath.Join("/tmp", element.Scope, element.Name, element.Version, element.FileName())
+	os.MkdirAll(filepath.Dir(path), os.ModePerm)
+	file, err := os.Create(path)
+	if err != nil {
+		t.Fatalf("failed to create file: %v", err)
+	}
+	file.Close()
+
+	// Simulate read error by removing the file
+	os.Remove(path)
+
+	_, err = fileRepo.GetReader(element)
+	if err == nil {
+		t.Errorf("expected error, got nil")
+	}
+}
+
+func Test_Lookup_ValidURL_ReturnsMatchingIDs(t *testing.T) {
+	fileRepo := NewFileRepo("/tmp/testRepo")
+	element := models.NewUploadElement(
+		"testScope",
+		"testName",
+		"1.0.0",
+		mimetypes.ApplicationJson,
+		models.Metadata,
+	)
+
+	path := filepath.Join("/tmp/testRepo", element.Scope, element.Name, element.Version)
+	os.MkdirAll(path, os.ModePerm)
+	defer os.RemoveAll(filepath.Join("/tmp/testRepo", element.Scope))
+
+	metadataPath := filepath.Join(path, "metadata.json")
+	file, err := os.Create(metadataPath)
+	if err != nil {
+		t.Fatalf("failed to create metadata file: %v", err)
+	}
+	_, err = file.WriteString(`{"repositoryURLs": ["https://example.com/repo"]}`)
+	if err != nil {
+		t.Fatalf("failed to write to metadata file: %v", err)
+	}
+	file.Close()
+
+	packagePath := filepath.Join(path, "Package.swift")
+	err = os.WriteFile(packagePath, []byte(`// swift-tools-version:5.3
+	import PackageDescription
+
+	let package = Package(
+		name: "SamplePackage",
+		platforms: [
+	.macOS(.v10_15)
+	],
+	products: [
+	.library(
+	name: "SamplePackage",
+	targets: ["SamplePackage"]),
+	],
+	dependencies: [
+	// Dependencies declare other packages that this package depends on.
+	// .package(url: /* package url */, from: "1.0.0"),
+	],
+	targets: [
+	.target(
+	name: "SamplePackage",
+	dependencies: []),
+	.testTarget(
+	name: "SamplePackageTests",
+	dependencies: ["SamplePackage"]),
+	]
+	)`), os.ModePerm)
+
+	result := fileRepo.Lookup("https://example.com/repo")
+	if len(result) != 1 {
+		t.Errorf("expected 1 result, got %d", len(result))
+	}
+	if result[0] != "testScope.testName" {
+		t.Errorf("expected testScope.testName, got %s", result[0])
+	}
+}
+
+func Test_Lookup_InvalidURL_ReturnsEmptyList(t *testing.T) {
+	fileRepo := NewFileRepo("/tmp")
+	element := models.NewUploadElement(
+		"testScope",
+		"testName",
+		"1.0.0",
+		mimetypes.ApplicationJson,
+		models.Metadata,
+	)
+
+	path := filepath.Join("/tmp", element.Scope, element.Name, element.Version)
+	os.MkdirAll(path, os.ModePerm)
+	defer os.RemoveAll(filepath.Join("/tmp", element.Scope))
+
+	metadataPath := filepath.Join(path, "metadata.json")
+	file, err := os.Create(metadataPath)
+	if err != nil {
+		t.Fatalf("failed to create metadata file: %v", err)
+	}
+	_, err = file.WriteString(`{"repositoryURLs": ["https://example.com/repo"]}`)
+	if err != nil {
+		t.Fatalf("failed to write to metadata file: %v", err)
+	}
+	file.Close()
+
+	result := fileRepo.Lookup("https://invalid.com/repo")
+	if len(result) != 0 {
+		t.Errorf("expected 0 results, got %d", len(result))
+	}
+}
+
+func Test_Lookup_NoMetadataFiles_ReturnsEmptyList(t *testing.T) {
+	fileRepo := NewFileRepo("/tmp")
+	os.MkdirAll("/tmp/testScope/testName/1.0.0", os.ModePerm)
+	defer os.RemoveAll("/tmp/testScope")
+
+	result := fileRepo.Lookup("https://example.com/repo")
+	if len(result) != 0 {
+		t.Errorf("expected 0 results, got %d", len(result))
+	}
+}
+
+func Test_Lookup_ErrorWalkingDirectories_ReturnsEmptyList(t *testing.T) {
+	fileRepo := NewFileRepo("/invalid_path")
+
+	result := fileRepo.Lookup("https://example.com/repo")
+	if len(result) != 0 {
+		t.Errorf("expected 0 results, got %d", len(result))
+	}
+}
+
 func Test_Remove_FileExists_RemovesFile(t *testing.T) {
 	fileRepo := NewFileRepo("/tmp")
-	element := &models.UploadElement{
-		Scope:   "testScope",
-		Name:    "testName",
-		Version: "1.0.0",
-	}
+	element := models.NewUploadElement(
+		"testScope",
+		"testName",
+		"1.0.0",
+		mimetypes.TextXSwift,
+		models.Manifest,
+	)
 
 	path := filepath.Join("/tmp", element.Scope, element.Name, element.Version, element.FileName())
 	os.MkdirAll(filepath.Dir(path), os.ModePerm)
