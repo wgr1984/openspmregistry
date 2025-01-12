@@ -97,7 +97,7 @@ func Test_GetWriter_ValidElement_ReturnsWriter(t *testing.T) {
 
 func Test_GetWriter_InvalidPath_ReturnsError(t *testing.T) {
 	if isRoot() {
-		t.Skip("Skipping testing in CI environment")
+		t.Skip("Skipping testing in Docker environment (root user)")
 	}
 
 	defer teardown(t)
