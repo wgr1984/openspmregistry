@@ -2,10 +2,12 @@ package utils
 
 import (
 	"OpenSPMRegistry/config"
+	"errors"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"testing/iotest"
 )
 
 func Test_CopyStruct_ValidStruct_ReturnsCopy(t *testing.T) {
@@ -44,11 +46,26 @@ func Test_RandomString_ValidLength_ReturnsString(t *testing.T) {
 	if len(result) != 16 { // base64 encoding increases length
 		t.Errorf("expected length 16, got %d", len(result))
 	}
+	result2, err := RandomString(10)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if result == result2 {
+		t.Errorf("expected different strings, got same")
+	}
 }
 
 func Test_RandomString_InvalidLength_ReturnsError(t *testing.T) {
 	_, err := RandomString(-1)
 	if err == nil {
+		t.Errorf("expected error, got nil")
+	}
+}
+
+func Test_RandomString_GenerateError_ReturnsString(t *testing.T) {
+	fakeErr := errors.New("fake error")
+	_, err := RandomStringFromGenerator(10, iotest.ErrReader(fakeErr))
+	if err == nil || !errors.Is(err, fakeErr) {
 		t.Errorf("expected error, got nil")
 	}
 }

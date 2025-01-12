@@ -5,6 +5,7 @@ import (
 	"crypto/rand"
 	"encoding/base64"
 	"fmt"
+	"io"
 	"log/slog"
 	"net/http"
 	"strings"
@@ -25,11 +26,15 @@ func StripExtension(s string, ext string) string {
 }
 
 func RandomString(i int) (string, error) {
+	return RandomStringFromGenerator(i, rand.Reader)
+}
+
+func RandomStringFromGenerator(i int, r io.Reader) (string, error) {
 	if i < 0 {
 		return "", fmt.Errorf("invalid length: %d", i)
 	}
 	b := make([]byte, i)
-	_, err := rand.Read(b)
+	_, err := io.ReadFull(r, b)
 	if err != nil {
 		return "", err
 	}
