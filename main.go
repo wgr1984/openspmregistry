@@ -5,7 +5,7 @@ import (
 	"OpenSPMRegistry/config"
 	"OpenSPMRegistry/controller"
 	"OpenSPMRegistry/middleware"
-	"OpenSPMRegistry/repo"
+	"OpenSPMRegistry/repo/files"
 	"flag"
 	"fmt"
 	"gopkg.in/yaml.v3"
@@ -67,7 +67,7 @@ func main() {
 		log.Fatal("Only filesystem is supported as repo so far")
 	}
 
-	r := repo.NewFileRepo(repoConfig.Path)
+	r := files.NewFileRepo(repoConfig.Path)
 	a := middleware.NewAuthentication(authenticator.CreateAuthenticator(serverConfig.Server), router)
 	c := controller.NewController(serverConfig.Server, r)
 

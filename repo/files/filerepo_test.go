@@ -1,16 +1,62 @@
-package repo
+package files
 
 import (
 	"OpenSPMRegistry/mimetypes"
 	"OpenSPMRegistry/models"
 	"archive/zip"
+	"encoding/base64"
 	"errors"
+	"io"
+	"io/fs"
 	"log"
 	"os"
 	"os/user"
 	"path/filepath"
 	"testing"
+	"time"
 )
+
+type fakeOsModule_statError struct {
+	osAdapterDefault
+}
+
+func (m *fakeOsModule_statError) Stat(name string) (os.FileInfo, error) {
+	return nil, fakeError
+}
+
+type fakeOsModule_walkDirError struct {
+	osAdapterDefault
+}
+
+func (m *fakeOsModule_walkDirError) WalkDir(root string, fn fs.WalkDirFunc) error {
+	return filepath.WalkDir(root, func(path string, d fs.DirEntry, err error) error {
+		return fn(path, d, fakeError)
+	})
+}
+
+type access_error struct {
+	access
+}
+
+func (a *access_error) Exists(element *models.UploadElement) bool {
+	return true
+}
+
+func (a *access_error) GetReader(element *models.UploadElement) (io.ReadSeekCloser, error) {
+	return nil, fakeError
+}
+
+func (a *access_error) GetWriter(element *models.UploadElement) (io.WriteCloser, error) {
+	return nil, fakeError
+}
+
+type fakeOsModule_readerCloseError struct {
+	osAdapterDefault
+}
+
+func (m *fakeOsModule_readerCloseError) Close() error {
+	return fakeError
+}
 
 func isRoot() bool {
 	currentUser, err := user.Current()
@@ -18,113 +64,6 @@ func isRoot() bool {
 		log.Fatalf("[isRoot] Unable to get current user: %s", err)
 	}
 	return currentUser.Username == "root"
-}
-
-func teardown(t *testing.T) {
-	err := os.RemoveAll("/tmp/openspmsreg_tests")
-	if err != nil {
-		t.Fatalf("failed to remove directory: %v", err)
-	}
-}
-
-func Test_Exists_FileDoesNotExist_ReturnsFalse(t *testing.T) {
-	defer teardown(t)
-
-	fileRepo := NewFileRepo("/tmp/openspmsreg_tests")
-	element := &models.UploadElement{
-		Scope:   "testScope",
-		Name:    "testName",
-		Version: "1.0.0",
-	}
-
-	exists := fileRepo.Exists(element)
-	if exists {
-		t.Errorf("expected false, got true")
-	}
-}
-
-func Test_Exists_FileExists_ReturnsTrue(t *testing.T) {
-	defer teardown(t)
-
-	fileRepo := NewFileRepo("/tmp/openspmsreg_tests")
-	element := &models.UploadElement{
-		Scope:   "testScope",
-		Name:    "testName",
-		Version: "1.0.0",
-	}
-
-	path := filepath.Join("/tmp/openspmsreg_tests", element.Scope, element.Name, element.Version, element.FileName())
-	os.MkdirAll(filepath.Dir(path), os.ModePerm)
-	file, err := os.Create(path)
-	if err != nil {
-		t.Fatalf("failed to create file: %v", err)
-	}
-	file.Close()
-
-	exists := fileRepo.Exists(element)
-	if !exists {
-		t.Errorf("expected true, got false")
-	}
-
-	err = os.Remove(path)
-	if err != nil {
-		t.Fatalf("failed to remove file: %v", err)
-	}
-}
-
-func Test_GetWriter_ValidElement_ReturnsWriter(t *testing.T) {
-	defer teardown(t)
-
-	fileRepo := NewFileRepo("/tmp/openspmsreg_tests")
-	element := &models.UploadElement{
-		Scope:   "testScope",
-		Name:    "testName",
-		Version: "1.0.0",
-	}
-
-	writer, err := fileRepo.GetWriter(element)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if writer == nil {
-		t.Errorf("expected writer, got nil")
-	}
-	writer.Close()
-
-	// delete the file
-	fileRepo.Remove(element)
-}
-
-func Test_GetWriter_InvalidPath_ReturnsError(t *testing.T) {
-	if isRoot() {
-		t.Skip("Skipping testing in Docker environment (root user)")
-	}
-
-	defer teardown(t)
-
-	fileRepo := NewFileRepo("/tmp/openspmsreg_tests/invalid_path_error")
-	element := &models.UploadElement{
-		Scope:   "testScope",
-		Name:    "testName",
-		Version: "1.0.0",
-	}
-
-	// create a directory
-	err := os.MkdirAll("/tmp/openspmsreg_tests/invalid_path_error", os.ModePerm)
-	if err != nil {
-		t.Fatalf("failed to create directory: %v", err)
-	}
-
-	// block permissions to create the file
-	err = os.Chmod("/tmp/openspmsreg_tests/invalid_path_error", 0000)
-	if err != nil {
-		t.Fatalf("failed to change directory permissions: %v", err)
-	}
-
-	_, err = fileRepo.GetWriter(element)
-	if err == nil {
-		t.Errorf("expected error, got nil")
-	}
 }
 
 func Test_ExtractManifestFiles_ValidZipFile_ExtractsFiles(t *testing.T) {
@@ -213,8 +152,13 @@ func Test_ExtractManifestFiles_UnsupportedMimeType_ReturnsError(t *testing.T) {
 		MimeType: "text/plain",
 	}
 
-	err := fileRepo.ExtractManifestFiles(element)
-	if err == nil {
+	err := os.MkdirAll(filepath.Dir(filepath.Join("/tmp/openspmsreg_tests", element.Scope, element.Name, element.Version, element.FileName())), os.ModePerm)
+	if err != nil {
+		t.Fatalf("failed to create directory: %v", err)
+	}
+
+	err = fileRepo.ExtractManifestFiles(element)
+	if err == nil && !errors.Is(err, errors.New("unsupported mime type")) {
 		t.Errorf("expected error, got nil")
 	}
 }
@@ -253,6 +197,26 @@ func Test_ExtractManifestFiles_NonExistentPath_CreatesPathAndExtractsFiles(t *te
 	extractedPath := filepath.Join("/tmp/openspmsreg_tests", element.Scope, element.Name, element.Version, "Package.swift")
 	if _, err := os.Stat(extractedPath); err == nil {
 		t.Errorf("expected file to be extracted, but it does not exist")
+	}
+}
+
+func Test_ExtractManifestFiles_MkDirAllCreateError_ReturnsError(t *testing.T) {
+	defer teardown(t)
+
+	fileRepo := &FileRepo{
+		path:     "/tmp/openspmsreg_tests/invalid_path",
+		osModule: &fakeOsModule_mkDirAllError{},
+	}
+	element := &models.UploadElement{
+		Scope:    "testScope",
+		Name:     "testName",
+		Version:  "1.0.0",
+		MimeType: mimetypes.ApplicationZip,
+	}
+
+	err := fileRepo.ExtractManifestFiles(element)
+	if err == nil || !errors.Is(err, fakeError) {
+		t.Errorf("expected error, got nil")
 	}
 }
 
@@ -316,6 +280,270 @@ func Test_List_ErrorReadingDirectory_ReturnsError(t *testing.T) {
 
 	_, err := fileRepo.List(scope, name)
 	if err == nil || !errors.Is(err, os.ErrNotExist) {
+		t.Errorf("expected error, got nil")
+	}
+}
+
+func Test_List_ErrorStatFile_ReturnsError(t *testing.T) {
+	defer teardown(t)
+
+	fileRepo := &FileRepo{
+		path:     "/tmp/openspmsreg_tests",
+		osModule: &fakeOsModule_statError{},
+	}
+	scope := "testScope"
+	name := "testName"
+
+	_, err := fileRepo.List(scope, name)
+	if err == nil || !errors.Is(err, fakeError) {
+		t.Errorf("expected error, got nil")
+	}
+}
+
+func Test_List_ErrorWalkingDirectory_ReturnsError(t *testing.T) {
+	defer teardown(t)
+
+	fileRepo := &FileRepo{
+		path:     "/tmp/openspmsreg_tests",
+		osModule: &fakeOsModule_walkDirError{},
+	}
+
+	scope := "testScope"
+	name := "testName"
+	version := "1.0.0"
+
+	err := os.MkdirAll(filepath.Join("/tmp/openspmsreg_tests", scope, name, version), os.ModePerm)
+	if err != nil {
+		t.Fatalf("failed to create directory: %v", err)
+	}
+
+	_, err = fileRepo.List(scope, name)
+	if err == nil || !errors.Is(err, fakeError) {
+		t.Errorf("expected error, got nil")
+	}
+}
+
+func Test_EncodeBase64_FileExists_ReturnsBase64String(t *testing.T) {
+	defer teardown(t)
+
+	fileRepo := NewFileRepo("/tmp/openspmsreg_tests")
+	element := models.NewUploadElement(
+		"testScope",
+		"testName",
+		"1.0.0",
+		mimetypes.TextXSwift,
+		models.Manifest,
+	)
+
+	path := filepath.Join("/tmp/openspmsreg_tests", element.Scope, element.Name, element.Version, element.FileName())
+	os.MkdirAll(filepath.Dir(path), os.ModePerm)
+	file, err := os.Create(path)
+	if err != nil {
+		t.Fatalf("failed to create file: %v", err)
+	}
+	file.WriteString("test data")
+	file.Close()
+
+	base64String, err := fileRepo.EncodeBase64(element)
+	if err != nil {
+		t.Errorf("unexpected error: %v", err)
+	}
+	expected := base64.StdEncoding.EncodeToString([]byte("test data"))
+	if base64String != expected {
+		t.Errorf("expected %s, got %s", expected, base64String)
+	}
+}
+
+func Test_EncodeBase64_FileDoesNotExist_ReturnsError(t *testing.T) {
+	defer teardown(t)
+
+	fileRepo := NewFileRepo("/tmp/openspmsreg_tests")
+	element := models.NewUploadElement(
+		"testScope",
+		"testName",
+		"1.0.0",
+		mimetypes.TextXSwift,
+		models.Manifest,
+	)
+
+	_, err := fileRepo.EncodeBase64(element)
+	if err == nil {
+		t.Errorf("expected error, got nil")
+	}
+}
+
+func Test_EncodeBase64_ReadError_ReturnsError(t *testing.T) {
+	defer teardown(t)
+
+	fileRepo := NewFileRepo("/tmp/openspmsreg_tests")
+	element := models.NewUploadElement(
+		"testScope",
+		"testName",
+		"1.0.0",
+		mimetypes.TextXSwift,
+		models.Manifest,
+	)
+
+	path := filepath.Join("/tmp/openspmsreg_tests", element.Scope, element.Name, element.Version, element.FileName())
+	os.MkdirAll(filepath.Dir(path), os.ModePerm)
+	file, err := os.Create(path)
+	if err != nil {
+		t.Fatalf("failed to create file: %v", err)
+	}
+	file.Close()
+
+	// Simulate read error by removing the file
+	os.Remove(path)
+
+	_, err = fileRepo.EncodeBase64(element)
+	if err == nil {
+		t.Errorf("expected error, got nil")
+	}
+}
+
+func Test_EncodeBase64_GetReaderError_ReturnsError(t *testing.T) {
+	defer teardown(t)
+
+	fileRepo := &FileRepo{
+		path:     "/tmp/openspmsreg_tests",
+		Access:   &access_error{},
+		osModule: &osAdapterDefault{},
+	}
+	element := models.NewUploadElement(
+		"testScope",
+		"testName",
+		"1.0.0",
+		mimetypes.TextXSwift,
+		models.Manifest,
+	)
+
+	err := os.MkdirAll(filepath.Join("/tmp/openspmsreg_tests", element.Scope, element.Name, element.Version), os.ModePerm)
+	if err != nil {
+		t.Fatalf("failed to create directory: %v", err)
+	}
+
+	file, err := os.Create(filepath.Join("/tmp/openspmsreg_tests", element.Scope, element.Name, element.Version, element.FileName()))
+	if err != nil {
+		t.Fatalf("failed to create file: %v", err)
+	}
+	file.Close()
+
+	_, err = fileRepo.EncodeBase64(element)
+	if err == nil || !errors.Is(err, fakeError) {
+		t.Errorf("expected error, got nil")
+	}
+}
+
+func Test_EncodeBase64_ReaderCloseError_ReturnsError(t *testing.T) {
+	defer teardown(t)
+
+	path := "/tmp/openspmsreg_tests"
+	osModule := &fakeOsModule_readerCloseError{}
+	fileRepo := &FileRepo{
+		path: path,
+		Access: &access{
+			path:     path,
+			osModule: osModule,
+		},
+		osModule: osModule,
+	}
+
+	element := models.NewUploadElement(
+		"testScope",
+		"testName",
+		"1.0.0",
+		mimetypes.TextXSwift,
+		models.Manifest,
+	)
+
+	path = filepath.Join("/tmp/openspmsreg_tests", element.Scope, element.Name, element.Version, element.FileName())
+	err := os.MkdirAll(filepath.Dir(path), os.ModePerm)
+	if err != nil {
+		t.Fatalf("failed to create directory: %v", err)
+	}
+	file, err := os.Create(path)
+	if err != nil {
+		t.Fatalf("failed to create file: %v", err)
+	}
+	_, err = file.WriteString("test data")
+	if err != nil {
+		t.Fatalf("failed to write to file: %v", err)
+	}
+	file.Close()
+
+	_, err = fileRepo.EncodeBase64(element)
+	if err != nil {
+		t.Errorf("unexpected error: %v", err)
+	}
+}
+
+func Test_PublishDate_ValidFile_ReturnsModTime(t *testing.T) {
+	defer teardown(t)
+
+	fileRepo := NewFileRepo("/tmp/openspmsreg_tests")
+	element := models.NewUploadElement(
+		"testScope",
+		"testName",
+		"1.0.0",
+		mimetypes.TextXSwift,
+		models.Manifest,
+	)
+
+	path := filepath.Join("/tmp/openspmsreg_tests", element.Scope, element.Name, element.Version)
+	os.MkdirAll(path, os.ModePerm)
+	file, err := os.Create(filepath.Join(path, element.FileName()))
+	if err != nil {
+		t.Fatalf("failed to create file: %v", err)
+	}
+	file.Close()
+
+	modTime := time.Now().Add(-time.Hour)
+	os.Chtimes(filepath.Join(path, element.FileName()), modTime, modTime)
+
+	result, err := fileRepo.PublishDate(element)
+	if err != nil {
+		t.Errorf("unexpected error: %v", err)
+	}
+	if !result.Equal(modTime) {
+		t.Errorf("expected %v, got %v", modTime, result)
+	}
+}
+
+func Test_PublishDate_PathDoesNotExist_ReturnsError(t *testing.T) {
+	defer teardown(t)
+
+	fileRepo := NewFileRepo("/tmp/openspmsreg_tests")
+	element := models.NewUploadElement(
+		"nonExistentScope",
+		"nonExistentName",
+		"1.0.0",
+		mimetypes.TextXSwift,
+		models.Manifest,
+	)
+
+	_, err := fileRepo.PublishDate(element)
+	if err == nil {
+		t.Errorf("expected error, got nil")
+	}
+}
+
+func Test_PublishDate_FileDoesNotExist_ReturnsError(t *testing.T) {
+	defer teardown(t)
+
+	fileRepo := NewFileRepo("/tmp/openspmsreg_tests")
+	element := models.NewUploadElement(
+		"testScope",
+		"testName",
+		"1.0.0",
+		mimetypes.TextXSwift,
+		models.Manifest,
+	)
+
+	path := filepath.Join("/tmp/openspmsreg_tests", element.Scope, element.Name, element.Version)
+	os.MkdirAll(path, os.ModePerm)
+
+	_, err := fileRepo.PublishDate(element)
+	if err == nil {
 		t.Errorf("expected error, got nil")
 	}
 }
@@ -564,106 +792,6 @@ func Test_GetSwiftToolVersion_NoSwiftVersion_ReturnsError(t *testing.T) {
 	file.Close()
 
 	_, err = fileRepo.GetSwiftToolVersion(element)
-	if err == nil {
-		t.Errorf("expected error, got nil")
-	}
-}
-
-func Test_GetReader_FileExists_ReturnsReader(t *testing.T) {
-	defer teardown(t)
-
-	fileRepo := NewFileRepo("/tmp/openspmsreg_tests")
-	element := models.NewUploadElement(
-		"testScope",
-		"testName",
-		"1.0.0",
-		mimetypes.TextXSwift,
-		models.Manifest,
-	)
-
-	path := filepath.Join("/tmp/openspmsreg_tests", element.Scope, element.Name, element.Version, element.FileName())
-	os.MkdirAll(filepath.Dir(path), os.ModePerm)
-	file, err := os.Create(path)
-	if err != nil {
-		t.Fatalf("failed to create file: %v", err)
-	}
-	file.Close()
-
-	reader, err := fileRepo.GetReader(element)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if reader == nil {
-		t.Errorf("expected reader, got nil")
-	}
-	reader.Close()
-}
-
-func Test_GetReader_FileDoesNotExist_ReturnsError(t *testing.T) {
-	defer teardown(t)
-
-	fileRepo := NewFileRepo("/tmp/openspmsreg_tests")
-
-	element := models.NewUploadElement(
-		"testScope",
-		"testName",
-		"1.0.0",
-		mimetypes.TextXSwift,
-		models.Manifest,
-	)
-	element.SetFilenameOverwrite("nonExistentFile.txt")
-
-	reader, err := fileRepo.GetReader(element)
-	if err == nil {
-		t.Errorf("expected error, got nil")
-	}
-	if reader != nil {
-		t.Errorf("expected nil reader, got %v", reader)
-	}
-}
-
-func Test_GetReader_InvalidPath_ReturnsError(t *testing.T) {
-	defer teardown(t)
-
-	fileRepo := NewFileRepo("/tmp/openspmsreg_tests/invalid_path")
-	element := models.NewUploadElement(
-		"testScope",
-		"testName",
-		"1.0.0",
-		mimetypes.TextXSwift,
-		models.Manifest,
-	).SetFilenameOverwrite("nonExistentFile.txt")
-
-	_, err := fileRepo.GetReader(element)
-	if err == nil {
-		t.Errorf("expected error, got nil")
-	}
-}
-
-func Test_GetReader_FileReadError_ReturnsError(t *testing.T) {
-	defer teardown(t)
-
-	fileRepo := NewFileRepo("/tmp/openspmsreg_tests")
-	element := models.NewUploadElement(
-		"testScope",
-		"testName",
-		"1.0.0",
-		mimetypes.TextXSwift,
-		models.Manifest,
-	)
-
-	path := filepath.Join("/tmp/openspmsreg_tests", element.Scope, element.Name, element.Version, element.FileName())
-	os.MkdirAll(filepath.Dir(path), os.ModePerm)
-	file, err := os.Create(path)
-	if err != nil {
-		t.Fatalf("failed to create file: %v", err)
-	}
-	file.Close()
-
-	// Simulate read error by removing the file
-	os.Remove(path)
-
-	_, err = fileRepo.GetReader(element)
 	if err == nil {
 		t.Errorf("expected error, got nil")
 	}

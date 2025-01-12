@@ -7,9 +7,9 @@ import (
 )
 
 type (
-	// Repo is the interface that wraps the basic operations
+	// Access is the interface that wraps the basic operations
 	// that a repository should implement
-	Repo interface {
+	Access interface {
 		// Exists checks whether element to be published exists already
 		// Returns true in case it does otherwise false
 		Exists(element *models.UploadElement) bool
@@ -22,6 +22,11 @@ type (
 		// in case element does not exist it creates the necessary sub-structures
 		// returns (writer for the file|error
 		GetWriter(element *models.UploadElement) (io.WriteCloser, error)
+	}
+	// Repo is the interface that wraps the basic operations
+	// that a repository should implement
+	Repo interface {
+		Access
 
 		// ExtractManifestFiles extracts the manifest files from the provided
 		// source archive
