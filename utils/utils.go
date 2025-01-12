@@ -26,10 +26,10 @@ func StripExtension(s string, ext string) string {
 }
 
 func RandomString(i int) (string, error) {
-	return RandomStringFromGenerator(i, rand.Reader)
+	return randomStringFromGenerator(i, rand.Reader)
 }
 
-func RandomStringFromGenerator(i int, r io.Reader) (string, error) {
+func randomStringFromGenerator(i int, r io.Reader) (string, error) {
 	if i < 0 {
 		return "", fmt.Errorf("invalid length: %d", i)
 	}

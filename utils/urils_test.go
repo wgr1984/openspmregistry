@@ -64,7 +64,7 @@ func Test_RandomString_InvalidLength_ReturnsError(t *testing.T) {
 
 func Test_RandomString_GenerateError_ReturnsString(t *testing.T) {
 	fakeErr := errors.New("fake error")
-	_, err := RandomStringFromGenerator(10, iotest.ErrReader(fakeErr))
+	_, err := randomStringFromGenerator(10, iotest.ErrReader(fakeErr))
 	if err == nil || !errors.Is(err, fakeErr) {
 		t.Errorf("expected error, got nil")
 	}
