@@ -13,7 +13,9 @@ import (
 	"log/slog"
 	"net/http"
 	"os"
+	"os/signal"
 	"strings"
+	"syscall"
 )
 
 var (
@@ -97,6 +99,18 @@ func main() {
 		Addr:    fmt.Sprintf(":%d", serverConfig.Server.Port),
 		Handler: a,
 	}
+
+	sigChannel := make(chan os.Signal, 1)
+	signal.Notify(sigChannel, os.Interrupt, syscall.SIGTERM)
+
+	go func() {
+		<-sigChannel
+		slog.Info("Shutting down server...")
+		if err := srv.Shutdown(nil); err != nil {
+			slog.Error("Error shutting down server", "error", err)
+		}
+		os.Exit(1)
+	}()
 
 	if tlsFlag {
 		slog.Info("Starting HTTPS server on", "port", srv.Addr)
