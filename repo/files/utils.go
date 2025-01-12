@@ -1,4 +1,4 @@
-package repo
+package files
 
 import (
 	"OpenSPMRegistry/mimetypes"
@@ -14,11 +14,6 @@ func ExtractPackageSwiftFiles(element *models.UploadElement, fileLocation string
 	if element.MimeType == mimetypes.ApplicationZip {
 		r, err := zip.OpenReader(fileLocation)
 		if err != nil {
-			if r != nil {
-				if e := r.Close(); e != nil {
-					return e
-				}
-			}
 			return err
 		}
 
@@ -30,9 +25,6 @@ func ExtractPackageSwiftFiles(element *models.UploadElement, fileLocation string
 			if strings.HasPrefix(filename, "Package") && ext == ".swift" {
 				readerCloser, err := file.Open()
 				if err != nil {
-					if e := ensureFileReaderClosed(readerCloser, r); e != nil {
-						return e
-					}
 					return err
 				}
 

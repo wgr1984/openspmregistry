@@ -52,7 +52,7 @@ func (f *FileRepo) ExtractManifestFiles(element *models.UploadElement) error {
 	pathFile := filepath.Join(pathFolder, element.FileName())
 
 	if element.MimeType == mimetypes.ApplicationZip {
-		return repo.ExtractPackageSwiftFiles(element, pathFile, writePackageSwiftFiles(pathFolder))
+		return ExtractPackageSwiftFiles(element, pathFile, writePackageSwiftFiles(pathFolder))
 	}
 
 	return errors.New("unsupported mime type")
