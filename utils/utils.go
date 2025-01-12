@@ -25,6 +25,9 @@ func StripExtension(s string, ext string) string {
 }
 
 func RandomString(i int) (string, error) {
+	if i < 0 {
+		return "", fmt.Errorf("invalid length: %d", i)
+	}
 	b := make([]byte, i)
 	_, err := rand.Read(b)
 	if err != nil {
