@@ -109,6 +109,17 @@ func (r *reader_error_close) GetReader(element *models.UploadElement) (io.ReadSe
 	}, nil
 }
 
+type reader_error_reading struct {
+	access
+}
+
+func (r *reader_error_reading) GetReader(element *models.UploadElement) (io.ReadSeekCloser, error) {
+	inner, _ := r.access.GetReader(element)
+	return &ErrReaderSeekCloser_ReadErr{
+		inner: inner,
+	}, nil
+}
+
 func isRoot() bool {
 	currentUser, err := user.Current()
 	if err != nil {
@@ -459,6 +470,46 @@ func Test_EncodeBase64_GetReaderError_ReturnsError(t *testing.T) {
 		path:     "/tmp/openspmsreg_tests",
 		Access:   &access_error{},
 		osModule: &osAdapterDefault{},
+	}
+	element := models.NewUploadElement(
+		"testScope",
+		"testName",
+		"1.0.0",
+		mimetypes.TextXSwift,
+		models.Manifest,
+	)
+
+	err := os.MkdirAll(filepath.Join("/tmp/openspmsreg_tests", element.Scope, element.Name, element.Version), os.ModePerm)
+	if err != nil {
+		t.Fatalf("failed to create directory: %v", err)
+	}
+
+	file, err := os.Create(filepath.Join("/tmp/openspmsreg_tests", element.Scope, element.Name, element.Version, element.FileName()))
+	if err != nil {
+		t.Fatalf("failed to create file: %v", err)
+	}
+	file.Close()
+
+	_, err = fileRepo.EncodeBase64(element)
+	if err == nil || !errors.Is(err, fakeError) {
+		t.Errorf("expected error, got nil")
+	}
+}
+
+func Test_EncodeBase64_Reading_ReturnsError(t *testing.T) {
+	defer teardown(t)
+
+	path := "/tmp/openspmsreg_tests"
+	osModule := &osAdapterDefault{}
+	fileRepo := &FileRepo{
+		path: path,
+		Access: &reader_error_reading{
+			access: access{
+				path:     path,
+				osModule: osModule,
+			},
+		},
+		osModule: osModule,
 	}
 	element := models.NewUploadElement(
 		"testScope",
