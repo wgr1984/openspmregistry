@@ -28,7 +28,6 @@ type OidcAuthenticator interface {
 
 // OidcAuthenticatorImpl is an authenticator that uses OpenID Connect
 type OidcAuthenticatorImpl struct {
-	cache     *utils.LRUCache[string]
 	verifier  *oidc.IDTokenVerifier
 	provider  *oidc.Provider
 	ctx       context.Context

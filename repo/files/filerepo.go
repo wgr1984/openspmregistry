@@ -100,9 +100,6 @@ func (f *FileRepo) EncodeBase64(element *models.UploadElement) (string, error) {
 	}
 
 	defer func() {
-		if reader == nil {
-			return
-		}
 		if err := reader.Close(); err != nil {
 			slog.Error("Error closing reader:", "error", err)
 		}

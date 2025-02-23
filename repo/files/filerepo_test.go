@@ -50,12 +50,63 @@ func (a *access_error) GetWriter(element *models.UploadElement) (io.WriteCloser,
 	return nil, fakeError
 }
 
-type fakeOsModule_readerCloseError struct {
-	osAdapterDefault
+type ErrReaderSeekCloser_ReadErr struct {
+	inner io.ReadSeekCloser
 }
 
-func (m *fakeOsModule_readerCloseError) Close() error {
+func (r *ErrReaderSeekCloser_ReadErr) Read(p []byte) (n int, err error) {
+	return 0, fakeError
+}
+
+func (r *ErrReaderSeekCloser_ReadErr) Seek(offset int64, whence int) (int64, error) {
+	return r.inner.Seek(offset, whence)
+}
+
+func (r *ErrReaderSeekCloser_ReadErr) Close() error {
+	return r.inner.Close()
+}
+
+type ErrReaderSeekCloser_SeekErr struct {
+	inner io.ReadSeekCloser
+}
+
+func (r *ErrReaderSeekCloser_SeekErr) Read(p []byte) (n int, err error) {
+	return r.inner.Read(p)
+}
+
+func (r *ErrReaderSeekCloser_SeekErr) Seek(offset int64, whence int) (int64, error) {
+	return 0, fakeError
+}
+
+func (r *ErrReaderSeekCloser_SeekErr) Close() error {
+	return r.inner.Close()
+}
+
+type ErrReaderSeekCloser_CloseErr struct {
+	inner io.ReadSeekCloser
+}
+
+func (r *ErrReaderSeekCloser_CloseErr) Read(p []byte) (n int, err error) {
+	return r.inner.Read(p)
+}
+
+func (r *ErrReaderSeekCloser_CloseErr) Seek(offset int64, whence int) (int64, error) {
+	return r.inner.Seek(offset, whence)
+}
+
+func (r *ErrReaderSeekCloser_CloseErr) Close() error {
 	return fakeError
+}
+
+type reader_error_close struct {
+	access
+}
+
+func (r *reader_error_close) GetReader(element *models.UploadElement) (io.ReadSeekCloser, error) {
+	inner, _ := r.access.GetReader(element)
+	return &ErrReaderSeekCloser_CloseErr{
+		inner: inner,
+	}, nil
 }
 
 func isRoot() bool {
@@ -438,12 +489,14 @@ func Test_EncodeBase64_ReaderCloseError_ReturnsError(t *testing.T) {
 	defer teardown(t)
 
 	path := "/tmp/openspmsreg_tests"
-	osModule := &fakeOsModule_readerCloseError{}
+	osModule := &osAdapterDefault{}
 	fileRepo := &FileRepo{
 		path: path,
-		Access: &access{
-			path:     path,
-			osModule: osModule,
+		Access: &reader_error_close{
+			access: access{
+				path:     path,
+				osModule: osModule,
+			},
 		},
 		osModule: osModule,
 	}
