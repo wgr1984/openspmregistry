@@ -15,7 +15,7 @@ func (c *Controller) LookupAction(w http.ResponseWriter, r *http.Request) {
 
 	url := r.URL.Query().Get("url")
 	if url == "" {
-		writeError("url is required", w)
+		writeErrorWithStatusCode("url is required", w, http.StatusBadRequest)
 		return
 	}
 

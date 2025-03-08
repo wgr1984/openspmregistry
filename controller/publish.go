@@ -26,12 +26,12 @@ func (c *Controller) PublishAction(w http.ResponseWriter, r *http.Request) {
 	packageName := r.PathValue("package")
 	version := r.PathValue("version")
 	if match, err := regexp.MatchString("\\A[a-zA-Z0-9](?:[a-zA-Z0-9]|-[a-zA-Z0-9]){0,38}\\z", scope); err != nil || !match {
-		writeError(fmt.Sprint("upload failed, incorrect scope:", scope), w)
+		writeErrorWithStatusCode(fmt.Sprint("upload failed, incorrect scope:", scope), w, http.StatusBadRequest)
 		return
 	}
 
 	if match, err := regexp.MatchString("\\A[a-zA-Z0-9](?:[a-zA-Z0-9]|[-_][a-zA-Z0-9]){0,99}\\z", packageName); err != nil || !match {
-		writeError(fmt.Sprint("upload failed, incorrect package:", packageName), w)
+		writeErrorWithStatusCode(fmt.Sprint("upload failed, incorrect package:", packageName), w, http.StatusBadRequest)
 		return
 	}
 

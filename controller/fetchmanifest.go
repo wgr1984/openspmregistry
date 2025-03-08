@@ -38,7 +38,7 @@ func (c *Controller) FetchManifestAction(w http.ResponseWriter, r *http.Request)
 	// load manifest Package.swift file
 	reader, err := c.repo.GetReader(element)
 	if err != nil {
-		writeError(fmt.Sprintf("%s not found", filename), w)
+		writeErrorWithStatusCode(fmt.Sprintf("%s not found", filename), w, http.StatusNotFound)
 		return // error already logged
 	}
 

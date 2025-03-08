@@ -22,7 +22,10 @@ func (c *Controller) ListAction(w http.ResponseWriter, r *http.Request) {
 	scope := r.PathValue("scope")
 	packageName := utils.StripExtension(r.PathValue("package"), ".json")
 
-	elements := listElements(w, c, scope, packageName)
+	elements, err := listElements(w, c, scope, packageName)
+	if err != nil {
+		return // error already logged
+	}
 
 	releaseList := make(map[string]models.Release)
 

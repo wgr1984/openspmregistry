@@ -19,7 +19,6 @@ import (
 )
 
 var (
-	tlsFlag     bool
 	verboseFlag bool
 )
 
@@ -46,7 +45,6 @@ func loadServerConfig() (*config.ServerRoot, error) {
 }
 
 func main() {
-	flag.BoolVar(&tlsFlag, "tls", false, "enable tls enabled")
 	flag.BoolVar(&verboseFlag, "v", false, "show more information")
 	flag.Parse()
 
@@ -112,7 +110,7 @@ func main() {
 		os.Exit(1)
 	}()
 
-	if tlsFlag {
+	if serverConfig.Server.TlsEnabled {
 		slog.Info("Starting HTTPS server on", "port", srv.Addr)
 		certFile := serverConfig.Server.Certs.CertFile
 		keyFile := serverConfig.Server.Certs.KeyFile

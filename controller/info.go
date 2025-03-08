@@ -33,7 +33,13 @@ func (c *Controller) InfoAction(w http.ResponseWriter, r *http.Request) {
 
 	header := w.Header()
 
-	addFirstReleaseAsLatest(listElements(w, c, scope, packageName), c, header)
+	// add first release as latest
+	elements, err := listElements(w, c, scope, packageName)
+	if err != nil {
+		return // error already logged
+	}
+
+	addFirstReleaseAsLatest(elements, c, header)
 
 	metadataResult, err := c.repo.FetchMetadata(scope, packageName, version)
 	if err != nil && slog.Default().Enabled(nil, slog.LevelDebug) {

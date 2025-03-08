@@ -71,9 +71,36 @@ func Test_RandomString_GenerateError_ReturnsString(t *testing.T) {
 }
 
 func Test_BaseUrl_ValidConfig_ReturnsUrl(t *testing.T) {
-	config := config.ServerConfig{Hostname: "localhost", Port: 8080}
+	c := config.ServerConfig{Hostname: "localhost", Port: 8080}
+	expected := "http://localhost:8080"
+	result := BaseUrl(c)
+	if result != expected {
+		t.Errorf("expected %s, got %s", expected, result)
+	}
+}
+
+func Test_BaseUrl_StandardPort_ReturnsUrl(t *testing.T) {
+	c := config.ServerConfig{Hostname: "localhost", Port: 80}
+	expected := "http://localhost"
+	result := BaseUrl(c)
+	if result != expected {
+		t.Errorf("expected %s, got %s", expected, result)
+	}
+}
+
+func Test_BaseUrl_TlsEnabled_ReturnsUrl(t *testing.T) {
+	config := config.ServerConfig{Hostname: "localhost", Port: 8080, TlsEnabled: true}
 	expected := "https://localhost:8080"
 	result := BaseUrl(config)
+	if result != expected {
+		t.Errorf("expected %s, got %s", expected, result)
+	}
+}
+
+func Test_BaseUrl_TlsEnabled_StandardPort_ReturnsUrl(t *testing.T) {
+	c := config.ServerConfig{Hostname: "localhost", Port: 443, TlsEnabled: true}
+	expected := "https://localhost"
+	result := BaseUrl(c)
 	if result != expected {
 		t.Errorf("expected %s, got %s", expected, result)
 	}
