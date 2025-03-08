@@ -61,7 +61,7 @@ func (a *OidcAuthenticatorCodeImpl) Callback(w http.ResponseWriter, r *http.Requ
 		return
 	}
 
-	writeTokenOutput(w, idToken)
+	writeTokenOutput(w, idToken, a.template)
 }
 
 func (a *OidcAuthenticatorCodeImpl) Login(w http.ResponseWriter, r *http.Request) {

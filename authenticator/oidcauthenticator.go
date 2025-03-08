@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"github.com/coreos/go-oidc/v3/oidc"
 	"golang.org/x/oauth2"
+	"html/template"
 	"log/slog"
 	"net/http"
 	"strings"
@@ -32,6 +33,7 @@ type OidcAuthenticatorImpl struct {
 	provider  *oidc.Provider
 	ctx       context.Context
 	config    oauth2.Config
+	template  *template.Template
 	grantType string
 }
 
@@ -59,6 +61,7 @@ func NewOIDCAuthenticator(ctx context.Context, config config.ServerConfig) *Oidc
 		grantType: config.Auth.GrantType,
 		verifier:  verifier,
 		provider:  provider,
+		template:  template.New("token.gohtml"),
 	}
 }
 
@@ -91,7 +94,7 @@ func (a *OidcAuthenticatorImpl) CheckAuthHeaderPresent(w http.ResponseWriter, r 
 	// if it does, write the token to the response
 	authenticationHeader := r.Header.Get("Authorization")
 	if authenticationHeader != "" {
-		writeTokenOutput(w, authenticationHeader)
+		writeTokenOutput(w, authenticationHeader, a.template)
 		return true
 	}
 	return false

@@ -75,7 +75,7 @@ func (a *OidcAuthenticatorPasswordImpl) Authenticate(w http.ResponseWriter, r *h
 		return err, ""
 	}
 
-	writeTokenOutput(w, idToken)
+	writeTokenOutput(w, idToken, a.template)
 
 	return nil, idToken
 }
