@@ -48,10 +48,10 @@ type UploadElementType string
 
 const (
 	SourceArchive          UploadElementType = "source-archive"
-	SourceArchiveSignature                   = "source-archive-signature"
-	Metadata                                 = "metadata"
-	MetadataSignature                        = "metadata-signature"
-	Manifest                                 = "manifest"
+	SourceArchiveSignature UploadElementType = "source-archive-signature"
+	Metadata               UploadElementType = "metadata"
+	MetadataSignature      UploadElementType = "metadata-signature"
+	Manifest               UploadElementType = "manifest"
 )
 
 type UploadElement struct {
@@ -215,13 +215,18 @@ func ParseVersion(versionStr string) (*Version, error) {
 	v := &Version{}
 	if strings.Contains(versionStr, "-") {
 		split := strings.Split(versionStr, "-")
+		if len(split) > 2 {
+			return nil, errors.New("version string must have at only 1 suffix")
+		}
 		versionStr = split[0]
 		v.Suffix = split[1]
+		if v.Suffix == "" {
+			return nil, errors.New("suffix cannot be empty once specified")
+		}
 	}
 	split := strings.Split(versionStr, ".")
-	if len(split) < 1 {
-		return nil, errors.New("version string must have at least 1 part")
-	}
+	// as we have at least 1 part, no need to check for empty array
+
 	if len(split) < 2 {
 		split = append(split, "0")
 	}
@@ -247,11 +252,11 @@ func SortVersions(versions []string) []string {
 	slices.SortFunc(versions, func(a string, b string) int {
 		v1, err := ParseVersion(a)
 		if err != nil {
-			return 0
+			return 1
 		}
 		v2, err := ParseVersion(b)
 		if err != nil {
-			return 0
+			return -1
 		}
 		return v2.Compare(v1)
 	})
