@@ -3,6 +3,7 @@ package files
 import (
 	"OpenSPMRegistry/mimetypes"
 	"OpenSPMRegistry/models"
+	"OpenSPMRegistry/utils"
 	"archive/zip"
 	"errors"
 	"io"
@@ -45,7 +46,6 @@ func Test_ExtractPackageSwiftFiles_ValidZip_ExtractsFiles(t *testing.T) {
 	}
 
 	err = ExtractPackageSwiftFiles(element, path, func(name string, r io.ReadCloser) error {
-		defer r.Close()
 		if name != "Package.swift" {
 			t.Errorf("unexpected file name: %s", name)
 		}
@@ -164,5 +164,30 @@ func Test_ExtractPackageSwiftFiles_ReadError_ReturnsError(t *testing.T) {
 	})
 	if err == nil {
 		t.Errorf("expected error, got nil")
+	}
+}
+
+func Test_ExtractPackageSwiftFiles_CloseError_OnFileInsideZipFile_ReturnsError(t *testing.T) {
+	// to be implemented
+}
+
+func Test_EnsureReaderClosed_CloseFail_ReturnsReaderError(t *testing.T) {
+	closer := &utils.ErrorReadCloser{}
+
+	err := ensureReaderClosed(closer)
+	if err == nil {
+		t.Errorf("expected error, got nil")
+	}
+	if err.Error() != "simulated read error" {
+		t.Errorf("expected 'simulated read error', got %s", err.Error())
+	}
+}
+
+func Test_EnsureReaderClosed_CloseFail_ReturnsNil(t *testing.T) {
+	readerCloser := &utils.SuccessReadCloser{}
+
+	err := ensureReaderClosed(readerCloser)
+	if err != nil {
+		t.Errorf("unexpected error: %v", err)
 	}
 }

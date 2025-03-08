@@ -25,17 +25,20 @@ func ExtractPackageSwiftFiles(element *models.UploadElement, fileLocation string
 			if strings.HasPrefix(filename, "Package") && ext == ".swift" {
 				readerCloser, err := file.Open()
 				if err != nil {
+					if e := ensureReaderClosed(r); e != nil {
+						return e
+					}
 					return err
 				}
 
 				if errReader := packageSwiftReader(filename, readerCloser); errReader != nil {
-					if e := ensureFileReaderClosed(readerCloser, r); e != nil {
+					if e := ensureReaderClosed(readerCloser, r); e != nil {
 						return e
 					}
 					return errReader
 				}
 
-				if e := ensureFileReaderClosed(readerCloser, r); e != nil {
+				if e := ensureReaderClosed(readerCloser); e != nil {
 					return e
 				}
 			}
@@ -48,12 +51,15 @@ func ExtractPackageSwiftFiles(element *models.UploadElement, fileLocation string
 	return nil
 }
 
-func ensureFileReaderClosed(readerCloser io.ReadCloser, r *zip.ReadCloser) error {
-	if e := readerCloser.Close(); e != nil {
-		if e2 := r.Close(); e2 != nil {
-			return e2
+func ensureReaderClosed(closer ...io.Closer) error {
+	var errors []error
+	for _, c := range closer {
+		if err := c.Close(); err != nil {
+			errors = append(errors, err)
 		}
-		return e
+	}
+	if len(errors) > 0 {
+		return errors[0]
 	}
 	return nil
 }
