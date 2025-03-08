@@ -34,6 +34,76 @@ func Test_Compare_Version1IsLesser_ReturnsNegative(t *testing.T) {
 	}
 }
 
+func Test_Compare_Version1IsLesser_ReturnsNegative_2(t *testing.T) {
+	v1 := Version{Major: 1, Minor: 0, Patch: 0}
+	v2 := Version{Major: 1, Minor: 0, Patch: 2}
+
+	result := v1.Compare(&v2)
+	if result >= 0 {
+		t.Errorf("expected negative, got %d", result)
+	}
+}
+
+func Test_Compare_Version1IsBiggerBySuffix_ReturnsNegative(t *testing.T) {
+	v1 := Version{Major: 1, Minor: 0, Patch: 0}
+	v2 := Version{Major: 1, Minor: 0, Patch: 0, Suffix: "alpha"}
+
+	result := v1.Compare(&v2)
+	if result <= 0 {
+		t.Errorf("expected negative, got %d", result)
+	}
+}
+
+func Test_Compare_Version1IsLesserBySuffix_ReturnsNegative(t *testing.T) {
+	v1 := Version{Major: 1, Minor: 0, Patch: 0, Suffix: "alpha"}
+	v2 := Version{Major: 1, Minor: 0, Patch: 0}
+
+	result := v1.Compare(&v2)
+	if result >= 0 {
+		t.Errorf("expected negative, got %d", result)
+	}
+}
+
+func Test_Compare_Version2AlphaIsLesserThanBeta_ReturnsNegative(t *testing.T) {
+	v1 := Version{Major: 1, Minor: 0, Patch: 0, Suffix: "alpha"}
+	v2 := Version{Major: 1, Minor: 0, Patch: 0, Suffix: "beta"}
+
+	result := v1.Compare(&v2)
+	if result >= 0 {
+		t.Errorf("expected negative, got %d", result)
+	}
+}
+
+func Test_Compare_Version2SnapshotIsLesserThanRelease_ReturnsNegative(t *testing.T) {
+	v1 := Version{Major: 1, Minor: 0, Patch: 0, Suffix: "snapshot"}
+	v2 := Version{Major: 1, Minor: 0, Patch: 0, Suffix: "release"}
+
+	result := v1.Compare(&v2)
+	if result <= 0 {
+		t.Errorf("expected positive, got %d", result)
+	}
+}
+
+func Test_Compare_Version1SnapshotIsLesserThanRelease_ReturnsNegative(t *testing.T) {
+	v1 := Version{Major: 1, Minor: 0, Patch: 0, Suffix: "release"}
+	v2 := Version{Major: 1, Minor: 0, Patch: 0, Suffix: "snapshot"}
+
+	result := v1.Compare(&v2)
+	if result >= 0 {
+		t.Errorf("expected negative, got %d", result)
+	}
+}
+
+func Test_Compare_Version1SnapshotIsLesserThanNoSuffix_ReturnsNegative(t *testing.T) {
+	v1 := Version{Major: 1, Minor: 0, Patch: 0, Suffix: "snapshot"}
+	v2 := Version{Major: 1, Minor: 0, Patch: 0}
+
+	result := v1.Compare(&v2)
+	if result >= 0 {
+		t.Errorf("expected negative, got %d", result)
+	}
+}
+
 func Test_ParseVersion_ValidVersionString_ReturnsVersion(t *testing.T) {
 	versionStr := "1.2.3"
 	expected := &Version{Major: 1, Minor: 2, Patch: 3}

@@ -33,13 +33,15 @@ func (v Version) Compare(v1 *Version) int {
 	if v.Suffix == v1.Suffix {
 		return 0
 	}
-	if v.Suffix == "" {
-		return 1
-	}
-	if v1.Suffix == "" {
+	// we have a suffix
+	if v.Suffix != "" {
+		if v1.Suffix != "" {
+			return strings.Compare(v.Suffix, v1.Suffix)
+		}
 		return -1
 	}
-	return 0
+	// v1 has a suffix but v not, otherwise we would not reach this point
+	return 1
 }
 
 type UploadElementType string
