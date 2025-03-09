@@ -123,24 +123,6 @@ func (a *OidcAuthenticatorPasswordImpl) requestToken(username string, password s
 	return idToken, nil
 }
 
-// setNonceCookie sets a cookie with the provided name and value
-// the cookie is set to expire in 5 min
-// the cookie is secure if the request is over TLS
-// the cookie is http only
-// the cookie is set to SameSiteStrictMode
-// the cookie is set on the response writer
-func setNonceCookie(w http.ResponseWriter, r *http.Request, name, value string) {
-	c := &http.Cookie{
-		Name:     name,
-		Value:    value,
-		MaxAge:   int(time.Minute.Seconds()) * 5,
-		Secure:   r.TLS != nil,
-		HttpOnly: true,
-		SameSite: http.SameSiteStrictMode,
-	}
-	http.SetCookie(w, c)
-}
-
 // encryptToken encrypts the provided value into a JWT
 // the JWT is encrypted using the shared encryption key
 // the JWT has the subject "oidc login nonce"

@@ -2,6 +2,7 @@ package authenticator
 
 import (
 	"OpenSPMRegistry/config"
+	"OpenSPMRegistry/controller"
 	"OpenSPMRegistry/utils"
 	"context"
 	"errors"
@@ -33,19 +34,35 @@ type OidcAuthenticatorImpl struct {
 	provider  *oidc.Provider
 	ctx       context.Context
 	config    oauth2.Config
-	template  *template.Template
+	template  controller.TemplateParser
 	grantType string
 }
 
-// NewOIDCAuthenticator creates a new OIDC authenticator
+// NewOIDCAuthenticatorWithConfig creates a new OIDC authenticator
 // based on the provided configuration
-func NewOIDCAuthenticator(ctx context.Context, config config.ServerConfig) *OidcAuthenticatorImpl {
+// ctx is the context to use for the OIDC provider
+// config is the server configuration
+// oidcConfig is the OIDC configuration can be nil in which case the default configuration is used
+// if oidcConfig is provided, the client ID not taken from the server config
+func NewOIDCAuthenticatorWithConfig(
+	ctx context.Context,
+	config config.ServerConfig,
+	oidcConfig *oidc.Config,
+	template controller.TemplateParser,
+) *OidcAuthenticatorImpl {
 	provider, err := oidc.NewProvider(ctx, config.Auth.Issuer)
 	if err != nil {
 		slog.Error("Failed to create OIDC provider", "err", err)
 		return nil
 	}
-	verifier := provider.Verifier(&oidc.Config{ClientID: config.Auth.ClientId})
+
+	var oidcConfigToUse *oidc.Config
+	if oidcConfig != nil {
+		oidcConfigToUse = oidcConfig
+	} else {
+		oidcConfigToUse = &oidc.Config{ClientID: config.Auth.ClientId}
+	}
+	verifier := provider.Verifier(oidcConfigToUse)
 
 	oauthConfig := oauth2.Config{
 		ClientID:     config.Auth.ClientId,
@@ -61,8 +78,15 @@ func NewOIDCAuthenticator(ctx context.Context, config config.ServerConfig) *Oidc
 		grantType: config.Auth.GrantType,
 		verifier:  verifier,
 		provider:  provider,
-		template:  template.New("token.gohtml"),
+		template:  template,
 	}
+}
+
+// NewOIDCAuthenticator creates a new OIDC authenticator
+// based on the provided configuration
+func NewOIDCAuthenticator(ctx context.Context, config config.ServerConfig) *OidcAuthenticatorImpl {
+	t := template.New("token.gohtml")
+	return NewOIDCAuthenticatorWithConfig(ctx, config, nil, t)
 }
 
 func (a *OidcAuthenticatorImpl) Authenticate(w http.ResponseWriter, r *http.Request) (error, string) {

@@ -12,7 +12,7 @@ build-docker: tailwind
 	docker build -t wgr1984/openspmregistry .
 
 run: tailwind
-	go run main.go -tls=true -v
+	go run main.go -v
 
 tailwind:
 	$(TAILWIND)
