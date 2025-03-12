@@ -14,9 +14,12 @@ func Test_Authenticate_NoAuthorizationHeader_ReturnsError(t *testing.T) {
 	req := httptest.NewRequest("GET", "/", nil)
 	w := httptest.NewRecorder()
 
-	err, _ := auth.Authenticate(w, req)
+	token, err := auth.Authenticate(w, req)
 	if err == nil || err.Error() != "authorization header not found" {
 		t.Errorf("expected 'authorization header not found' error, got %v", err)
+	}
+	if token != "" {
+		t.Errorf("expected empty token, got %v", token)
 	}
 }
 
@@ -28,9 +31,12 @@ func Test_Authenticate_MissingCredentials_ReturnsError(t *testing.T) {
 	req.Header.Set("Authorization", "Basic ")
 	w := httptest.NewRecorder()
 
-	err, _ := auth.Authenticate(w, req)
+	token, err := auth.Authenticate(w, req)
 	if err == nil || err.Error() != "missing credentials" {
 		t.Errorf("expected 'missing credentials' error, got %v", err)
+	}
+	if token != "" {
+		t.Errorf("expected empty token, got %v", token)
 	}
 }
 
@@ -42,9 +48,12 @@ func Test_Authenticate_InvalidUsernameOrPassword_ReturnsError(t *testing.T) {
 	req.SetBasicAuth("user", "wrongpass")
 	w := httptest.NewRecorder()
 
-	err, _ := auth.Authenticate(w, req)
+	token, err := auth.Authenticate(w, req)
 	if err == nil || err.Error() != "invalid username or password" {
 		t.Errorf("expected 'invalid username or password' error, got %v", err)
+	}
+	if token != "" {
+		t.Errorf("expected empty token, got %v", token)
 	}
 }
 
@@ -58,12 +67,12 @@ func Test_Authenticate_ValidCredentials_ReturnsNil(t *testing.T) {
 	req.SetBasicAuth("user", "pass")
 	w := httptest.NewRecorder()
 
-	err, hashedPwd := auth.Authenticate(w, req)
+	token, err := auth.Authenticate(w, req)
 	if err != nil {
 		t.Errorf("expected nil error, got %v", err)
 	}
-	if hashedPwd != hashPassword("pass") {
-		t.Errorf("expected hashed password, got %s", hashedPwd)
+	if token != hashPassword("pass") {
+		t.Errorf("expected hashed password, got %s", token)
 	}
 }
 

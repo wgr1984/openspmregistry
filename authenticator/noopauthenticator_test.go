@@ -12,20 +12,26 @@ func Test_Authenticate_NoOpAuthenticator_ReturnsNilError(t *testing.T) {
 	req := httptest.NewRequest("GET", "/", nil)
 	w := httptest.NewRecorder()
 
-	err, _ := auth.Authenticate(w, req)
+	token, err := auth.Authenticate(w, req)
 	if err != nil {
 		t.Errorf("expected nil error, got %v", err)
 	}
+	if token != "noop" {
+		t.Errorf("expected 'noop' token, got %v", token)
+	}
 }
 
-func Test_Authenticate_NoOpAuthenticator_ReturnsEmptyString(t *testing.T) {
+func Test_Authenticate_NoOpAuthenticator_ReturnsNoopToken(t *testing.T) {
 	auth := &NoOpAuthenticator{}
 	req := httptest.NewRequest("GET", "/", nil)
 	w := httptest.NewRecorder()
 
-	_, result := auth.Authenticate(w, req)
-	if result != "" {
-		t.Errorf("expected empty string, got %s", result)
+	token, err := auth.Authenticate(w, req)
+	if err != nil {
+		t.Errorf("expected nil error, got %v", err)
+	}
+	if token != "noop" {
+		t.Errorf("expected 'noop' token, got %s", token)
 	}
 }
 

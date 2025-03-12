@@ -5,11 +5,11 @@ import (
 	"OpenSPMRegistry/controller"
 	"OpenSPMRegistry/utils"
 	"context"
-	"github.com/coreos/go-oidc/v3/oidc"
-	"golang.org/x/oauth2"
 	"log/slog"
 	"net/http"
-	"time"
+
+	"github.com/coreos/go-oidc/v3/oidc"
+	"golang.org/x/oauth2"
 )
 
 // OidcAuthenticatorCode is an authenticator that uses OpenID Connect with code grant
@@ -111,7 +111,7 @@ func setCallbackCookie(w http.ResponseWriter, r *http.Request, name, value strin
 	c := &http.Cookie{
 		Name:     name,
 		Value:    value,
-		MaxAge:   int(time.Hour.Seconds()),
+		MaxAge:   3600, // 1 hour in seconds
 		Secure:   r.TLS != nil,
 		HttpOnly: true,
 		SameSite: http.SameSiteStrictMode,

@@ -9,8 +9,8 @@ import (
 
 type Authenticator interface {
 	// Authenticate authenticates a user based on their username and password
-	// returns an error if the authentication fails else returns the token
-	Authenticate(w http.ResponseWriter, r *http.Request) (error, string)
+	// returns the token and an error if the authentication fails
+	Authenticate(w http.ResponseWriter, r *http.Request) (string, error)
 }
 
 // writeTokenOutput writes the token to the response

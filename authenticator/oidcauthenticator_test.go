@@ -5,15 +5,16 @@ import (
 	"context"
 	"crypto/rand"
 	"crypto/rsa"
-	"github.com/coreos/go-oidc/v3/oidc"
-	"github.com/go-jose/go-jose/v4"
-	"github.com/go-jose/go-jose/v4/jwt"
 	"html/template"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/coreos/go-oidc/v3/oidc"
+	"github.com/go-jose/go-jose/v4"
+	"github.com/go-jose/go-jose/v4/jwt"
 )
 
 func Test_OIDC_Authenticate_NoAuthorizationHeader_ReturnsError(t *testing.T) {
@@ -24,9 +25,12 @@ func Test_OIDC_Authenticate_NoAuthorizationHeader_ReturnsError(t *testing.T) {
 	req := httptest.NewRequest("GET", "/", nil)
 	w := httptest.NewRecorder()
 
-	err, _ := auth.Authenticate(w, req)
+	token, err := auth.Authenticate(w, req)
 	if err == nil || err.Error() != "authorization header not found" {
 		t.Errorf("expected 'authorization header not found' error, got %v", err)
+	}
+	if token != "" {
+		t.Errorf("expected empty token, got %v", token)
 	}
 }
 
@@ -76,9 +80,12 @@ func Test_OIDC_Authenticate_InvalidBearerToken_ReturnsError(t *testing.T) {
 	req.Header.Set("Authorization", "Bearer "+base64Token)
 	w := httptest.NewRecorder()
 
-	err, _ = auth.Authenticate(w, req)
+	token, err := auth.Authenticate(w, req)
 	if err == nil || !strings.Contains(err.Error(), "oidc: token is expired") {
 		t.Errorf("expected 'oidc: ' error, got %v", err)
+	}
+	if token != "" {
+		t.Errorf("expected empty token, got %v", token)
 	}
 }
 
@@ -130,12 +137,12 @@ func Test_OIDC_Authenticate_ValidBearerToken_ReturnsNil(t *testing.T) {
 	req.Header.Set("Authorization", "Bearer "+jwtToken)
 	w := httptest.NewRecorder()
 
-	err, token := auth.Authenticate(w, req)
+	token, err := auth.Authenticate(w, req)
 	if err != nil {
 		t.Errorf("expected nil error, got %v", err)
 	}
 	if token != jwtToken {
-		t.Errorf("expected 'valid-token', got %s", token)
+		t.Errorf("expected '%s', got '%s'", jwtToken, token)
 	}
 }
 
@@ -187,9 +194,12 @@ func Test_OIDC_Authenticate_AutherntorButNoBearerToken_ReturnsError(t *testing.T
 	req.Header.Set("Authorization", jwtToken)
 	w := httptest.NewRecorder()
 
-	err, _ = auth.Authenticate(w, req)
+	token, err := auth.Authenticate(w, req)
 	if err == nil || err.Error() != "invalid authorization header" {
 		t.Errorf("expected invalid authorization header, got nil")
+	}
+	if token != "" {
+		t.Errorf("expected empty token, got %v", token)
 	}
 }
 

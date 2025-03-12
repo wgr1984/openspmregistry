@@ -7,12 +7,13 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"github.com/coreos/go-oidc/v3/oidc"
-	"golang.org/x/oauth2"
 	"html/template"
 	"log/slog"
 	"net/http"
 	"strings"
+
+	"github.com/coreos/go-oidc/v3/oidc"
+	"golang.org/x/oauth2"
 )
 
 type OidcAuthenticator interface {
@@ -89,16 +90,16 @@ func NewOIDCAuthenticator(ctx context.Context, config config.ServerConfig) *Oidc
 	return NewOIDCAuthenticatorWithConfig(ctx, config, nil, t)
 }
 
-func (a *OidcAuthenticatorImpl) Authenticate(w http.ResponseWriter, r *http.Request) (error, string) {
+func (a *OidcAuthenticatorImpl) Authenticate(w http.ResponseWriter, r *http.Request) (string, error) {
 	authorizationHeader := r.Header.Get("Authorization")
 
 	if authorizationHeader == "" {
-		return errors.New("authorization header not found"), ""
+		return "", errors.New("authorization header not found")
 	}
 
 	token, err := getBearerToken(authorizationHeader)
 	if err != nil {
-		return err, ""
+		return "", err
 	}
 
 	_, err = a.verifier.Verify(a.ctx, token)
@@ -106,9 +107,9 @@ func (a *OidcAuthenticatorImpl) Authenticate(w http.ResponseWriter, r *http.Requ
 		if slog.Default().Enabled(nil, slog.LevelDebug) {
 			slog.Debug("Token still valid")
 		}
-		return nil, token
+		return token, nil
 	}
-	return err, ""
+	return "", err
 }
 
 func (a *OidcAuthenticatorImpl) Login(_ http.ResponseWriter, _ *http.Request) {}

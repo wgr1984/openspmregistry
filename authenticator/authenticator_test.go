@@ -69,7 +69,7 @@ func Test_CreateAuthenticator_OidcCode_ReturnsOIDCAuthenticatorCode(t *testing.T
 	c := config.ServerConfig{Auth: config.AuthConfig{Enabled: true, Type: "oidc", GrantType: "code"}}
 	auth := CreateAuthenticator(c)
 
-	if _, ok := auth.(interface{}).(OidcAuthenticatorCode); !ok {
+	if _, ok := auth.(*OidcAuthenticatorCodeImpl); !ok {
 		t.Errorf("expected OIDCAuthenticatorCode, got %T", auth)
 	}
 }
@@ -78,7 +78,7 @@ func Test_CreateAuthenticator_OidcPassword_ReturnsOIDCAuthenticatorPassword(t *t
 	c := config.ServerConfig{Auth: config.AuthConfig{Enabled: true, Type: "oidc", GrantType: "password"}}
 	auth := CreateAuthenticator(c)
 
-	if _, ok := auth.(interface{}).(OidcAuthenticatorPassword); !ok {
+	if _, ok := auth.(*OidcAuthenticatorPasswordImpl); !ok {
 		t.Errorf("expected OIDCAuthenticatorPassword, got %T", auth)
 	}
 }
