@@ -56,6 +56,23 @@ func Test_WriteTokenOutput_TemplateExecuteError_ReturnsInternalServerError(t *te
 	}
 }
 
+func Test_WriteTokenOutput_NilTemplate_WritesPlainText(t *testing.T) {
+	w := httptest.NewRecorder()
+	token := "test-token"
+
+	writeTokenOutput(w, token, nil)
+
+	if w.Code != http.StatusOK {
+		t.Errorf("expected status OK, got %v", w.Code)
+	}
+	if w.Header().Get("Content-Type") != "text/plain" {
+		t.Errorf("expected Content-Type text/plain, got %s", w.Header().Get("Content-Type"))
+	}
+	if w.Body.String() != token {
+		t.Errorf("expected response body to be token, got %s", w.Body.String())
+	}
+}
+
 func Test_CreateAuthenticator_AuthDisabled_ReturnsNoOpAuthenticator(t *testing.T) {
 	c := config.ServerConfig{Auth: config.AuthConfig{Enabled: false}}
 	auth := CreateAuthenticator(c)
