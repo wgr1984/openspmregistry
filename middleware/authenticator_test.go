@@ -2,11 +2,12 @@ package middleware
 
 import (
 	"fmt"
-	"golang.org/x/oauth2"
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"testing"
+
+	"golang.org/x/oauth2"
 )
 
 func Test_NewAuthentication_TokenAuthenticator_RegistersCallbackHandler(t *testing.T) {
@@ -116,9 +117,9 @@ func (m *MockTokenAuthenticator) CheckAuthHeaderPresent(w http.ResponseWriter, r
 	return true
 }
 
-func (m *MockTokenAuthenticator) Authenticate(w http.ResponseWriter, r *http.Request) (error, string) {
+func (m *MockTokenAuthenticator) Authenticate(w http.ResponseWriter, r *http.Request) (string, error) {
 	m.increaseCallCount("Authenticate")
-	return nil, ""
+	return "", nil
 }
 
 func (m *MockTokenAuthenticator) Callback(w http.ResponseWriter, r *http.Request) {
@@ -142,9 +143,9 @@ func (m *MockOidcAuthenticator) CheckAuthHeaderPresent(w http.ResponseWriter, r 
 	return true
 }
 
-func (m *MockOidcAuthenticator) Authenticate(w http.ResponseWriter, r *http.Request) (error, string) {
+func (m *MockOidcAuthenticator) Authenticate(w http.ResponseWriter, r *http.Request) (string, error) {
 	m.increaseCallCount("Authenticate")
-	return nil, ""
+	return "", nil
 }
 
 func (m *MockOidcAuthenticator) Login(w http.ResponseWriter, r *http.Request) {
@@ -164,10 +165,10 @@ func (m *MockAuthenticator) increaseCallCount(method string) {
 	m.methodCallCount[method]++
 }
 
-func (m *MockAuthenticator) Authenticate(w http.ResponseWriter, r *http.Request) (error, string) {
+func (m *MockAuthenticator) Authenticate(w http.ResponseWriter, r *http.Request) (string, error) {
 	m.increaseCallCount("Authenticate")
 	if !m.shouldAuthenticate {
-		return fmt.Errorf("unauthorized"), ""
+		return "", fmt.Errorf("unauthorized")
 	}
-	return nil, ""
+	return "", nil
 }
