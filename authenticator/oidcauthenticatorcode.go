@@ -2,6 +2,7 @@ package authenticator
 
 import (
 	"OpenSPMRegistry/config"
+	"OpenSPMRegistry/controller"
 	"OpenSPMRegistry/utils"
 	"context"
 	"github.com/coreos/go-oidc/v3/oidc"
@@ -20,6 +21,19 @@ type OidcAuthenticatorCode interface {
 
 type OidcAuthenticatorCodeImpl struct {
 	*OidcAuthenticatorImpl
+}
+
+// NewOIDCAuthenticatorCodeWithConfig  creates a new OIDC authenticator with code grant
+// based on the provided configuration
+func NewOIDCAuthenticatorCodeWithConfig(
+	ctx context.Context,
+	config config.ServerConfig,
+	oidcConfig *oidc.Config,
+	template controller.TemplateParser,
+) *OidcAuthenticatorCodeImpl {
+	return &OidcAuthenticatorCodeImpl{
+		NewOIDCAuthenticatorWithConfig(ctx, config, oidcConfig, template),
+	}
 }
 
 // NewOIDCAuthenticatorCode  creates a new OIDC authenticator with code grant
