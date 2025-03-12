@@ -119,7 +119,13 @@ func (a *OidcAuthenticatorImpl) CheckAuthHeaderPresent(w http.ResponseWriter, r 
 	// if it does, write the token to the response
 	authenticationHeader := r.Header.Get("Authorization")
 	if authenticationHeader != "" {
-		writeTokenOutput(w, authenticationHeader, a.template)
+		if a.template == nil {
+			// If no template is available, write token directly
+			w.Header().Set("Content-Type", "text/plain")
+			_, _ = w.Write([]byte(authenticationHeader))
+		} else {
+			writeTokenOutput(w, authenticationHeader, a.template)
+		}
 		return true
 	}
 	return false

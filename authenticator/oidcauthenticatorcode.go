@@ -31,8 +31,12 @@ func NewOIDCAuthenticatorCodeWithConfig(
 	oidcConfig *oidc.Config,
 	template controller.TemplateParser,
 ) *OidcAuthenticatorCodeImpl {
+	base := NewOIDCAuthenticatorWithConfig(ctx, config, oidcConfig, template)
+	if base == nil {
+		return nil
+	}
 	return &OidcAuthenticatorCodeImpl{
-		NewOIDCAuthenticatorWithConfig(ctx, config, oidcConfig, template),
+		OidcAuthenticatorImpl: base,
 	}
 }
 
@@ -49,19 +53,33 @@ func (a *OidcAuthenticatorCodeImpl) AuthCodeURL(state string, nonce oauth2.AuthC
 }
 
 func (a *OidcAuthenticatorCodeImpl) Callback(w http.ResponseWriter, r *http.Request) {
+	stateParam := r.URL.Query().Get("state")
+	if stateParam == "" {
+		slog.Error("State parameter not found in URL")
+		http.Error(w, "state not found", http.StatusUnauthorized)
+		return
+	}
+
 	state, err := r.Cookie("state")
 	if err != nil {
 		slog.Error("Error getting state cookie:", "error", err)
 		http.Error(w, "state not found", http.StatusUnauthorized)
 		return
 	}
-	if r.URL.Query().Get("state") != state.Value {
+
+	if stateParam != state.Value {
 		slog.Error("State did not match")
 		http.Error(w, "state did not match", http.StatusUnauthorized)
 		return
 	}
 
 	code := r.URL.Query().Get("code")
+	if code == "" {
+		slog.Error("Code parameter not found in URL")
+		http.Error(w, "code not found", http.StatusUnauthorized)
+		return
+	}
+
 	token, err := a.config.Exchange(a.ctx, code)
 	if err != nil {
 		slog.Error("Failed to exchange code for token", "err", err)

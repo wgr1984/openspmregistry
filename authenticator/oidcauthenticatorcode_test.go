@@ -375,3 +375,365 @@ func Test_setCallbackCookie_InvalidValues(t *testing.T) {
 		})
 	}
 }
+
+func Test_NewOIDCAuthenticatorCodeWithConfig_ProviderError_ReturnsNil(t *testing.T) {
+	ctx := context.Background()
+	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusInternalServerError)
+	}))
+	defer mockServer.Close()
+
+	c := config.ServerConfig{
+		Auth: config.AuthConfig{
+			Issuer:       mockServer.URL, // Use mock server that returns error
+			ClientId:     "client-id",
+			ClientSecret: "client-secret",
+		},
+	}
+
+	auth := NewOIDCAuthenticatorCodeWithConfig(ctx, c, &oidc.Config{
+		ClientID:                   "client-id",
+		InsecureSkipSignatureCheck: true,
+	}, nil)
+
+	if auth != nil {
+		t.Errorf("expected nil authenticator when provider creation fails, got %v", auth)
+	}
+}
+
+func Test_Callback_MissingStateCookie_ReturnsUnauthorized(t *testing.T) {
+	ctx := context.Background()
+	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/.well-known/openid-configuration" {
+			w.Header().Set("Content-Type", "application/json")
+			w.Write([]byte(`{
+				"issuer": "http://` + r.Host + `",
+				"authorization_endpoint": "http://` + r.Host + `/auth",
+				"token_endpoint": "http://` + r.Host + `/token",
+				"jwks_uri": "http://` + r.Host + `/keys"
+			}`))
+		}
+	}))
+	defer mockServer.Close()
+
+	c := config.ServerConfig{Auth: config.AuthConfig{
+		Issuer:       mockServer.URL,
+		ClientId:     "client-id",
+		ClientSecret: "client-secret",
+	}}
+
+	auth := NewOIDCAuthenticatorCodeWithConfig(ctx, c, &oidc.Config{
+		ClientID:                   "client-id",
+		InsecureSkipSignatureCheck: true,
+	}, nil)
+
+	req := httptest.NewRequest("GET", "/callback?state=validstate&code=validcode", nil)
+	// Intentionally not adding state cookie
+	w := httptest.NewRecorder()
+
+	auth.Callback(w, req)
+
+	if w.Code != http.StatusUnauthorized {
+		t.Errorf("expected status Unauthorized when state cookie is missing, got %v", w.Code)
+	}
+	if !strings.Contains(w.Body.String(), "state not found") {
+		t.Errorf("expected error message about missing state, got %s", w.Body.String())
+	}
+}
+
+func Test_Callback_MissingStateParam_ReturnsUnauthorized(t *testing.T) {
+	ctx := context.Background()
+	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/.well-known/openid-configuration" {
+			w.Header().Set("Content-Type", "application/json")
+			w.Write([]byte(`{
+				"issuer": "http://` + r.Host + `",
+				"authorization_endpoint": "http://` + r.Host + `/auth",
+				"token_endpoint": "http://` + r.Host + `/token",
+				"jwks_uri": "http://` + r.Host + `/keys"
+			}`))
+		}
+	}))
+	defer mockServer.Close()
+
+	c := config.ServerConfig{Auth: config.AuthConfig{
+		Issuer:       mockServer.URL,
+		ClientId:     "client-id",
+		ClientSecret: "client-secret",
+	}}
+
+	auth := NewOIDCAuthenticatorCodeWithConfig(ctx, c, &oidc.Config{
+		ClientID:                   "client-id",
+		InsecureSkipSignatureCheck: true,
+	}, nil)
+
+	req := httptest.NewRequest("GET", "/callback?code=validcode", nil)
+	req.AddCookie(&http.Cookie{Name: "state", Value: "validstate"})
+	w := httptest.NewRecorder()
+
+	auth.Callback(w, req)
+
+	if w.Code != http.StatusUnauthorized {
+		t.Errorf("expected status Unauthorized when state parameter is missing, got %v", w.Code)
+	}
+	if !strings.Contains(w.Body.String(), "state not found") {
+		t.Errorf("expected error message about missing state, got %s", w.Body.String())
+	}
+}
+
+func Test_Callback_MissingCode_ReturnsUnauthorized(t *testing.T) {
+	ctx := context.Background()
+	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/.well-known/openid-configuration" {
+			w.Header().Set("Content-Type", "application/json")
+			w.Write([]byte(`{
+				"issuer": "http://` + r.Host + `",
+				"authorization_endpoint": "http://` + r.Host + `/auth",
+				"token_endpoint": "http://` + r.Host + `/token",
+				"jwks_uri": "http://` + r.Host + `/keys"
+			}`))
+		}
+	}))
+	defer mockServer.Close()
+
+	c := config.ServerConfig{Auth: config.AuthConfig{
+		Issuer:       mockServer.URL,
+		ClientId:     "client-id",
+		ClientSecret: "client-secret",
+	}}
+
+	auth := NewOIDCAuthenticatorCodeWithConfig(ctx, c, &oidc.Config{
+		ClientID:                   "client-id",
+		InsecureSkipSignatureCheck: true,
+	}, nil)
+
+	req := httptest.NewRequest("GET", "/callback?state=validstate", nil)
+	req.AddCookie(&http.Cookie{Name: "state", Value: "validstate"})
+	w := httptest.NewRecorder()
+
+	auth.Callback(w, req)
+
+	if w.Code != http.StatusUnauthorized {
+		t.Errorf("expected status Unauthorized when code is missing, got %v", w.Code)
+	}
+	if !strings.Contains(w.Body.String(), "code not found") {
+		t.Errorf("expected error message about missing code, got %s", w.Body.String())
+	}
+}
+
+func Test_Callback_TokenExchangeError_ReturnsUnauthorized(t *testing.T) {
+	ctx := context.Background()
+	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/.well-known/openid-configuration":
+			w.Header().Set("Content-Type", "application/json")
+			w.Write([]byte(`{
+				"issuer": "http://` + r.Host + `",
+				"authorization_endpoint": "http://` + r.Host + `/auth",
+				"token_endpoint": "http://` + r.Host + `/token",
+				"jwks_uri": "http://` + r.Host + `/keys"
+			}`))
+		case "/token":
+			// Simulate token exchange error
+			w.WriteHeader(http.StatusBadRequest)
+			w.Write([]byte(`{"error": "invalid_grant"}`))
+		}
+	}))
+	defer mockServer.Close()
+
+	c := config.ServerConfig{Auth: config.AuthConfig{
+		Issuer:       mockServer.URL,
+		ClientId:     "client-id",
+		ClientSecret: "client-secret",
+	}}
+
+	auth := NewOIDCAuthenticatorCodeWithConfig(ctx, c, &oidc.Config{
+		ClientID:                   "client-id",
+		InsecureSkipSignatureCheck: true,
+	}, nil)
+
+	req := httptest.NewRequest("GET", "/callback?state=validstate&code=invalidcode", nil)
+	req.AddCookie(&http.Cookie{Name: "state", Value: "validstate"})
+	w := httptest.NewRecorder()
+
+	auth.Callback(w, req)
+
+	if w.Code != http.StatusUnauthorized {
+		t.Errorf("expected status Unauthorized when token exchange fails, got %v", w.Code)
+	}
+	if !strings.Contains(w.Body.String(), "Failed to exchange code for token") {
+		t.Errorf("expected error message about token exchange failure, got %s", w.Body.String())
+	}
+}
+
+func Test_Callback_MissingIdToken_ReturnsUnauthorized(t *testing.T) {
+	ctx := context.Background()
+	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/.well-known/openid-configuration":
+			w.Header().Set("Content-Type", "application/json")
+			w.Write([]byte(`{
+				"issuer": "http://` + r.Host + `",
+				"authorization_endpoint": "http://` + r.Host + `/auth",
+				"token_endpoint": "http://` + r.Host + `/token",
+				"jwks_uri": "http://` + r.Host + `/keys"
+			}`))
+		case "/token":
+			// Return token response without id_token
+			w.Header().Set("Content-Type", "application/json")
+			w.Write([]byte(`{
+				"access_token": "access-token",
+				"token_type": "Bearer"
+			}`))
+		}
+	}))
+	defer mockServer.Close()
+
+	c := config.ServerConfig{Auth: config.AuthConfig{
+		Issuer:       mockServer.URL,
+		ClientId:     "client-id",
+		ClientSecret: "client-secret",
+	}}
+
+	auth := NewOIDCAuthenticatorCodeWithConfig(ctx, c, &oidc.Config{
+		ClientID:                   "client-id",
+		InsecureSkipSignatureCheck: true,
+	}, nil)
+
+	req := httptest.NewRequest("GET", "/callback?state=validstate&code=validcode", nil)
+	req.AddCookie(&http.Cookie{Name: "state", Value: "validstate"})
+	w := httptest.NewRecorder()
+
+	auth.Callback(w, req)
+
+	if w.Code != http.StatusUnauthorized {
+		t.Errorf("expected status Unauthorized when id_token is missing, got %v", w.Code)
+	}
+	if !strings.Contains(w.Body.String(), "Failed to get id token") {
+		t.Errorf("expected error message about missing id token, got %s", w.Body.String())
+	}
+}
+
+func Test_Login_WithTLS_SetsCookiesSecure(t *testing.T) {
+	ctx := context.Background()
+	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/.well-known/openid-configuration" {
+			w.Header().Set("Content-Type", "application/json")
+			w.Write([]byte(`{
+				"issuer": "http://` + r.Host + `",
+				"authorization_endpoint": "http://` + r.Host + `/auth",
+				"token_endpoint": "http://` + r.Host + `/token",
+				"jwks_uri": "http://` + r.Host + `/keys"
+			}`))
+		}
+	}))
+	defer mockServer.Close()
+
+	c := config.ServerConfig{Auth: config.AuthConfig{
+		Issuer:       mockServer.URL,
+		ClientId:     "client-id",
+		ClientSecret: "client-secret",
+	}}
+
+	auth := NewOIDCAuthenticatorCodeWithConfig(ctx, c, &oidc.Config{
+		ClientID:                   "client-id",
+		InsecureSkipSignatureCheck: true,
+	}, nil)
+
+	req := httptest.NewRequest("GET", "https://example.com/login", nil)
+	req.TLS = &tls.ConnectionState{} // Simulate TLS connection
+	w := httptest.NewRecorder()
+
+	auth.Login(w, req)
+
+	cookies := w.Result().Cookies()
+	for _, cookie := range cookies {
+		if !cookie.Secure {
+			t.Errorf("expected cookie %s to be secure for TLS request", cookie.Name)
+		}
+	}
+}
+
+func Test_Login_WithExistingAuthHeader_ReturnsEarly(t *testing.T) {
+	ctx := context.Background()
+	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/.well-known/openid-configuration" {
+			w.Header().Set("Content-Type", "application/json")
+			w.Write([]byte(`{
+				"issuer": "http://` + r.Host + `",
+				"authorization_endpoint": "http://` + r.Host + `/auth",
+				"token_endpoint": "http://` + r.Host + `/token",
+				"jwks_uri": "http://` + r.Host + `/keys"
+			}`))
+		}
+	}))
+	defer mockServer.Close()
+
+	c := config.ServerConfig{Auth: config.AuthConfig{
+		Issuer:       mockServer.URL,
+		ClientId:     "client-id",
+		ClientSecret: "client-secret",
+	}}
+
+	temp := &MockTemplateParser{
+		template: *template.Must(template.New("test").Parse("{{.Token}}")),
+	}
+
+	auth := NewOIDCAuthenticatorCodeWithConfig(ctx, c, &oidc.Config{
+		ClientID:                   "client-id",
+		InsecureSkipSignatureCheck: true,
+	}, temp)
+
+	req := httptest.NewRequest("GET", "/login", nil)
+	req.Header.Set("Authorization", "Bearer test-token")
+	w := httptest.NewRecorder()
+
+	auth.Login(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Errorf("expected status OK when auth header exists, got %v", w.Code)
+	}
+	if !strings.Contains(w.Body.String(), "test-token") {
+		t.Errorf("expected response to contain token from auth header, got %s", w.Body.String())
+	}
+}
+
+func Test_Login_WithNilTemplate_HandlesError(t *testing.T) {
+	ctx := context.Background()
+	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/.well-known/openid-configuration" {
+			w.Header().Set("Content-Type", "application/json")
+			w.Write([]byte(`{
+				"issuer": "http://` + r.Host + `",
+				"authorization_endpoint": "http://` + r.Host + `/auth",
+				"token_endpoint": "http://` + r.Host + `/token",
+				"jwks_uri": "http://` + r.Host + `/keys"
+			}`))
+		}
+	}))
+	defer mockServer.Close()
+
+	c := config.ServerConfig{Auth: config.AuthConfig{
+		Issuer:       mockServer.URL,
+		ClientId:     "client-id",
+		ClientSecret: "client-secret",
+	}}
+
+	auth := NewOIDCAuthenticatorCodeWithConfig(ctx, c, &oidc.Config{
+		ClientID:                   "client-id",
+		InsecureSkipSignatureCheck: true,
+	}, nil)
+
+	req := httptest.NewRequest("GET", "/login", nil)
+	req.Header.Set("Authorization", "Bearer test-token")
+	w := httptest.NewRecorder()
+
+	auth.Login(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Errorf("expected status OK when auth header exists, got %v", w.Code)
+	}
+	if w.Body.String() != "Bearer test-token" {
+		t.Errorf("expected response to contain token from auth header, got %s", w.Body.String())
+	}
+}

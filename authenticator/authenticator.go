@@ -16,6 +16,11 @@ type Authenticator interface {
 // writeTokenOutput writes the token to the response
 // to be used by the client to authenticate via --token flag
 func writeTokenOutput(w http.ResponseWriter, token string, templateParser controller.TemplateParser) {
+	if templateParser == nil {
+		w.Header().Set("Content-Type", "text/plain")
+		_, _ = w.Write([]byte(token))
+		return
+	}
 	files, err := templateParser.ParseFiles("static/token.gohtml")
 	if err != nil {
 		http.Error(w, "Error parsing template", http.StatusInternalServerError)
