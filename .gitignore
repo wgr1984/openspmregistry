@@ -33,6 +33,4 @@ go.work.sum
 **/.DS_Store
 openspmregistry
 cover.out
-.cursor/rules/code-documentation.mdc
-.cursor/rules/cursor-rules-location.mdc
-.cursor/rules/golang-standards.mdc
+.cursor/rules

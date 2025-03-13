@@ -3,7 +3,6 @@ package controller
 import (
 	"OpenSPMRegistry/config"
 	"encoding/json"
-	"fmt"
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
@@ -273,15 +272,6 @@ type MockLookupRepo struct {
 
 func (m *MockLookupRepo) Lookup(url string) []string {
 	return m.identifiers
-}
-
-// errorWriter is a writer that always fails
-type errorWriter struct {
-	http.ResponseWriter
-}
-
-func (w *errorWriter) Write([]byte) (int, error) {
-	return 0, fmt.Errorf("forced write error")
 }
 
 func Test_LookupAction_JSONEncodingError_ReturnsInternalError(t *testing.T) {

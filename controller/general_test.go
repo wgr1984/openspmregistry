@@ -3,6 +3,7 @@ package controller
 import (
 	"OpenSPMRegistry/config"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -133,4 +134,13 @@ func Test_NewController_InitializesCorrectly(t *testing.T) {
 	if c.repo != mockRepo {
 		t.Error("repo not set correctly")
 	}
+}
+
+// errorWriter is a writer that always fails
+type errorWriter struct {
+	http.ResponseWriter
+}
+
+func (w *errorWriter) Write([]byte) (int, error) {
+	return 0, fmt.Errorf("forced write error")
 }
