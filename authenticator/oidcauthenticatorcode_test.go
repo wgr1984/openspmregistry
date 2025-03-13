@@ -11,9 +11,19 @@ import (
 	"testing"
 	"time"
 
+	"errors"
+
 	"github.com/coreos/go-oidc/v3/oidc"
 	"golang.org/x/oauth2"
 )
+
+type mockRandomStringGenerator struct {
+	generateFunc func(length int) (string, error)
+}
+
+func (m *mockRandomStringGenerator) RandomString(length int) (string, error) {
+	return m.generateFunc(length)
+}
 
 func Test_AuthCodeURL_GeneratesCorrectURL(t *testing.T) {
 	ctx := context.Background()
@@ -735,5 +745,104 @@ func Test_Login_WithNilTemplate_HandlesError(t *testing.T) {
 	}
 	if w.Body.String() != "Bearer test-token" {
 		t.Errorf("expected response to contain token from auth header, got %s", w.Body.String())
+	}
+}
+
+func Test_Login_RandomStateError_ReturnsUnauthorized(t *testing.T) {
+	ctx := context.Background()
+	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/.well-known/openid-configuration" {
+			w.Header().Set("Content-Type", "application/json")
+			w.Write([]byte(`{
+				"issuer": "http://` + r.Host + `",
+				"authorization_endpoint": "http://` + r.Host + `/auth",
+				"token_endpoint": "http://` + r.Host + `/token",
+				"jwks_uri": "http://` + r.Host + `/keys"
+			}`))
+		}
+	}))
+	defer mockServer.Close()
+
+	c := config.ServerConfig{Auth: config.AuthConfig{
+		Issuer:       mockServer.URL,
+		ClientId:     "client-id",
+		ClientSecret: "client-secret",
+	}}
+
+	mockGenerator := &mockRandomStringGenerator{
+		generateFunc: func(length int) (string, error) {
+			return "", errors.New("simulated state generation error")
+		},
+	}
+
+	auth := NewOIDCAuthenticatorCodeWithConfig(ctx, c, &oidc.Config{
+		ClientID:                   "client-id",
+		InsecureSkipSignatureCheck: true,
+	}, nil)
+	auth.randomStringGenerator = mockGenerator
+
+	req := httptest.NewRequest("GET", "/login", nil)
+	w := httptest.NewRecorder()
+
+	auth.Login(w, req)
+
+	if w.Code != http.StatusUnauthorized {
+		t.Errorf("expected status Unauthorized when state generation fails, got %v", w.Code)
+	}
+	if !strings.Contains(w.Body.String(), "Authentication failed: simulated state generation error") {
+		t.Errorf("expected error message about state generation, got %s", w.Body.String())
+	}
+}
+
+func Test_Login_RandomNonceError_ReturnsUnauthorized(t *testing.T) {
+	ctx := context.Background()
+	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/.well-known/openid-configuration" {
+			w.Header().Set("Content-Type", "application/json")
+			w.Write([]byte(`{
+				"issuer": "http://` + r.Host + `",
+				"authorization_endpoint": "http://` + r.Host + `/auth",
+				"token_endpoint": "http://` + r.Host + `/token",
+				"jwks_uri": "http://` + r.Host + `/keys"
+			}`))
+		}
+	}))
+	defer mockServer.Close()
+
+	c := config.ServerConfig{Auth: config.AuthConfig{
+		Issuer:       mockServer.URL,
+		ClientId:     "client-id",
+		ClientSecret: "client-secret",
+	}}
+
+	var callCount int
+	mockGenerator := &mockRandomStringGenerator{
+		generateFunc: func(length int) (string, error) {
+			callCount++
+			if callCount == 1 {
+				// First call (state) succeeds
+				return "test-state", nil
+			}
+			// Second call (nonce) fails
+			return "", errors.New("simulated nonce generation error")
+		},
+	}
+
+	auth := NewOIDCAuthenticatorCodeWithConfig(ctx, c, &oidc.Config{
+		ClientID:                   "client-id",
+		InsecureSkipSignatureCheck: true,
+	}, nil)
+	auth.randomStringGenerator = mockGenerator
+
+	req := httptest.NewRequest("GET", "/login", nil)
+	w := httptest.NewRecorder()
+
+	auth.Login(w, req)
+
+	if w.Code != http.StatusUnauthorized {
+		t.Errorf("expected status Unauthorized when nonce generation fails, got %v", w.Code)
+	}
+	if !strings.Contains(w.Body.String(), "Authentication failed: simulated nonce generation error") {
+		t.Errorf("expected error message about nonce generation, got %s", w.Body.String())
 	}
 }

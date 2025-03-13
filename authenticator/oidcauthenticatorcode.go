@@ -19,11 +19,22 @@ type OidcAuthenticatorCode interface {
 	Callback(w http.ResponseWriter, r *http.Request)
 }
 
-type OidcAuthenticatorCodeImpl struct {
-	*OidcAuthenticatorImpl
+type randomStringGenerator interface {
+	RandomString(length int) (string, error)
 }
 
-// NewOIDCAuthenticatorCodeWithConfig  creates a new OIDC authenticator with code grant
+type defaultRandomStringGenerator struct{}
+
+func (d *defaultRandomStringGenerator) RandomString(length int) (string, error) {
+	return utils.RandomString(length)
+}
+
+type OidcAuthenticatorCodeImpl struct {
+	*OidcAuthenticatorImpl
+	randomStringGenerator randomStringGenerator
+}
+
+// NewOIDCAuthenticatorCodeWithConfig creates a new OIDC authenticator with code grant
 // based on the provided configuration
 func NewOIDCAuthenticatorCodeWithConfig(
 	ctx context.Context,
@@ -37,14 +48,16 @@ func NewOIDCAuthenticatorCodeWithConfig(
 	}
 	return &OidcAuthenticatorCodeImpl{
 		OidcAuthenticatorImpl: base,
+		randomStringGenerator: &defaultRandomStringGenerator{},
 	}
 }
 
-// NewOIDCAuthenticatorCode  creates a new OIDC authenticator with code grant
+// NewOIDCAuthenticatorCode creates a new OIDC authenticator with code grant
 // based on the provided configuration
 func NewOIDCAuthenticatorCode(ctx context.Context, config config.ServerConfig) *OidcAuthenticatorCodeImpl {
 	return &OidcAuthenticatorCodeImpl{
-		NewOIDCAuthenticator(ctx, config),
+		OidcAuthenticatorImpl: NewOIDCAuthenticator(ctx, config),
+		randomStringGenerator: &defaultRandomStringGenerator{},
 	}
 }
 
@@ -102,12 +115,12 @@ func (a *OidcAuthenticatorCodeImpl) Login(w http.ResponseWriter, r *http.Request
 	}
 
 	// Otherwise redirect to oauth login
-	state, err := utils.RandomString(16)
+	state, err := a.randomStringGenerator.RandomString(16)
 	if err != nil {
 		utils.WriteAuthorizationHeaderError(w, err)
 		return
 	}
-	nonce, err := utils.RandomString(16)
+	nonce, err := a.randomStringGenerator.RandomString(16)
 	if err != nil {
 		utils.WriteAuthorizationHeaderError(w, err)
 		return

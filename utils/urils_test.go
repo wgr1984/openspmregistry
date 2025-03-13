@@ -70,6 +70,25 @@ func Test_RandomString_GenerateError_ReturnsString(t *testing.T) {
 	}
 }
 
+func Test_RandomString_ZeroLength_ReturnsEmptyString(t *testing.T) {
+	result, err := RandomString(0)
+	if err != nil {
+		t.Errorf("expected no error for zero length, got %v", err)
+	}
+	if result != "" {
+		t.Errorf("expected empty string for zero length, got %s", result)
+	}
+}
+
+func Test_RandomString_ReadError_ReturnsError(t *testing.T) {
+	// Create a reader that always returns an error
+	errReader := &ErrorReadCloser{}
+	_, err := randomStringFromGenerator(10, errReader)
+	if err == nil {
+		t.Error("expected error from reader, got nil")
+	}
+}
+
 func Test_BaseUrl_ValidConfig_ReturnsUrl(t *testing.T) {
 	c := config.ServerConfig{Hostname: "localhost", Port: 8080}
 	expected := "http://localhost:8080"
