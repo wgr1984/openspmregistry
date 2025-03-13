@@ -62,9 +62,6 @@ func (c *Controller) DownloadSourceArchiveAction(w http.ResponseWriter, r *http.
 		return // error already logged
 	}
 	defer func() {
-		if reader == nil {
-			return
-		}
 		if err := reader.Close(); err != nil {
 			slog.Error("Error closing reader:", "error", err)
 		}
