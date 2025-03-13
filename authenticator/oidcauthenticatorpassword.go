@@ -7,7 +7,6 @@ import (
 	"crypto/rand"
 	"errors"
 	"fmt"
-	"html/template"
 	"log/slog"
 	"net/http"
 	"time"
@@ -86,19 +85,19 @@ func (a *OidcAuthenticatorPasswordImpl) Login(w http.ResponseWriter, r *http.Req
 		return
 	}
 
-	files, err := template.New("login.gohtml").ParseFiles("static/login.gohtml")
-	if err != nil {
-		http.Error(w, "Error parsing template", http.StatusInternalServerError)
-		return
-	}
-
 	csrfToken, err := a.encryptToken(csrfTokenValue)
 	if err != nil {
 		http.Error(w, "Error encrypting token", http.StatusInternalServerError)
 		return
 	}
 
-	err = files.Execute(w, struct {
+	tmpl, err := a.template.ParseFiles("static/login.gohtml")
+	if err != nil {
+		http.Error(w, "Error parsing template", http.StatusInternalServerError)
+		return
+	}
+
+	err = tmpl.Execute(w, struct {
 		Title     string
 		CsrfToken string
 	}{
