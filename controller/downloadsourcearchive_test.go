@@ -40,6 +40,9 @@ func (m *MockDownloadRepo) GetReader(element *models.UploadElement) (io.ReadSeek
 	if m.readerErr != nil {
 		return nil, m.readerErr
 	}
+	if closer, ok := m.reader.(io.ReadSeekCloser); ok {
+		return closer, nil
+	}
 	return &mockReadSeekCloser{m.reader}, nil
 }
 
@@ -264,4 +267,125 @@ func Test_DownloadSourceArchiveAction_ReaderError_DoesNotPanic(t *testing.T) {
 
 	// This should not panic even though reader is nil
 	c.DownloadSourceArchiveAction(w, req)
+}
+
+func Test_DownloadSourceArchiveAction_ByteRangeRequest_ReturnsPartialContent(t *testing.T) {
+	content := "test archive content"
+	mockRepo := &MockDownloadRepo{
+		exists:   true,
+		checksum: "test-checksum",
+		reader:   strings.NewReader(content),
+	}
+	c := NewController(config.ServerConfig{}, mockRepo)
+
+	req := httptest.NewRequest("GET", "/scope/package/1.0.0.zip", nil)
+	req.SetPathValue("scope", "scope")
+	req.SetPathValue("package", "package")
+	req.SetPathValue("version", "1.0.0.zip")
+	req.Header.Set("Accept", "application/vnd.swift.registry.v1+zip")
+	req.Header.Set("Range", "bytes=5-10")
+	w := httptest.NewRecorder()
+
+	c.DownloadSourceArchiveAction(w, req)
+
+	if w.Code != http.StatusPartialContent {
+		t.Errorf("expected status code %d, got %d", http.StatusPartialContent, w.Code)
+	}
+
+	expectedContent := content[5:11] // Range is inclusive
+	if body := w.Body.String(); body != expectedContent {
+		t.Errorf("expected body %q, got %q", expectedContent, body)
+	}
+
+	if cr := w.Header().Get("Content-Range"); !strings.HasPrefix(cr, "bytes 5-10/") {
+		t.Errorf("expected Content-Range to start with 'bytes 5-10/', got %q", cr)
+	}
+}
+
+func Test_DownloadSourceArchiveAction_SignatureError_LogsAndContinues(t *testing.T) {
+	var logBuffer strings.Builder
+	logger := slog.New(slog.NewJSONHandler(&logBuffer, &slog.HandlerOptions{
+		Level: slog.LevelInfo,
+	}))
+	originalLogger := slog.Default()
+	slog.SetDefault(logger)
+	defer slog.SetDefault(originalLogger)
+
+	mockRepo := &MockDownloadRepo{
+		exists:       true,
+		checksum:     "test-checksum",
+		reader:       strings.NewReader("content"),
+		signatureErr: fmt.Errorf("signature error"),
+	}
+	c := NewController(config.ServerConfig{}, mockRepo)
+
+	req := httptest.NewRequest("GET", "/scope/package/1.0.0.zip", nil)
+	req.SetPathValue("scope", "scope")
+	req.SetPathValue("package", "package")
+	req.SetPathValue("version", "1.0.0.zip")
+	req.Header.Set("Accept", "application/vnd.swift.registry.v1+zip")
+	w := httptest.NewRecorder()
+
+	c.DownloadSourceArchiveAction(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Errorf("expected status code %d, got %d", http.StatusOK, w.Code)
+	}
+
+	logOutput := logBuffer.String()
+	if !strings.Contains(logOutput, "Signature not found") {
+		t.Errorf("expected log message containing 'Signature not found', got %q", logOutput)
+	}
+
+	// Signature headers should not be set
+	if sig := w.Header().Get("X-Swift-Package-Signature"); sig != "" {
+		t.Errorf("expected no signature header, got %q", sig)
+	}
+	if fmt := w.Header().Get("X-Swift-Package-Signature-Format"); fmt != "" {
+		t.Errorf("expected no signature format header, got %q", fmt)
+	}
+}
+
+type errorCloser struct {
+	io.ReadSeeker
+}
+
+func (e *errorCloser) Close() error {
+	return fmt.Errorf("close error")
+}
+
+func Test_DownloadSourceArchiveAction_CloseError_LogsError(t *testing.T) {
+	var logBuffer strings.Builder
+	logger := slog.New(slog.NewJSONHandler(&logBuffer, &slog.HandlerOptions{
+		Level: slog.LevelError,
+	}))
+	originalLogger := slog.Default()
+	slog.SetDefault(logger)
+	defer slog.SetDefault(originalLogger)
+
+	// Create a custom mock repo that returns a reader with a Close error
+	mockRepo := &MockDownloadRepo{
+		exists:   true,
+		checksum: "test-checksum",
+		reader:   &errorCloser{strings.NewReader("content")},
+	}
+	c := NewController(config.ServerConfig{}, mockRepo)
+
+	req := httptest.NewRequest("GET", "/scope/package/1.0.0.zip", nil)
+	req.SetPathValue("scope", "scope")
+	req.SetPathValue("package", "package")
+	req.SetPathValue("version", "1.0.0.zip")
+	req.Header.Set("Accept", "application/vnd.swift.registry.v1+zip")
+	w := httptest.NewRecorder()
+
+	c.DownloadSourceArchiveAction(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Errorf("expected status code %d, got %d", http.StatusOK, w.Code)
+	}
+
+	logOutput := logBuffer.String()
+	if !strings.Contains(logOutput, "Error closing reader") {
+		t.Errorf("expected log message containing 'Error closing reader', got %q", logOutput)
+	}
 }
