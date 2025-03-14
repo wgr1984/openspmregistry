@@ -8,7 +8,6 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
-	"time"
 )
 
 func (c *Controller) InfoAction(w http.ResponseWriter, r *http.Request) {
@@ -70,7 +69,7 @@ func (c *Controller) InfoAction(w http.ResponseWriter, r *http.Request) {
 	dateTime, dateErr := c.repo.PublishDate(sourceArchive)
 	if dateErr != nil {
 		slog.Debug("Publish Date error:", "err", dateErr)
-		dateTime = time.Now()
+		dateTime = c.timeProvider.Now()
 	}
 	dateString := dateTime.Format("2006-01-02T15:04:05Z")
 

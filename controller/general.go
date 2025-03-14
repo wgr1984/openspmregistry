@@ -3,16 +3,22 @@ package controller
 import (
 	"OpenSPMRegistry/config"
 	"OpenSPMRegistry/repo"
+	"OpenSPMRegistry/utils"
 	"net/http"
 )
 
 type Controller struct {
-	config config.ServerConfig
-	repo   repo.Repo
+	config       config.ServerConfig
+	repo         repo.Repo
+	timeProvider utils.TimeProvider
 }
 
 func NewController(config config.ServerConfig, repo repo.Repo) *Controller {
-	return &Controller{config: config, repo: repo}
+	return &Controller{
+		config:       config,
+		repo:         repo,
+		timeProvider: utils.NewRealTimeProvider(),
+	}
 }
 
 func (c *Controller) MainAction(w http.ResponseWriter, r *http.Request) {
