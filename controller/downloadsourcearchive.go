@@ -8,7 +8,6 @@ import (
 	"net/http"
 	"path/filepath"
 	"strings"
-	"time"
 )
 
 func (c *Controller) DownloadSourceArchiveAction(w http.ResponseWriter, r *http.Request) {
@@ -67,5 +66,5 @@ func (c *Controller) DownloadSourceArchiveAction(w http.ResponseWriter, r *http.
 		}
 	}()
 	// Handle byte range requests
-	http.ServeContent(w, r, element.FileName(), time.Now(), reader)
+	http.ServeContent(w, r, element.FileName(), c.timeProvider.Now(), reader)
 }

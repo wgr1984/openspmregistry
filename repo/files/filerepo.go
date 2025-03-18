@@ -4,6 +4,7 @@ import (
 	"OpenSPMRegistry/mimetypes"
 	"OpenSPMRegistry/models"
 	"OpenSPMRegistry/repo"
+	"OpenSPMRegistry/utils"
 	"bufio"
 	"crypto/sha256"
 	"encoding/base64"
@@ -20,8 +21,9 @@ import (
 
 type FileRepo struct {
 	repo.Access
-	path     string
-	osModule OsAdapter
+	path         string
+	osModule     OsAdapter
+	timeProvider utils.TimeProvider
 }
 
 func NewFileRepo(path string) *FileRepo {
@@ -33,6 +35,7 @@ func NewFileRepo(path string) *FileRepo {
 			path:     path,
 			osModule: osModule,
 		},
+		timeProvider: utils.NewRealTimeProvider(),
 	}
 }
 
@@ -115,17 +118,15 @@ func (f *FileRepo) EncodeBase64(element *models.UploadElement) (string, error) {
 
 func (f *FileRepo) PublishDate(element *models.UploadElement) (time.Time, error) {
 	pathFolder := filepath.Join(f.path, element.Scope, element.Name, element.Version)
-	_, err := f.osModule.Stat(pathFolder)
-	if errors.Is(err, os.ErrNotExist) {
-		return time.Now(), errors.New(fmt.Sprintf("path does not exists: %s", pathFolder))
+	if !f.Exists(element) {
+		return f.timeProvider.Now(), fmt.Errorf("path does not exists: %s", pathFolder)
 	}
-	if err != nil {
-		return time.Now(), err
-	}
+
+	// Check the actual file's modification time, not just the folder
 	pathFile := filepath.Join(pathFolder, element.FileName())
 	stat, err := f.osModule.Stat(pathFile)
 	if err != nil {
-		return time.Now(), err
+		return f.timeProvider.Now(), err
 	}
 
 	return stat.ModTime(), nil

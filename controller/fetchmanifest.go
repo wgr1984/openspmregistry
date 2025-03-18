@@ -9,7 +9,6 @@ import (
 	"net/http"
 	"net/url"
 	"strings"
-	"time"
 )
 
 func (c *Controller) FetchManifestAction(w http.ResponseWriter, r *http.Request) {
@@ -69,7 +68,7 @@ func (c *Controller) FetchManifestAction(w http.ResponseWriter, r *http.Request)
 	header.Set("Content-Disposition", fmt.Sprintf("attachment; filename=\"%s\"", filename))
 	header.Set("Cache-Control", "public, immutable")
 
-	modDate := time.Now()
+	modDate := c.timeProvider.Now()
 	if rawDate, err := c.repo.PublishDate(element); err == nil {
 		modDate = rawDate
 	} else {

@@ -193,12 +193,18 @@ func Test_InfoAction_MetadataError_LogsAndContinues(t *testing.T) {
 	slog.SetDefault(logger)
 	defer slog.SetDefault(originalLogger)
 
+	fixedTime := time.Date(2024, 3, 15, 12, 0, 0, 0, time.UTC)
+	mockTimeProvider := utils.NewMockTimeProvider(fixedTime)
+
 	mockRepo := &MockInfoRepo{
 		exists:      true,
 		metadataErr: fmt.Errorf("metadata error"),
-		publishDate: time.Now(),
+		publishDate: fixedTime,
 	}
-	c := NewController(config.ServerConfig{}, mockRepo)
+	c := &Controller{
+		repo:         mockRepo,
+		timeProvider: mockTimeProvider,
+	}
 
 	req := httptest.NewRequest("GET", "/scope/package/1.0.0.json", nil)
 	req.SetPathValue("scope", "scope")
@@ -241,12 +247,18 @@ func Test_InfoAction_SignatureError_LogsAndContinues(t *testing.T) {
 	slog.SetDefault(logger)
 	defer slog.SetDefault(originalLogger)
 
+	fixedTime := time.Date(2024, 3, 15, 12, 0, 0, 0, time.UTC)
+	mockTimeProvider := utils.NewMockTimeProvider(fixedTime)
+
 	mockRepo := &MockInfoRepo{
 		exists:       true,
 		signatureErr: fmt.Errorf("signature error"),
-		publishDate:  time.Now(),
+		publishDate:  fixedTime,
 	}
-	c := NewController(config.ServerConfig{}, mockRepo)
+	c := &Controller{
+		repo:         mockRepo,
+		timeProvider: mockTimeProvider,
+	}
 
 	req := httptest.NewRequest("GET", "/scope/package/1.0.0.json", nil)
 	req.SetPathValue("scope", "scope")
@@ -296,12 +308,18 @@ func Test_InfoAction_ChecksumError_LogsAndContinues(t *testing.T) {
 	slog.SetDefault(logger)
 	defer slog.SetDefault(originalLogger)
 
+	fixedTime := time.Date(2024, 3, 15, 12, 0, 0, 0, time.UTC)
+	mockTimeProvider := utils.NewMockTimeProvider(fixedTime)
+
 	mockRepo := &MockInfoRepo{
 		exists:      true,
 		checksumErr: fmt.Errorf("checksum error"),
-		publishDate: time.Now(),
+		publishDate: fixedTime,
 	}
-	c := NewController(config.ServerConfig{}, mockRepo)
+	c := &Controller{
+		repo:         mockRepo,
+		timeProvider: mockTimeProvider,
+	}
 
 	req := httptest.NewRequest("GET", "/scope/package/1.0.0.json", nil)
 	req.SetPathValue("scope", "scope")
