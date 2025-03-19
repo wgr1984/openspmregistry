@@ -1,6 +1,7 @@
 package authenticator
 
 import (
+	"context"
 	"log/slog"
 	"net/http"
 )
@@ -9,7 +10,7 @@ import (
 type NoOpAuthenticator struct{}
 
 func (n *NoOpAuthenticator) Authenticate(w http.ResponseWriter, r *http.Request) (string, error) {
-	if slog.Default().Enabled(nil, slog.LevelDebug) {
+	if slog.Default().Enabled(context.TODO(), slog.LevelDebug) {
 		slog.Debug("NoOp authentication")
 	}
 	return "noop", nil

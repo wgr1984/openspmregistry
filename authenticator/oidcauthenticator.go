@@ -104,7 +104,7 @@ func (a *OidcAuthenticatorImpl) Authenticate(w http.ResponseWriter, r *http.Requ
 
 	_, err = a.verifier.Verify(a.ctx, token)
 	if err == nil {
-		if slog.Default().Enabled(nil, slog.LevelDebug) {
+		if slog.Default().Enabled(context.TODO(), slog.LevelDebug) {
 			slog.Debug("Token still valid")
 		}
 		return token, nil

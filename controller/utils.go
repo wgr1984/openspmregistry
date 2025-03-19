@@ -4,6 +4,7 @@ import (
 	"OpenSPMRegistry/models"
 	"OpenSPMRegistry/responses"
 	"OpenSPMRegistry/utils"
+	"context"
 	"encoding/json"
 	"fmt"
 	"html/template"
@@ -74,7 +75,12 @@ func checkHeaders(r *http.Request) *HeaderError {
 
 // checkHeadersEnforce checks headers and enforces a certain media type
 func checkHeadersEnforce(r *http.Request, enforceMediaType string) *HeaderError {
-	for _, value := range r.Header.Values("Accept") {
+	acceptHeaders := r.Header.Values("Accept")
+	if len(acceptHeaders) == 0 {
+		return NewHeaderError("missing Accept header")
+	}
+
+	for _, value := range acceptHeaders {
 		if strings.HasPrefix(value, acceptHeaderPrefix) {
 			versionMediaType := strings.Split(value[len(acceptHeaderPrefix):], "+")
 			if len(versionMediaType) == 2 {
@@ -83,7 +89,10 @@ func checkHeadersEnforce(r *http.Request, enforceMediaType string) *HeaderError 
 					if err != nil {
 						return NewHeaderError(fmt.Sprintf("invalid API version: %s", version))
 					}
-					return NewHeaderError(fmt.Sprintf("unsupported API version: %s", version))
+					return &HeaderError{
+						errorMessage:   fmt.Sprintf("unsupported API version: %s", version),
+						httpStatusCode: http.StatusUnsupportedMediaType,
+					}
 				}
 				if len(enforceMediaType) > 0 {
 					if mediaType != enforceMediaType {
@@ -103,7 +112,10 @@ func checkHeadersEnforce(r *http.Request, enforceMediaType string) *HeaderError 
 		}
 	}
 
-	return NewHeaderError("wrong accept header")
+	return &HeaderError{
+		errorMessage:   "wrong accept header",
+		httpStatusCode: http.StatusUnsupportedMediaType,
+	}
 }
 
 func listElements(w http.ResponseWriter, c *Controller, scope string, packageName string) ([]models.ListElement, error) {
@@ -177,7 +189,7 @@ func writeErrorWithStatusCode(msg string, w http.ResponseWriter, status int) {
 }
 
 func printCallInfo(methodName string, r *http.Request) {
-	if slog.Default().Enabled(nil, slog.LevelDebug) {
+	if slog.Default().Enabled(context.TODO(), slog.LevelDebug) {
 		slog.Info(fmt.Sprintf("%s Request:", methodName))
 		for name, values := range r.Header {
 			for _, value := range values {

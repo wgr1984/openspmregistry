@@ -62,7 +62,7 @@ func Test_InfoAction_MissingAcceptHeader_ReturnsBadRequest(t *testing.T) {
 		t.Errorf("expected status code %d, got %d", http.StatusBadRequest, w.Code)
 	}
 
-	expectedBody := `{"detail":"wrong accept header"}`
+	expectedBody := `{"detail":"missing Accept header"}`
 	if body := strings.TrimSpace(w.Body.String()); body != expectedBody {
 		t.Errorf("expected body %q, got %q", expectedBody, body)
 	}

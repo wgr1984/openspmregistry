@@ -3,6 +3,7 @@ package controller
 import (
 	"OpenSPMRegistry/models"
 	"OpenSPMRegistry/utils"
+	"context"
 	"fmt"
 	"io"
 	"log/slog"
@@ -37,7 +38,7 @@ func (c *Controller) PublishAction(w http.ResponseWriter, r *http.Request) {
 
 	reader, err := r.MultipartReader()
 	if err != nil {
-		writeError("upload failed: parsing multipart form", w)
+		writeErrorWithStatusCode("upload failed: invalid multipart form", w, http.StatusBadRequest)
 		return
 	}
 
@@ -52,13 +53,14 @@ func (c *Controller) PublishAction(w http.ResponseWriter, r *http.Request) {
 
 		if part == nil {
 			slog.Error("Error", "msg", err)
-			break
+			writeErrorWithStatusCode("upload failed: invalid multipart form", w, http.StatusBadRequest)
+			return
 		}
 
 		name := part.FormName()
 		fileName := part.FileName()
 
-		if slog.Default().Enabled(nil, slog.LevelDebug) {
+		if slog.Default().Enabled(context.TODO(), slog.LevelDebug) {
 			slog.Debug("Upload part", "name", name)
 			slog.Debug("Upload part", "fileName", fileName)
 			for name, values := range part.Header {
@@ -76,7 +78,7 @@ func (c *Controller) PublishAction(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		if name == "source-archive" {
+		if name == string(models.SourceArchive) {
 			packageElement = element
 		}
 	}
@@ -109,11 +111,11 @@ func storeElements(w http.ResponseWriter, name string, scope string, packageName
 	element := models.NewUploadElement(scope, packageName, version, mimeType, uploadType)
 
 	switch uploadType {
-	case models.SourceArchive:
-	case models.SourceArchiveSignature:
-	case models.Metadata:
-	case models.MetadataSignature:
-		break
+	case models.SourceArchive,
+		models.SourceArchiveSignature,
+		models.Metadata,
+		models.MetadataSignature:
+		// These are supported types, continue processing
 	default:
 		return false, nil
 	}
@@ -157,7 +159,8 @@ func storeElements(w http.ResponseWriter, name string, scope string, packageName
 	}
 
 	if err := c.repo.ExtractManifestFiles(element); err != nil {
-		return false, nil
+		slog.Error("Error extracting manifest files:", "error", err)
+		// Continue even if extraction fails
 	}
 
 	return false, element

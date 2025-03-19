@@ -78,22 +78,19 @@ func NewUploadElement(scope string, name string, version string, mimeType string
 
 	switch uploadType {
 	case SourceArchive:
-		break
+		// No overwrite needed
 	case SourceArchiveSignature:
 		element.SetExtOverwrite(".sig")
-		break
 	case Metadata:
 		element.SetFilenameOverwrite("metadata")
-		break
 	case MetadataSignature:
 		element.SetFilenameOverwrite("metadata")
 		element.SetExtOverwrite(".sig")
-		break
 	case Manifest:
 		element.SetFilenameOverwrite("Package")
 		element.SetExtOverwrite(".swift")
 	default:
-		break
+		// No overwrite needed
 	}
 
 	return element

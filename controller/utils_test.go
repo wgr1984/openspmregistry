@@ -106,8 +106,8 @@ func Test_CheckHeaders_MissingAcceptHeader_ReturnsError(t *testing.T) {
 	if err == nil {
 		t.Errorf("expected error, got nil")
 	}
-	if err.Error() != "wrong accept header" {
-		t.Errorf("expected 'wrong accept header', got %s", err.Error())
+	if err.Error() != "missing Accept header" {
+		t.Errorf("expected 'missing Accept header', got %s", err.Error())
 	}
 }
 
@@ -170,8 +170,8 @@ func Test_CheckHeadersEnforce_MissingAcceptHeader_ReturnsError(t *testing.T) {
 	if err == nil {
 		t.Errorf("expected error, got nil")
 	}
-	if err.Error() != "wrong accept header" {
-		t.Errorf("expected 'wrong accept header', got %s", err.Error())
+	if err.Error() != "missing Accept header" {
+		t.Errorf("expected 'missing Accept header', got %s", err.Error())
 	}
 }
 

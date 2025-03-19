@@ -68,7 +68,7 @@ func Test_DownloadSourceArchiveAction_MissingAcceptHeader_ReturnsBadRequest(t *t
 		t.Errorf("expected status code %d, got %d", http.StatusBadRequest, w.Code)
 	}
 
-	expectedBody := `{"detail":"wrong accept header"}`
+	expectedBody := `{"detail":"missing Accept header"}`
 	if body := strings.TrimSpace(w.Body.String()); body != expectedBody {
 		t.Errorf("expected body %q, got %q", expectedBody, body)
 	}

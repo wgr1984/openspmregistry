@@ -28,8 +28,8 @@ func Test_LookupAction_MissingAcceptHeader_ReturnsBadRequest(t *testing.T) {
 	if err := json.NewDecoder(w.Body).Decode(&response); err != nil {
 		t.Fatalf("failed to decode response body: %v", err)
 	}
-	if response.Detail != "wrong accept header" {
-		t.Errorf("expected error detail %q, got %q", "wrong accept header", response.Detail)
+	if response.Detail != "missing Accept header" {
+		t.Errorf("expected error detail %q, got %q", "missing Accept header", response.Detail)
 	}
 }
 
@@ -161,8 +161,8 @@ func Test_LookupAction_InvalidAPIVersion_ReturnsBadRequest(t *testing.T) {
 
 	c.LookupAction(w, req)
 
-	if w.Code != http.StatusBadRequest {
-		t.Errorf("expected status code %d, got %d", http.StatusBadRequest, w.Code)
+	if w.Code != http.StatusUnsupportedMediaType {
+		t.Errorf("expected status code %d, got %d", http.StatusUnsupportedMediaType, w.Code)
 	}
 
 	var response struct {

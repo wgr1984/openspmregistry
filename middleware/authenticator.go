@@ -2,6 +2,7 @@ package middleware
 
 import (
 	"OpenSPMRegistry/authenticator"
+	"context"
 	"fmt"
 	"log/slog"
 	"net/http"
@@ -55,7 +56,7 @@ func (a *Authentication) authenticate(next http.HandlerFunc) http.HandlerFunc {
 			return
 		}
 
-		if slog.Default().Enabled(nil, slog.LevelDebug) {
+		if slog.Default().Enabled(context.TODO(), slog.LevelDebug) {
 			slog.Debug("Request authorized")
 		}
 		// Once authorization checked, call the next handler

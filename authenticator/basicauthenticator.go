@@ -2,6 +2,7 @@ package authenticator
 
 import (
 	"OpenSPMRegistry/config"
+	"context"
 	"crypto/sha256"
 	"encoding/hex"
 	"errors"
@@ -28,7 +29,7 @@ func (a *BasicAuthenticator) Authenticate(w http.ResponseWriter, r *http.Request
 		return "", errors.New("missing credentials")
 	}
 
-	if slog.Default().Enabled(nil, slog.LevelDebug) {
+	if slog.Default().Enabled(context.TODO(), slog.LevelDebug) {
 		slog.Debug("Basic authentication")
 	}
 	for _, user := range a.users {

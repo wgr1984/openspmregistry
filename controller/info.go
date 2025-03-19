@@ -4,6 +4,7 @@ import (
 	"OpenSPMRegistry/mimetypes"
 	"OpenSPMRegistry/models"
 	"OpenSPMRegistry/utils"
+	"context"
 	"encoding/json"
 	"fmt"
 	"log/slog"
@@ -41,7 +42,7 @@ func (c *Controller) InfoAction(w http.ResponseWriter, r *http.Request) {
 	addFirstReleaseAsLatest(elements, c, header)
 
 	metadataResult, err := c.repo.FetchMetadata(scope, packageName, version)
-	if err != nil && slog.Default().Enabled(nil, slog.LevelDebug) {
+	if err != nil && slog.Default().Enabled(context.TODO(), slog.LevelDebug) {
 		slog.Debug("Error fetching metadata:", "error", err)
 	}
 	if metadataResult == nil {
