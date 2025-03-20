@@ -136,9 +136,6 @@ func storeElements(w http.ResponseWriter, name string, scope string, packageName
 	}
 
 	defer func() {
-		if writer == nil {
-			return
-		}
 		if err := writer.Close(); err != nil {
 			slog.Error("Error closing writer:", "error", err)
 		}
