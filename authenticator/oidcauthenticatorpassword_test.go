@@ -1155,3 +1155,494 @@ func Test_OIDCAuthenticatorPassword_EncryptToken_InvalidKeySize_ReturnsError(t *
 		}
 	}
 }
+
+func Test_OIDCAuthenticatorPassword_Login_TemplateExecuteError(t *testing.T) {
+	ctx := context.Background()
+	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/.well-known/openid-configuration" {
+			w.Header().Set("Content-Type", "application/json")
+			w.Write([]byte(`{
+				"issuer": "http://` + r.Host + `",
+				"authorization_endpoint": "http://` + r.Host + `/auth",
+				"token_endpoint": "http://` + r.Host + `/token",
+				"jwks_uri": "http://` + r.Host + `/keys"
+			}`))
+		}
+	}))
+	defer mockServer.Close()
+
+	c := config.ServerConfig{Auth: config.AuthConfig{
+		Issuer:       mockServer.URL,
+		ClientId:     "client-id",
+		ClientSecret: "client-secret",
+	}}
+
+	auth := NewOIDCAuthenticatorPassword(ctx, c)
+
+	// Create a template that will fail to execute
+	tmpl := template.Must(template.New("login.gohtml").Parse(`{{.NonexistentField}}`))
+	auth.OidcAuthenticatorImpl.template = &MockTemplateParser{
+		template: *tmpl,
+	}
+
+	req := httptest.NewRequest("GET", "/login", nil)
+	w := httptest.NewRecorder()
+
+	auth.Login(w, req)
+
+	if w.Code != http.StatusInternalServerError {
+		t.Errorf("expected status Internal Server Error when template execution fails, got %v", w.Code)
+	}
+	if !strings.Contains(w.Body.String(), "Error executing template") {
+		t.Errorf("expected response to contain 'Error executing template', got %s", w.Body.String())
+	}
+}
+
+func Test_OIDCAuthenticatorPassword_Login_EncryptTokenError(t *testing.T) {
+	ctx := context.Background()
+	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/.well-known/openid-configuration" {
+			w.Header().Set("Content-Type", "application/json")
+			w.Write([]byte(`{
+				"issuer": "http://` + r.Host + `",
+				"authorization_endpoint": "http://` + r.Host + `/auth",
+				"token_endpoint": "http://` + r.Host + `/token",
+				"jwks_uri": "http://` + r.Host + `/keys"
+			}`))
+		}
+	}))
+	defer mockServer.Close()
+
+	c := config.ServerConfig{Auth: config.AuthConfig{
+		Issuer:       mockServer.URL,
+		ClientId:     "client-id",
+		ClientSecret: "client-secret",
+	}}
+
+	auth := NewOIDCAuthenticatorPassword(ctx, c)
+	// Force encryption to fail by using an invalid key
+	auth.sharedEncryptionKey = []byte{}
+
+	req := httptest.NewRequest("GET", "/login", nil)
+	w := httptest.NewRecorder()
+
+	auth.Login(w, req)
+
+	if w.Code != http.StatusInternalServerError {
+		t.Errorf("expected status Internal Server Error when token encryption fails, got %v", w.Code)
+	}
+	if !strings.Contains(w.Body.String(), "Error encrypting token") {
+		t.Errorf("expected response to contain 'Error encrypting token', got %s", w.Body.String())
+	}
+}
+
+func Test_OIDCAuthenticatorPassword_Authenticate_InvalidTokenError(t *testing.T) {
+	ctx := context.Background()
+	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/.well-known/openid-configuration" {
+			w.Header().Set("Content-Type", "application/json")
+			w.Write([]byte(`{
+				"issuer": "http://` + r.Host + `",
+				"authorization_endpoint": "http://` + r.Host + `/auth",
+				"token_endpoint": "http://` + r.Host + `/token",
+				"jwks_uri": "http://` + r.Host + `/keys"
+			}`))
+		}
+	}))
+	defer mockServer.Close()
+
+	c := config.ServerConfig{Auth: config.AuthConfig{
+		Issuer:       mockServer.URL,
+		ClientId:     "client-id",
+		ClientSecret: "client-secret",
+	}}
+
+	auth := NewOIDCAuthenticatorPassword(ctx, c)
+
+	req := httptest.NewRequest("POST", "/authenticate", nil)
+	req.SetBasicAuth("test-user", "test-pass")
+	req.Header.Set("x-csrf-token", "invalid-token")
+	w := httptest.NewRecorder()
+
+	token, err := auth.Authenticate(w, req)
+
+	if err == nil {
+		t.Error("expected error for invalid token")
+	}
+	if token != "" {
+		t.Errorf("expected empty token, got %s", token)
+	}
+}
+
+func Test_OIDCAuthenticatorPassword_VerifyToken_ExpiredToken(t *testing.T) {
+	ctx := context.Background()
+	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/.well-known/openid-configuration" {
+			w.Header().Set("Content-Type", "application/json")
+			w.Write([]byte(`{
+				"issuer": "http://` + r.Host + `",
+				"authorization_endpoint": "http://` + r.Host + `/auth",
+				"token_endpoint": "http://` + r.Host + `/token",
+				"jwks_uri": "http://` + r.Host + `/keys"
+			}`))
+		}
+	}))
+	defer mockServer.Close()
+
+	c := config.ServerConfig{Auth: config.AuthConfig{
+		Issuer:       mockServer.URL,
+		ClientId:     "client-id",
+		ClientSecret: "client-secret",
+	}}
+
+	auth := NewOIDCAuthenticatorPassword(ctx, c)
+
+	// Create an expired token
+	enc, _ := jose.NewEncrypter(
+		jose.A128GCM,
+		jose.Recipient{
+			Algorithm: jose.DIRECT,
+			Key:       auth.sharedEncryptionKey,
+		},
+		(&jose.EncrypterOptions{}).WithType("JWT").WithContentType("JWT"))
+
+	cl := jwt.Claims{
+		Subject: "oidc login nonce",
+		Issuer:  "OpenSPMRegistry",
+		Expiry:  jwt.NewNumericDate(time.Now().Add(-time.Hour)), // Expired 1 hour ago
+	}
+
+	privateClaim := struct {
+		Value string `json:"value"`
+	}{
+		csrfTokenValue,
+	}
+
+	token, _ := jwt.Encrypted(enc).Claims(cl).Claims(privateClaim).Serialize()
+
+	err := auth.verifyToken(token, csrfTokenValue)
+	if err == nil {
+		t.Error("expected error when verifying expired token")
+	}
+}
+
+func Test_OIDCAuthenticatorPassword_VerifyToken_InvalidSubject(t *testing.T) {
+	ctx := context.Background()
+	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/.well-known/openid-configuration" {
+			w.Header().Set("Content-Type", "application/json")
+			w.Write([]byte(`{
+				"issuer": "http://` + r.Host + `",
+				"authorization_endpoint": "http://` + r.Host + `/auth",
+				"token_endpoint": "http://` + r.Host + `/token",
+				"jwks_uri": "http://` + r.Host + `/keys"
+			}`))
+		}
+	}))
+	defer mockServer.Close()
+
+	c := config.ServerConfig{Auth: config.AuthConfig{
+		Issuer:       mockServer.URL,
+		ClientId:     "client-id",
+		ClientSecret: "client-secret",
+	}}
+
+	auth := NewOIDCAuthenticatorPassword(ctx, c)
+
+	// Create a token with invalid subject
+	enc, _ := jose.NewEncrypter(
+		jose.A128GCM,
+		jose.Recipient{
+			Algorithm: jose.DIRECT,
+			Key:       auth.sharedEncryptionKey,
+		},
+		(&jose.EncrypterOptions{}).WithType("JWT").WithContentType("JWT"))
+
+	cl := jwt.Claims{
+		Subject: "invalid subject",
+		Issuer:  "OpenSPMRegistry",
+		Expiry:  jwt.NewNumericDate(time.Now().Add(time.Hour)),
+	}
+
+	privateClaim := struct {
+		Value string `json:"value"`
+	}{
+		csrfTokenValue,
+	}
+
+	token, _ := jwt.Encrypted(enc).Claims(cl).Claims(privateClaim).Serialize()
+
+	err := auth.verifyToken(token, csrfTokenValue)
+	if err == nil {
+		t.Error("expected error when verifying token with invalid subject")
+	}
+}
+
+func Test_OIDCAuthenticatorPassword_VerifyToken_EmptyValue(t *testing.T) {
+	ctx := context.Background()
+	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/.well-known/openid-configuration" {
+			w.Header().Set("Content-Type", "application/json")
+			w.Write([]byte(`{
+				"issuer": "http://` + r.Host + `",
+				"authorization_endpoint": "http://` + r.Host + `/auth",
+				"token_endpoint": "http://` + r.Host + `/token",
+				"jwks_uri": "http://` + r.Host + `/keys"
+			}`))
+		}
+	}))
+	defer mockServer.Close()
+
+	c := config.ServerConfig{Auth: config.AuthConfig{
+		Issuer:       mockServer.URL,
+		ClientId:     "client-id",
+		ClientSecret: "client-secret",
+	}}
+
+	auth := NewOIDCAuthenticatorPassword(ctx, c)
+
+	// Create a token with empty value
+	enc, _ := jose.NewEncrypter(
+		jose.A128GCM,
+		jose.Recipient{
+			Algorithm: jose.DIRECT,
+			Key:       auth.sharedEncryptionKey,
+		},
+		(&jose.EncrypterOptions{}).WithType("JWT").WithContentType("JWT"))
+
+	cl := jwt.Claims{
+		Subject: "oidc login nonce",
+		Issuer:  "OpenSPMRegistry",
+		Expiry:  jwt.NewNumericDate(time.Now().Add(time.Hour)),
+	}
+
+	privateClaim := struct {
+		Value string `json:"value"`
+	}{
+		"",
+	}
+
+	token, _ := jwt.Encrypted(enc).Claims(cl).Claims(privateClaim).Serialize()
+
+	err := auth.verifyToken(token, csrfTokenValue)
+	if err == nil {
+		t.Error("expected error when verifying token with empty value")
+	}
+}
+
+func Test_OIDCAuthenticatorPassword_VerifyToken_InvalidValue(t *testing.T) {
+	ctx := context.Background()
+	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/.well-known/openid-configuration" {
+			w.Header().Set("Content-Type", "application/json")
+			w.Write([]byte(`{
+				"issuer": "http://` + r.Host + `",
+				"authorization_endpoint": "http://` + r.Host + `/auth",
+				"token_endpoint": "http://` + r.Host + `/token",
+				"jwks_uri": "http://` + r.Host + `/keys"
+			}`))
+		}
+	}))
+	defer mockServer.Close()
+
+	c := config.ServerConfig{Auth: config.AuthConfig{
+		Issuer:       mockServer.URL,
+		ClientId:     "client-id",
+		ClientSecret: "client-secret",
+	}}
+
+	auth := NewOIDCAuthenticatorPassword(ctx, c)
+
+	// Create a token with invalid value
+	enc, _ := jose.NewEncrypter(
+		jose.A128GCM,
+		jose.Recipient{
+			Algorithm: jose.DIRECT,
+			Key:       auth.sharedEncryptionKey,
+		},
+		(&jose.EncrypterOptions{}).WithType("JWT").WithContentType("JWT"))
+
+	cl := jwt.Claims{
+		Subject: "oidc login nonce",
+		Issuer:  "OpenSPMRegistry",
+		Expiry:  jwt.NewNumericDate(time.Now().Add(time.Hour)),
+	}
+
+	privateClaim := struct {
+		Value string `json:"value"`
+	}{
+		"invalid-value",
+	}
+
+	token, _ := jwt.Encrypted(enc).Claims(cl).Claims(privateClaim).Serialize()
+
+	err := auth.verifyToken(token, csrfTokenValue)
+	if err == nil {
+		t.Error("expected error when verifying token with invalid value")
+	}
+}
+
+func Test_OIDCAuthenticatorPassword_VerifyToken_InvalidToken(t *testing.T) {
+	ctx := context.Background()
+	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/.well-known/openid-configuration" {
+			w.Header().Set("Content-Type", "application/json")
+			w.Write([]byte(`{
+				"issuer": "http://` + r.Host + `",
+				"authorization_endpoint": "http://` + r.Host + `/auth",
+				"token_endpoint": "http://` + r.Host + `/token",
+				"jwks_uri": "http://` + r.Host + `/keys"
+			}`))
+		}
+	}))
+	defer mockServer.Close()
+
+	c := config.ServerConfig{Auth: config.AuthConfig{
+		Issuer:       mockServer.URL,
+		ClientId:     "client-id",
+		ClientSecret: "client-secret",
+	}}
+
+	auth := NewOIDCAuthenticatorPassword(ctx, c)
+
+	// Create an invalid token
+	token := "invalid.token.format"
+
+	err := auth.verifyToken(token, csrfTokenValue)
+	if err == nil {
+		t.Error("expected error when verifying invalid token")
+	}
+}
+
+func Test_OIDCAuthenticatorPassword_EncryptToken_InvalidKey(t *testing.T) {
+	ctx := context.Background()
+	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/.well-known/openid-configuration" {
+			w.Header().Set("Content-Type", "application/json")
+			w.Write([]byte(`{
+				"issuer": "http://` + r.Host + `",
+				"authorization_endpoint": "http://` + r.Host + `/auth",
+				"token_endpoint": "http://` + r.Host + `/token",
+				"jwks_uri": "http://` + r.Host + `/keys"
+			}`))
+		}
+	}))
+	defer mockServer.Close()
+
+	cfg := config.ServerConfig{Auth: config.AuthConfig{
+		Issuer:       mockServer.URL,
+		ClientId:     "client-id",
+		ClientSecret: "client-secret",
+	}}
+
+	auth := NewOIDCAuthenticatorPassword(ctx, cfg)
+
+	// Create a token with the current key
+	token, err := auth.encryptToken(csrfTokenValue)
+	if err != nil {
+		t.Fatalf("failed to create token: %v", err)
+	}
+
+	// Change the key to make verification fail
+	originalKey := auth.sharedEncryptionKey
+	auth.sharedEncryptionKey = make([]byte, 16)
+	copy(auth.sharedEncryptionKey, "different key...") // Use a different key
+
+	err = auth.verifyToken(token, csrfTokenValue)
+	if err == nil {
+		t.Error("expected error when verifying with wrong key")
+	}
+
+	// Restore the original key
+	auth.sharedEncryptionKey = originalKey
+}
+
+func Test_OIDCAuthenticatorPassword_Authenticate_BasicAuthSuccess(t *testing.T) {
+	// Setup mock server
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/.well-known/openid-configuration":
+			w.Header().Set("Content-Type", "application/json")
+			w.Write([]byte(`{
+				"issuer": "http://` + r.Host + `",
+				"authorization_endpoint": "http://` + r.Host + `/auth",
+				"token_endpoint": "http://` + r.Host + `/token",
+				"jwks_uri": "http://` + r.Host + `/keys"
+			}`))
+		case "/token":
+			w.Header().Set("Content-Type", "application/json")
+			w.Write([]byte(`{
+				"access_token": "access-token",
+				"token_type": "Bearer",
+				"id_token": "test-id-token"
+			}`))
+		}
+	}))
+	defer server.Close()
+
+	ctx := context.Background()
+	cfg := config.ServerConfig{Auth: config.AuthConfig{
+		Issuer:       server.URL,
+		ClientId:     "client-id",
+		ClientSecret: "client-secret",
+	}}
+
+	auth := NewOIDCAuthenticatorPassword(ctx, cfg)
+	auth.template = template.New("test")
+
+	// Create a valid CSRF token
+	csrfToken, err := auth.encryptToken(csrfTokenValue)
+	if err != nil {
+		t.Fatalf("failed to create CSRF token: %v", err)
+	}
+
+	w := httptest.NewRecorder()
+	r := httptest.NewRequest("POST", "/authenticate", nil)
+	r.SetBasicAuth("test-user", "test-pass")
+	r.Header.Set("x-csrf-token", csrfToken)
+
+	token, err := auth.Authenticate(w, r)
+	if err != nil {
+		t.Errorf("unexpected error: %v", err)
+	}
+	if token != "test-id-token" {
+		t.Errorf("expected test-id-token, got %q", token)
+	}
+}
+
+func Test_OIDCAuthenticatorPassword_Authenticate_OIDCPath(t *testing.T) {
+	t.Skip("Skipping OIDC path test until we can properly mock the OIDC provider")
+}
+
+func Test_OIDCAuthenticatorPassword_EncryptToken_Error(t *testing.T) {
+	ctx := context.Background()
+	cfg := config.ServerConfig{Auth: config.AuthConfig{
+		Issuer:       "http://example.com",
+		ClientId:     "client-id",
+		ClientSecret: "client-secret",
+	}}
+
+	auth := NewOIDCAuthenticatorPassword(ctx, cfg)
+
+	// Test error path by using an invalid key size
+	auth.sharedEncryptionKey = make([]byte, 1) // Invalid key size for A128GCM
+
+	token, err := auth.encryptToken("test-value")
+	if err == nil {
+		t.Error("expected error when using invalid key size")
+	}
+	if token != "" {
+		t.Errorf("expected empty token, got %q", token)
+	}
+
+	// Test error path with nil key
+	auth.sharedEncryptionKey = nil
+
+	token, err = auth.encryptToken("test-value")
+	if err == nil {
+		t.Error("expected error when using nil key")
+	}
+	if token != "" {
+		t.Errorf("expected empty token, got %q", token)
+	}
+}
