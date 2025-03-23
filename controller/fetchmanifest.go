@@ -4,7 +4,9 @@ import (
 	"OpenSPMRegistry/mimetypes"
 	"OpenSPMRegistry/models"
 	"OpenSPMRegistry/utils"
+	"encoding/json"
 	"fmt"
+	"io"
 	"log/slog"
 	"net/http"
 	"net/url"
@@ -74,6 +76,20 @@ func (c *Controller) FetchManifestAction(w http.ResponseWriter, r *http.Request)
 	} else {
 		slog.Error("Error getting publish date:", "error", err)
 	}
+
+	// Test if the reader can seek before serving content
+	if seeker, ok := reader.(io.Seeker); ok {
+		if _, err := seeker.Seek(0, io.SeekStart); err != nil {
+			w.Header().Set("Content-Type", "application/problem+json")
+			w.Header().Set("Content-Version", "1")
+			w.WriteHeader(http.StatusInternalServerError)
+			json.NewEncoder(w).Encode(map[string]string{
+				"detail": "internal server error while preparing manifest",
+			})
+			return
+		}
+	}
+
 	http.ServeContent(w, r, filename, modDate, reader)
 }
 
