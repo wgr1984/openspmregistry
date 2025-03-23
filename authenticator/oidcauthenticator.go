@@ -7,7 +7,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"html/template"
 	"log/slog"
 	"net/http"
 	"strings"
@@ -86,8 +85,7 @@ func NewOIDCAuthenticatorWithConfig(
 // NewOIDCAuthenticator creates a new OIDC authenticator
 // based on the provided configuration
 func NewOIDCAuthenticator(ctx context.Context, config config.ServerConfig) *OidcAuthenticatorImpl {
-	t := template.New("token.gohtml")
-	return NewOIDCAuthenticatorWithConfig(ctx, config, nil, t)
+	return NewOIDCAuthenticatorWithConfig(ctx, config, nil, controller.NewDefaultTemplateParser())
 }
 
 func (a *OidcAuthenticatorImpl) Authenticate(w http.ResponseWriter, r *http.Request) (string, error) {
