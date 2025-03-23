@@ -1,5 +1,6 @@
 ![GitHub release (latest by date)](https://img.shields.io/github/v/release/wgr1984/openspmregistry)
 [![Docker Hub](https://img.shields.io/docker/pulls/wgr1984/openspmregistry)](https://hub.docker.com/r/wgr1984/openspmregistry)
+![Code Coverage](https://img.shields.io/badge/coverage-95%25-brightgreen)
 
 <table>
   <tr>

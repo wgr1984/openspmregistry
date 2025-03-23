@@ -1,0 +1,93 @@
+---
+description: Golang Standards and Best Practices
+globs: "*.go"
+alwaysApply: true
+---
+# Golang Standards and Best Practices
+
+Standards for writing Go code with emphasis on using standard library features and minimal dependencies.
+
+<rule>
+name: golang_standards
+description: Standards for writing idiomatic Go code using standard library features
+
+filters:
+  # Match Go files
+  - type: file_extension
+    pattern: "\\.go$"
+  # Match import statements
+  - type: content
+    pattern: "^\\s*import\\s*\\("
+
+actions:
+  - type: suggest
+    message: |
+      When writing Go code:
+
+      1. Prefer standard library packages over external dependencies:
+         ```go
+         // Preferred: Using net/http
+         import "net/http"
+
+         // Avoid when possible: Using external HTTP libraries
+         import "github.com/external/http-lib"
+         ```
+
+      2. Use latest Go features and patterns:
+         - Use Go 1.22+ features where applicable
+         - Utilize built-in generics (Go 1.18+)
+         - Use structured logging with slog (Go 1.21+)
+         - Implement context.Context for cancellation
+         - Use error wrapping (Go 1.13+)
+
+      3. HTTP Server Guidelines:
+         - Use net/http for HTTP servers
+         - Use http.ServeMux for routing
+         - Use http.Client for HTTP clients
+         - Use context for timeouts and cancellation
+
+      4. Common Standard Libraries to Prefer:
+         - net/http: HTTP client/server
+         - encoding/json: JSON handling
+         - html/template: HTML templating
+         - database/sql: Database access
+         - crypto/*: Cryptographic operations
+         - log/slog: Structured logging
+         - context: Context handling
+         - sync: Synchronization primitives
+         - time: Time handling
+         - errors: Error handling
+
+      5. Testing:
+         - Use testing package
+         - Use httptest for HTTP testing
+         - Use testing/quick for property testing
+         - Use go test -race for race detection
+
+examples:
+  - input: |
+      # Bad: Using external HTTP library
+      import (
+          "github.com/gin-gonic/gin"
+      )
+
+      # Good: Using standard library
+      import (
+          "net/http"
+          "html/template"
+          "encoding/json"
+      )
+    output: "Using standard library packages"
+
+  - input: |
+      # Bad: Old style logging
+      log.Printf("error: %v", err)
+
+      # Good: Using structured logging
+      slog.Error("operation failed", "err", err)
+    output: "Using modern Go features"
+
+metadata:
+  priority: high
+  version: 1.0
+</rule> 
