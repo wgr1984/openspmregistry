@@ -46,4 +46,4 @@ EXPOSE 8080
 
 USER server
 
-ENTRYPOINT ["/app/openspmreg", "-tls=true", "-v"]
+ENTRYPOINT ["/app/openspmreg", "-v"]

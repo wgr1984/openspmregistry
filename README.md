@@ -80,7 +80,7 @@ server:
 ```
 hit go run:
 ```
- go run main.go -tls=true -v
+ go run main.go -v
 ```
 
 # 📋 Todos ❎
