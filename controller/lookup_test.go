@@ -253,27 +253,6 @@ func Test_LookupAction_NonNumericAPIVersion_ReturnsBadRequest(t *testing.T) {
 	}
 }
 
-// MockErrorRepo is a mock repository that implements the Repo interface and returns a special identifier
-// that can trigger JSON encoding errors
-type MockErrorRepo struct {
-	MockRepo
-}
-
-func (m *MockErrorRepo) Lookup(url string) []string {
-	// Return a value that will definitely cause a JSON encoding error
-	return []string{string([]byte{0xff, 0xfe, 0xfd}), string([]byte{0x80, 0x81, 0x82})}
-}
-
-// MockLookupRepo is a mock repository that implements the Repo interface for lookup tests
-type MockLookupRepo struct {
-	MockRepo
-	identifiers []string
-}
-
-func (m *MockLookupRepo) Lookup(url string) []string {
-	return m.identifiers
-}
-
 func Test_LookupAction_JSONEncodingError_ReturnsInternalError(t *testing.T) {
 	// Create a buffer to capture log output
 	var logBuffer strings.Builder
@@ -324,4 +303,23 @@ func Test_LookupAction_JSONEncodingError_ReturnsInternalError(t *testing.T) {
 	if !strings.Contains(logOutput, "forced write error") {
 		t.Errorf("expected error message containing 'forced write error', got %q", logOutput)
 	}
+}
+
+// Mock types and implementations
+
+type MockErrorRepo struct {
+	MockRepo
+}
+
+func (m *MockErrorRepo) Lookup(url string) []string {
+	return []string{strings.Repeat("a", 1<<32)} // Create a string that's too large to encode
+}
+
+type MockLookupRepo struct {
+	MockRepo
+	identifiers []string
+}
+
+func (m *MockLookupRepo) Lookup(url string) []string {
+	return m.identifiers
 }

@@ -15,39 +15,6 @@ import (
 	"time"
 )
 
-type MockInfoRepo struct {
-	MockRepo
-	exists         bool
-	metadata       map[string]interface{}
-	metadataErr    error
-	signature      string
-	signatureErr   error
-	publishDate    time.Time
-	publishDateErr error
-	checksum       string
-	checksumErr    error
-}
-
-func (m *MockInfoRepo) Exists(element *models.UploadElement) bool {
-	return m.exists
-}
-
-func (m *MockInfoRepo) FetchMetadata(scope, packageName, version string) (map[string]interface{}, error) {
-	return m.metadata, m.metadataErr
-}
-
-func (m *MockInfoRepo) EncodeBase64(element *models.UploadElement) (string, error) {
-	return m.signature, m.signatureErr
-}
-
-func (m *MockInfoRepo) PublishDate(element *models.UploadElement) (time.Time, error) {
-	return m.publishDate, m.publishDateErr
-}
-
-func (m *MockInfoRepo) Checksum(element *models.UploadElement) (string, error) {
-	return m.checksum, m.checksumErr
-}
-
 func Test_InfoAction_MissingAcceptHeader_ReturnsBadRequest(t *testing.T) {
 	c := NewController(config.ServerConfig{}, nil)
 	req := httptest.NewRequest("GET", "/scope/package/1.0.0.json", nil)
@@ -415,4 +382,48 @@ func Test_InfoAction_PublishDateError_UsesCurrentTime(t *testing.T) {
 	if !publishTime.Equal(fixedTime.UTC()) {
 		t.Errorf("expected publishedAt %v, got %v", fixedTime.UTC(), publishTime)
 	}
+}
+
+// Mock types and implementations
+
+type MockInfoRepo struct {
+	MockRepo
+	exists         bool
+	metadata       map[string]interface{}
+	metadataErr    error
+	signature      string
+	signatureErr   error
+	publishDate    time.Time
+	publishDateErr error
+	checksum       string
+	checksumErr    error
+}
+
+func (m *MockInfoRepo) Exists(element *models.UploadElement) bool {
+	return m.exists
+}
+
+func (m *MockInfoRepo) FetchMetadata(scope, packageName, version string) (map[string]interface{}, error) {
+	return m.metadata, m.metadataErr
+}
+
+func (m *MockInfoRepo) EncodeBase64(element *models.UploadElement) (string, error) {
+	return m.signature, m.signatureErr
+}
+
+func (m *MockInfoRepo) PublishDate(element *models.UploadElement) (time.Time, error) {
+	return m.publishDate, m.publishDateErr
+}
+
+func (m *MockInfoRepo) Checksum(element *models.UploadElement) (string, error) {
+	return m.checksum, m.checksumErr
+}
+
+func (m *MockInfoRepo) List(scope, packageName string) ([]models.ListElement, error) {
+	if m.exists {
+		return []models.ListElement{
+			{Scope: scope, PackageName: packageName, Version: "1.0.0"},
+		}, nil
+	}
+	return nil, nil
 }

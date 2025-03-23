@@ -120,6 +120,8 @@ func Test_CreateAuthenticator_UnknownType_ReturnsNoOpAuthenticator(t *testing.T)
 	}
 }
 
+// Mock types and implementations
+
 type MockTemplateParser struct {
 	template template.Template
 }

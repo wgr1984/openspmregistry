@@ -13,47 +13,6 @@ import (
 	"testing"
 )
 
-type MockDownloadRepo struct {
-	MockRepo
-	exists       bool
-	checksum     string
-	checksumErr  error
-	signature    string
-	signatureErr error
-	reader       io.ReadSeeker
-	readerErr    error
-}
-
-func (m *MockDownloadRepo) Exists(element *models.UploadElement) bool {
-	return m.exists
-}
-
-func (m *MockDownloadRepo) Checksum(element *models.UploadElement) (string, error) {
-	return m.checksum, m.checksumErr
-}
-
-func (m *MockDownloadRepo) EncodeBase64(element *models.UploadElement) (string, error) {
-	return m.signature, m.signatureErr
-}
-
-func (m *MockDownloadRepo) GetReader(element *models.UploadElement) (io.ReadSeekCloser, error) {
-	if m.readerErr != nil {
-		return nil, m.readerErr
-	}
-	if closer, ok := m.reader.(io.ReadSeekCloser); ok {
-		return closer, nil
-	}
-	return &mockReadSeekCloser{m.reader}, nil
-}
-
-type mockReadSeekCloser struct {
-	io.ReadSeeker
-}
-
-func (m *mockReadSeekCloser) Close() error {
-	return nil
-}
-
 func Test_DownloadSourceArchiveAction_MissingAcceptHeader_ReturnsBadRequest(t *testing.T) {
 	c := NewController(config.ServerConfig{}, nil)
 	req := httptest.NewRequest("GET", "/scope/package/1.0.0.zip", nil)
@@ -346,14 +305,6 @@ func Test_DownloadSourceArchiveAction_SignatureError_LogsAndContinues(t *testing
 	}
 }
 
-type errorCloser struct {
-	io.ReadSeeker
-}
-
-func (e *errorCloser) Close() error {
-	return fmt.Errorf("close error")
-}
-
 func Test_DownloadSourceArchiveAction_CloseError_LogsError(t *testing.T) {
 	var logBuffer strings.Builder
 	logger := slog.New(slog.NewJSONHandler(&logBuffer, &slog.HandlerOptions{
@@ -388,4 +339,55 @@ func Test_DownloadSourceArchiveAction_CloseError_LogsError(t *testing.T) {
 	if !strings.Contains(logOutput, "Error closing reader") {
 		t.Errorf("expected log message containing 'Error closing reader', got %q", logOutput)
 	}
+}
+
+// Mock types and implementations
+
+type MockDownloadRepo struct {
+	MockRepo
+	exists       bool
+	checksum     string
+	checksumErr  error
+	signature    string
+	signatureErr error
+	reader       io.ReadSeeker
+	readerErr    error
+}
+
+func (m *MockDownloadRepo) Exists(element *models.UploadElement) bool {
+	return m.exists
+}
+
+func (m *MockDownloadRepo) Checksum(element *models.UploadElement) (string, error) {
+	return m.checksum, m.checksumErr
+}
+
+func (m *MockDownloadRepo) EncodeBase64(element *models.UploadElement) (string, error) {
+	return m.signature, m.signatureErr
+}
+
+func (m *MockDownloadRepo) GetReader(element *models.UploadElement) (io.ReadSeekCloser, error) {
+	if m.readerErr != nil {
+		return nil, m.readerErr
+	}
+	if closer, ok := m.reader.(io.ReadSeekCloser); ok {
+		return closer, nil
+	}
+	return &mockReadSeekCloser{m.reader}, nil
+}
+
+type mockReadSeekCloser struct {
+	io.ReadSeeker
+}
+
+func (m *mockReadSeekCloser) Close() error {
+	return nil
+}
+
+type errorCloser struct {
+	io.ReadSeeker
+}
+
+func (e *errorCloser) Close() error {
+	return fmt.Errorf("close error")
 }

@@ -16,93 +16,6 @@ import (
 	"time"
 )
 
-// mockRepo is a mock implementation of the repository interface
-type mockRepo struct {
-	getReaderFunc               func(element *models.UploadElement) (io.ReadSeekCloser, error)
-	getAlternativeManifestsFunc func(element *models.UploadElement) ([]models.UploadElement, error)
-	publishDateFunc             func(element *models.UploadElement) (time.Time, error)
-	getSwiftToolVersionFunc     func(element *models.UploadElement) (string, error)
-}
-
-func (m *mockRepo) GetReader(element *models.UploadElement) (io.ReadSeekCloser, error) {
-	return m.getReaderFunc(element)
-}
-
-func (m *mockRepo) GetWriter(element *models.UploadElement) (io.WriteCloser, error) {
-	return nil, fmt.Errorf("not implemented")
-}
-
-func (m *mockRepo) Exists(element *models.UploadElement) bool {
-	return true
-}
-
-func (m *mockRepo) ExtractManifestFiles(element *models.UploadElement) error {
-	return nil
-}
-
-func (m *mockRepo) List(scope string, name string) ([]models.ListElement, error) {
-	return nil, nil
-}
-
-func (m *mockRepo) EncodeBase64(element *models.UploadElement) (string, error) {
-	return "", nil
-}
-
-func (m *mockRepo) GetAlternativeManifests(element *models.UploadElement) ([]models.UploadElement, error) {
-	if m.getAlternativeManifestsFunc != nil {
-		return m.getAlternativeManifestsFunc(element)
-	}
-	return nil, nil
-}
-
-func (m *mockRepo) PublishDate(element *models.UploadElement) (time.Time, error) {
-	if m.publishDateFunc != nil {
-		return m.publishDateFunc(element)
-	}
-	return time.Time{}, nil
-}
-
-func (m *mockRepo) Checksum(element *models.UploadElement) (string, error) {
-	return "", nil
-}
-
-func (m *mockRepo) FetchMetadata(scope string, name string, version string) (map[string]interface{}, error) {
-	return nil, nil
-}
-
-func (m *mockRepo) GetSwiftToolVersion(element *models.UploadElement) (string, error) {
-	return m.getSwiftToolVersionFunc(element)
-}
-
-func (m *mockRepo) Lookup(url string) []string {
-	return nil
-}
-
-func (m *mockRepo) Remove(element *models.UploadElement) error {
-	return nil
-}
-
-// mockTimeProvider is a mock implementation of the time provider
-type mockTimeProvider struct {
-	currentTime time.Time
-}
-
-func (m *mockTimeProvider) Now() time.Time {
-	return m.currentTime
-}
-
-// testConfig implements config.ServerConfig
-type testConfig struct {
-	hostname string
-	port     int
-	baseURL  string
-	certs    config.Certs
-	repo     config.Repo
-	publish  config.PublishConfig
-	auth     config.AuthConfig
-	tls      bool
-}
-
 func newTestConfig(hostname string, port int, baseURL string) config.ServerConfig {
 	return config.ServerConfig{
 		Hostname:   hostname,
@@ -361,18 +274,6 @@ func TestFetchManifestAction_InvalidHeaders(t *testing.T) {
 	}
 }
 
-// pathParamsKey is used as a key for the context
-type pathParamsKey struct{}
-
-// mockReaderWithCloseError is a mock reader that returns an error on Close
-type mockReaderWithCloseError struct {
-	*bytes.Reader
-}
-
-func (m *mockReaderWithCloseError) Close() error {
-	return fmt.Errorf("mock close error")
-}
-
 func TestFetchManifestAction_ReaderCloseError(t *testing.T) {
 	// Setup mock data
 	manifestContent := []byte("// swift-tools-version: 5.7\nlet package = Package(name: \"test\")")
@@ -512,19 +413,6 @@ func TestFetchManifestAction_GetAlternativeManifestsError(t *testing.T) {
 	}
 }
 
-// mockReaderWithSeekError is a mock reader that returns an error on Seek
-type mockReaderWithSeekError struct {
-	*bytes.Reader
-}
-
-func (m *mockReaderWithSeekError) Seek(offset int64, whence int) (int64, error) {
-	return 0, fmt.Errorf("mock seek error")
-}
-
-func (m *mockReaderWithSeekError) Close() error {
-	return nil
-}
-
 func TestFetchManifestAction_ServeContentError(t *testing.T) {
 	// Setup mock data
 	manifestContent := []byte("// swift-tools-version: 5.7\nlet package = Package(name: \"test\")")
@@ -589,4 +477,106 @@ func TestFetchManifestAction_ServeContentError(t *testing.T) {
 	if response.Detail != expectedError {
 		t.Errorf("expected error message %q, got %q", expectedError, response.Detail)
 	}
+}
+
+// Mock types and implementations
+
+// pathParamsKey is used as a key for the context
+type pathParamsKey struct{}
+
+// mockRepo is a mock implementation of the repository interface
+type mockRepo struct {
+	getReaderFunc               func(element *models.UploadElement) (io.ReadSeekCloser, error)
+	getAlternativeManifestsFunc func(element *models.UploadElement) ([]models.UploadElement, error)
+	publishDateFunc             func(element *models.UploadElement) (time.Time, error)
+	getSwiftToolVersionFunc     func(element *models.UploadElement) (string, error)
+}
+
+func (m *mockRepo) GetReader(element *models.UploadElement) (io.ReadSeekCloser, error) {
+	return m.getReaderFunc(element)
+}
+
+func (m *mockRepo) GetWriter(element *models.UploadElement) (io.WriteCloser, error) {
+	return nil, fmt.Errorf("not implemented")
+}
+
+func (m *mockRepo) Exists(element *models.UploadElement) bool {
+	return true
+}
+
+func (m *mockRepo) ExtractManifestFiles(element *models.UploadElement) error {
+	return nil
+}
+
+func (m *mockRepo) List(scope string, name string) ([]models.ListElement, error) {
+	return nil, nil
+}
+
+func (m *mockRepo) EncodeBase64(element *models.UploadElement) (string, error) {
+	return "", nil
+}
+
+func (m *mockRepo) GetAlternativeManifests(element *models.UploadElement) ([]models.UploadElement, error) {
+	if m.getAlternativeManifestsFunc != nil {
+		return m.getAlternativeManifestsFunc(element)
+	}
+	return nil, nil
+}
+
+func (m *mockRepo) PublishDate(element *models.UploadElement) (time.Time, error) {
+	if m.publishDateFunc != nil {
+		return m.publishDateFunc(element)
+	}
+	return time.Time{}, nil
+}
+
+func (m *mockRepo) Checksum(element *models.UploadElement) (string, error) {
+	return "", nil
+}
+
+func (m *mockRepo) FetchMetadata(scope string, name string, version string) (map[string]interface{}, error) {
+	return nil, nil
+}
+
+func (m *mockRepo) GetSwiftToolVersion(element *models.UploadElement) (string, error) {
+	return m.getSwiftToolVersionFunc(element)
+}
+
+func (m *mockRepo) Lookup(url string) []string {
+	return nil
+}
+
+func (m *mockRepo) Remove(element *models.UploadElement) error {
+	return nil
+}
+
+// mockTimeProvider is a mock implementation of the time provider
+type mockTimeProvider struct {
+	currentTime time.Time
+}
+
+func (m *mockTimeProvider) Now() time.Time {
+	return m.currentTime
+}
+
+// mockReaderWithCloseError is a mock reader that returns an error on Close
+type mockReaderWithCloseError struct {
+	*bytes.Reader
+}
+
+func (m *mockReaderWithCloseError) Close() error {
+	return fmt.Errorf("mock close error")
+}
+
+// mockReaderWithSeekError is a mock reader that returns an error on Seek
+type mockReaderWithSeekError struct {
+	*bytes.Reader
+}
+
+func (m *mockReaderWithSeekError) Seek(offset int64, whence int) (int64, error) {
+	return 0, fmt.Errorf("mock seek error")
+}
+
+func (m *mockReaderWithSeekError) Close() error {
+	return nil
 }

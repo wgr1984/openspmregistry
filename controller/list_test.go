@@ -11,16 +11,6 @@ import (
 	"testing"
 )
 
-type MockListRepo struct {
-	MockRepo
-	elements []models.ListElement
-	err      error
-}
-
-func (m *MockListRepo) List(scope string, name string) ([]models.ListElement, error) {
-	return m.elements, m.err
-}
-
 func Test_ListAction_MissingAcceptHeader_ReturnsBadRequest(t *testing.T) {
 	c := NewController(config.ServerConfig{}, nil)
 	req := httptest.NewRequest("GET", "/scope/package", nil)
@@ -103,4 +93,15 @@ func Test_ListAction_JSONEncodingError_LogsError(t *testing.T) {
 	if !strings.Contains(logOutput, "forced write error") {
 		t.Errorf("expected error message containing 'forced write error', got %q", logOutput)
 	}
+}
+
+// Mock implementations
+type MockListRepo struct {
+	MockRepo
+	elements []models.ListElement
+	err      error
+}
+
+func (m *MockListRepo) List(scope string, name string) ([]models.ListElement, error) {
+	return m.elements, m.err
 }

@@ -16,94 +16,6 @@ import (
 	"time"
 )
 
-type mockPublishRepo struct {
-	storedFiles map[string][]byte
-}
-
-func (m *mockPublishRepo) Exists(element *models.UploadElement) bool {
-	_, exists := m.storedFiles[element.FileName()]
-	return exists
-}
-
-func (m *mockPublishRepo) GetReader(element *models.UploadElement) (io.ReadSeekCloser, error) {
-	data, exists := m.storedFiles[element.FileName()]
-	if !exists {
-		return nil, fmt.Errorf("file not found")
-	}
-	return &mockReader{bytes.NewReader(data)}, nil
-}
-
-func (m *mockPublishRepo) GetWriter(element *models.UploadElement) (io.WriteCloser, error) {
-	if m.storedFiles == nil {
-		m.storedFiles = make(map[string][]byte)
-	}
-	var buf bytes.Buffer
-	return &mockWriter{buf: &buf, filename: element.FileName(), repo: m}, nil
-}
-
-func (m *mockPublishRepo) ExtractManifestFiles(element *models.UploadElement) error {
-	return nil
-}
-
-func (m *mockPublishRepo) EncodeBase64(element *models.UploadElement) (string, error) {
-	return "", nil
-}
-
-func (m *mockPublishRepo) PublishDate(element *models.UploadElement) (time.Time, error) {
-	return time.Now(), nil
-}
-
-func (m *mockPublishRepo) Checksum(element *models.UploadElement) (string, error) {
-	return "", nil
-}
-
-func (m *mockPublishRepo) FetchMetadata(scope string, name string, version string) (map[string]interface{}, error) {
-	return nil, nil
-}
-
-func (m *mockPublishRepo) GetAlternativeManifests(element *models.UploadElement) ([]models.UploadElement, error) {
-	return nil, nil
-}
-
-func (m *mockPublishRepo) GetSwiftToolVersion(manifest *models.UploadElement) (string, error) {
-	return "", nil
-}
-
-func (m *mockPublishRepo) Lookup(url string) []string {
-	return nil
-}
-
-func (m *mockPublishRepo) Remove(element *models.UploadElement) error {
-	return nil
-}
-
-func (m *mockPublishRepo) List(scope, packageName string) ([]models.ListElement, error) {
-	return nil, nil
-}
-
-type mockWriter struct {
-	buf      *bytes.Buffer
-	filename string
-	repo     *mockPublishRepo
-}
-
-func (w *mockWriter) Write(p []byte) (n int, err error) {
-	return w.buf.Write(p)
-}
-
-func (w *mockWriter) Close() error {
-	w.repo.storedFiles[w.filename] = w.buf.Bytes()
-	return nil
-}
-
-type mockReader struct {
-	*bytes.Reader
-}
-
-func (r *mockReader) Close() error {
-	return nil
-}
-
 func createMultipartRequest(t *testing.T, files map[string][]byte) *http.Request {
 	var b bytes.Buffer
 	w := multipart.NewWriter(&b)
@@ -245,29 +157,6 @@ func Test_PublishAction_InvalidPackage_ReturnsBadRequest(t *testing.T) {
 	}
 }
 
-type publishErrorWriter struct {
-	shouldFail bool
-}
-
-func (w *publishErrorWriter) Write(p []byte) (n int, err error) {
-	if w.shouldFail {
-		return 0, fmt.Errorf("simulated write error")
-	}
-	return len(p), nil
-}
-
-func (w *publishErrorWriter) Close() error {
-	return nil
-}
-
-type publishWriteErrorRepo struct {
-	mockPublishRepo
-}
-
-func (r *publishWriteErrorRepo) GetWriter(element *models.UploadElement) (io.WriteCloser, error) {
-	return &publishErrorWriter{shouldFail: true}, nil
-}
-
 func Test_PublishAction_WriteOperationError_ReturnsInternalError(t *testing.T) {
 	ctrl := &Controller{repo: &publishWriteErrorRepo{}}
 	req := createMultipartRequest(t, map[string][]byte{
@@ -397,16 +286,6 @@ func Test_PublishAction_DebugLogging_Success(t *testing.T) {
 	}
 }
 
-type urlErrorRepo struct {
-	mockPublishRepo
-	element *models.UploadElement
-}
-
-func (r *urlErrorRepo) Exists(element *models.UploadElement) bool {
-	r.element = element
-	return false
-}
-
 func Test_PublishAction_InvalidLocationURL_ReturnsError(t *testing.T) {
 	mockRepo := &urlErrorRepo{}
 	ctrl := &Controller{
@@ -428,18 +307,6 @@ func Test_PublishAction_InvalidLocationURL_ReturnsError(t *testing.T) {
 	}
 }
 
-type extractErrorRepo struct {
-	mockPublishRepo
-	shouldFailGetWriter bool
-}
-
-func (r *extractErrorRepo) GetWriter(element *models.UploadElement) (io.WriteCloser, error) {
-	if r.shouldFailGetWriter {
-		return nil, fmt.Errorf("simulated writer error")
-	}
-	return &mockWriter{buf: &bytes.Buffer{}, repo: &mockPublishRepo{}}, nil
-}
-
 func Test_PublishAction_GetWriterError_ReturnsError(t *testing.T) {
 	ctrl := &Controller{repo: &extractErrorRepo{shouldFailGetWriter: true}}
 	req := createMultipartRequest(t, map[string][]byte{
@@ -452,6 +319,155 @@ func Test_PublishAction_GetWriterError_ReturnsError(t *testing.T) {
 	if w.Code != http.StatusInternalServerError {
 		t.Errorf("expected status code %d, got %d", http.StatusInternalServerError, w.Code)
 	}
+}
+
+func Test_PublishAction_WriteFailure_ReturnsInternalError(t *testing.T) {
+	ctrl := &Controller{repo: &writeErrorRepo{}}
+	req := createMultipartRequest(t, map[string][]byte{
+		string(models.SourceArchive): []byte("test data"),
+	})
+	w := httptest.NewRecorder()
+
+	ctrl.PublishAction(w, req)
+
+	if w.Code != http.StatusInternalServerError {
+		t.Errorf("expected status code %d, got %d", http.StatusInternalServerError, w.Code)
+	}
+}
+
+// Mock types and implementations
+
+type mockPublishRepo struct {
+	storedFiles map[string][]byte
+}
+
+func (m *mockPublishRepo) Exists(element *models.UploadElement) bool {
+	_, exists := m.storedFiles[element.FileName()]
+	return exists
+}
+
+func (m *mockPublishRepo) GetReader(element *models.UploadElement) (io.ReadSeekCloser, error) {
+	data, exists := m.storedFiles[element.FileName()]
+	if !exists {
+		return nil, fmt.Errorf("file not found")
+	}
+	return &mockReader{bytes.NewReader(data)}, nil
+}
+
+func (m *mockPublishRepo) GetWriter(element *models.UploadElement) (io.WriteCloser, error) {
+	if m.storedFiles == nil {
+		m.storedFiles = make(map[string][]byte)
+	}
+	var buf bytes.Buffer
+	return &mockWriter{buf: &buf, filename: element.FileName(), repo: m}, nil
+}
+
+func (m *mockPublishRepo) ExtractManifestFiles(element *models.UploadElement) error {
+	return nil
+}
+
+func (m *mockPublishRepo) EncodeBase64(element *models.UploadElement) (string, error) {
+	return "", nil
+}
+
+func (m *mockPublishRepo) PublishDate(element *models.UploadElement) (time.Time, error) {
+	return time.Now(), nil
+}
+
+func (m *mockPublishRepo) Checksum(element *models.UploadElement) (string, error) {
+	return "", nil
+}
+
+func (m *mockPublishRepo) FetchMetadata(scope string, name string, version string) (map[string]interface{}, error) {
+	return nil, nil
+}
+
+func (m *mockPublishRepo) GetAlternativeManifests(element *models.UploadElement) ([]models.UploadElement, error) {
+	return nil, nil
+}
+
+func (m *mockPublishRepo) GetSwiftToolVersion(manifest *models.UploadElement) (string, error) {
+	return "", nil
+}
+
+func (m *mockPublishRepo) Lookup(url string) []string {
+	return nil
+}
+
+func (m *mockPublishRepo) Remove(element *models.UploadElement) error {
+	return nil
+}
+
+func (m *mockPublishRepo) List(scope, packageName string) ([]models.ListElement, error) {
+	return nil, nil
+}
+
+type mockWriter struct {
+	buf      *bytes.Buffer
+	filename string
+	repo     *mockPublishRepo
+}
+
+func (w *mockWriter) Write(p []byte) (n int, err error) {
+	return w.buf.Write(p)
+}
+
+func (w *mockWriter) Close() error {
+	w.repo.storedFiles[w.filename] = w.buf.Bytes()
+	return nil
+}
+
+type mockReader struct {
+	*bytes.Reader
+}
+
+func (r *mockReader) Close() error {
+	return nil
+}
+
+type publishErrorWriter struct {
+	shouldFail bool
+}
+
+func (w *publishErrorWriter) Write(p []byte) (n int, err error) {
+	if w.shouldFail {
+		return 0, fmt.Errorf("write error")
+	}
+	return len(p), nil
+}
+
+func (w *publishErrorWriter) Close() error {
+	return nil
+}
+
+type publishWriteErrorRepo struct {
+	mockPublishRepo
+}
+
+func (r *publishWriteErrorRepo) GetWriter(element *models.UploadElement) (io.WriteCloser, error) {
+	return &publishErrorWriter{shouldFail: true}, nil
+}
+
+type urlErrorRepo struct {
+	mockPublishRepo
+	element *models.UploadElement
+}
+
+func (r *urlErrorRepo) Exists(element *models.UploadElement) bool {
+	r.element = element
+	return false
+}
+
+type extractErrorRepo struct {
+	mockPublishRepo
+	shouldFailGetWriter bool
+}
+
+func (r *extractErrorRepo) GetWriter(element *models.UploadElement) (io.WriteCloser, error) {
+	if r.shouldFailGetWriter {
+		return nil, fmt.Errorf("get writer error")
+	}
+	return &mockWriter{buf: &bytes.Buffer{}, filename: element.FileName(), repo: &r.mockPublishRepo}, nil
 }
 
 type writeErrorRepo struct {
@@ -468,25 +484,11 @@ type publishWriteFailWriter struct {
 
 func (w *publishWriteFailWriter) Write(p []byte) (n int, err error) {
 	if w.shouldFail {
-		return 0, fmt.Errorf("simulated write error")
+		return 0, fmt.Errorf("write error")
 	}
 	return len(p), nil
 }
 
 func (w *publishWriteFailWriter) Close() error {
 	return nil
-}
-
-func Test_PublishAction_WriteFailure_ReturnsInternalError(t *testing.T) {
-	ctrl := &Controller{repo: &writeErrorRepo{}}
-	req := createMultipartRequest(t, map[string][]byte{
-		string(models.SourceArchive): []byte("test data"),
-	})
-	w := httptest.NewRecorder()
-
-	ctrl.PublishAction(w, req)
-
-	if w.Code != http.StatusInternalServerError {
-		t.Errorf("expected status code %d, got %d", http.StatusInternalServerError, w.Code)
-	}
 }

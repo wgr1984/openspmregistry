@@ -17,14 +17,6 @@ import (
 	"golang.org/x/oauth2"
 )
 
-type mockRandomStringGenerator struct {
-	generateFunc func(length int) (string, error)
-}
-
-func (m *mockRandomStringGenerator) RandomString(length int) (string, error) {
-	return m.generateFunc(length)
-}
-
 func Test_AuthCodeURL_GeneratesCorrectURL(t *testing.T) {
 	ctx := context.Background()
 
@@ -845,4 +837,14 @@ func Test_Login_RandomNonceError_ReturnsUnauthorized(t *testing.T) {
 	if !strings.Contains(w.Body.String(), "Authentication failed: simulated nonce generation error") {
 		t.Errorf("expected error message about nonce generation, got %s", w.Body.String())
 	}
+}
+
+// Mock types and implementations
+
+type mockRandomStringGenerator struct {
+	generateFunc func(length int) (string, error)
+}
+
+func (m *mockRandomStringGenerator) RandomString(length int) (string, error) {
+	return m.generateFunc(length)
 }

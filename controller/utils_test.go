@@ -436,75 +436,65 @@ func Test_PrintCallInfo_OtherAuthHeader_LogsUnmaskedHeader(t *testing.T) {
 	}
 }
 
+// Mock types and implementations
+
 type MockRepo struct {
 	shouldError bool
 }
 
 func (m *MockRepo) Exists(element *models.UploadElement) bool {
-	//TODO implement me
-	panic("implement me")
+	return false
 }
 
 func (m *MockRepo) GetReader(element *models.UploadElement) (io.ReadSeekCloser, error) {
-	//TODO implement me
-	panic("implement me")
+	return nil, nil
 }
 
 func (m *MockRepo) GetWriter(element *models.UploadElement) (io.WriteCloser, error) {
-	//TODO implement me
-	panic("implement me")
+	return nil, nil
 }
 
 func (m *MockRepo) ExtractManifestFiles(element *models.UploadElement) error {
-	//TODO implement me
-	panic("implement me")
+	return nil
 }
 
 func (m *MockRepo) EncodeBase64(element *models.UploadElement) (string, error) {
-	//TODO implement me
-	panic("implement me")
+	return "", nil
 }
 
 func (m *MockRepo) PublishDate(element *models.UploadElement) (time.Time, error) {
-	//TODO implement me
-	panic("implement me")
+	return time.Time{}, nil
 }
 
 func (m *MockRepo) Checksum(element *models.UploadElement) (string, error) {
-	//TODO implement me
-	panic("implement me")
+	return "", nil
 }
 
 func (m *MockRepo) FetchMetadata(scope string, name string, version string) (map[string]interface{}, error) {
-	//TODO implement me
-	panic("implement me")
+	return nil, nil
 }
 
 func (m *MockRepo) GetAlternativeManifests(element *models.UploadElement) ([]models.UploadElement, error) {
-	//TODO implement me
-	panic("implement me")
+	return nil, nil
 }
 
 func (m *MockRepo) GetSwiftToolVersion(manifest *models.UploadElement) (string, error) {
-	//TODO implement me
-	panic("implement me")
+	return "", nil
 }
 
 func (m *MockRepo) Lookup(url string) []string {
-	//TODO implement me
-	panic("implement me")
+	return nil
 }
 
 func (m *MockRepo) Remove(element *models.UploadElement) error {
-	//TODO implement me
-	panic("implement me")
+	return nil
 }
 
 func (m *MockRepo) List(scope, packageName string) ([]models.ListElement, error) {
 	if m.shouldError {
-		return nil, fmt.Errorf("simulated repo error")
+		return nil, fmt.Errorf("simulated error")
 	}
-	return []models.ListElement{}, nil
+	return nil, nil
 }
 
 type MockListElementsRepo struct {
@@ -513,68 +503,56 @@ type MockListElementsRepo struct {
 }
 
 func (m MockListElementsRepo) Exists(element *models.UploadElement) bool {
-	//TODO implement me
-	panic("implement me")
+	return false
 }
 
 func (m MockListElementsRepo) GetReader(element *models.UploadElement) (io.ReadSeekCloser, error) {
-	//TODO implement me
-	panic("implement me")
+	return nil, nil
 }
 
 func (m MockListElementsRepo) GetWriter(element *models.UploadElement) (io.WriteCloser, error) {
-	//TODO implement me
-	panic("implement me")
+	return nil, nil
 }
 
 func (m MockListElementsRepo) ExtractManifestFiles(element *models.UploadElement) error {
-	//TODO implement me
-	panic("implement me")
+	return nil
 }
 
 func (m MockListElementsRepo) List(scope string, name string) ([]models.ListElement, error) {
 	if m.shouldError {
-		return nil, fmt.Errorf("simulated repo error")
+		return nil, fmt.Errorf("simulated error")
 	}
 	return m.elements, nil
 }
 
 func (m MockListElementsRepo) EncodeBase64(element *models.UploadElement) (string, error) {
-	//TODO implement me
-	panic("implement me")
+	return "", nil
 }
 
 func (m MockListElementsRepo) PublishDate(element *models.UploadElement) (time.Time, error) {
-	//TODO implement me
-	panic("implement me")
+	return time.Time{}, nil
 }
 
 func (m MockListElementsRepo) Checksum(element *models.UploadElement) (string, error) {
-	//TODO implement me
-	panic("implement me")
+	return "", nil
 }
 
 func (m MockListElementsRepo) FetchMetadata(scope string, name string, version string) (map[string]interface{}, error) {
-	//TODO implement me
-	panic("implement me")
+	return nil, nil
 }
 
 func (m MockListElementsRepo) GetAlternativeManifests(element *models.UploadElement) ([]models.UploadElement, error) {
-	//TODO implement me
-	panic("implement me")
+	return nil, nil
 }
 
 func (m MockListElementsRepo) GetSwiftToolVersion(manifest *models.UploadElement) (string, error) {
-	//TODO implement me
-	panic("implement me")
+	return "", nil
 }
 
 func (m MockListElementsRepo) Lookup(url string) []string {
-	//TODO implement me
-	panic("implement me")
+	return nil
 }
 
 func (m MockListElementsRepo) Remove(element *models.UploadElement) error {
-	//TODO implement me
-	panic("implement me")
+	return nil
 }

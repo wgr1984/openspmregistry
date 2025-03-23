@@ -91,6 +91,8 @@ func Test_HandleFunc_AuthorizedRequest_CallsNextHandler(t *testing.T) {
 	}
 }
 
+// Mock types and implementations
+
 type MockTokenAuthenticator struct {
 	methodCallCount map[string]int
 }
