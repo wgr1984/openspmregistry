@@ -7,7 +7,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"html/template"
 	"log/slog"
 	"net/http"
 	"net/url"
@@ -15,20 +14,6 @@ import (
 	"strconv"
 	"strings"
 )
-
-// TemplateParser is an interface that defines the ParseFiles method
-// (allows to mock the template package)
-type TemplateParser interface {
-	// ParseFiles parses the named files and associates the resulting templates with
-	// t. If an error occurs, parsing stops and the returned template is nil;
-	// otherwise it is t. There must be at least one file.
-	//
-	// When parsing multiple files with the same name in different directories,
-	// the last one mentioned will be the one that results.
-	//
-	// ParseFiles returns an error if t or any associated template has already been executed.
-	ParseFiles(filenames ...string) (*template.Template, error)
-}
 
 type HeaderError struct {
 	errorMessage   string
