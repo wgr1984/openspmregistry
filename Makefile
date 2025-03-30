@@ -55,9 +55,19 @@ release:
 	fi
 	@# Update CHANGELOG.md
 	@DATE=$$(date +%Y-%m-%d); \
-	NEW_VERSION="## [$(VERSION)] - $$DATE\n"; \
-	awk -v ver="$$NEW_VERSION" '/## \[Unreleased\]/ { print; print ver; next } { print }' CHANGELOG.md > CHANGELOG.md.tmp && \
-	mv CHANGELOG.md.tmp CHANGELOG.md
+	NEW_VERSION="\n## [$(VERSION)] - $$DATE"; \
+	awk -v ver="$$NEW_VERSION" '/## \[Unreleased\]/ { print; print ver; next } { print }' CHANGELOG.md > CHANGELOG.md.tmp
+	@echo "\nReview the changes to CHANGELOG.md:"
+	@echo "=================================="
+	@cat CHANGELOG.md.tmp
+	@echo "\n=================================="
+	@read -p "Do you want to proceed with these changes? (y/N) " confirm; \
+	if [ "$$confirm" != "y" ] && [ "$$confirm" != "Y" ]; then \
+		rm CHANGELOG.md.tmp; \
+		echo "Release cancelled."; \
+		exit 1; \
+	fi
+	@mv CHANGELOG.md.tmp CHANGELOG.md
 	@# Commit CHANGELOG.md
 	git add CHANGELOG.md
 	git commit -m "chore: update CHANGELOG for v$(VERSION)"
