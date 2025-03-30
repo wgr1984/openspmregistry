@@ -56,8 +56,8 @@ release:
 	@# Update CHANGELOG.md
 	@DATE=$$(date +%Y-%m-%d); \
 	NEW_VERSION="\n## [$(VERSION)] - $$DATE"; \
-	awk -v ver="$$NEW_VERSION" '/## \[Unreleased\]/ { print; print ver; next } { print }' CHANGELOG.md > CHANGELOG.md.tmp
-	@echo "\nReview the changes to CHANGELOG.md:"
+	awk -v ver="$$NEW_VERSION" '/## \[Latest\]/ { print; print ver; next } { print }' CHANGELOG.md > CHANGELOG.md.tmp
+	@echo "\nReview the latest changes to CHANGELOG.md:"
 	@echo "=================================="
 	@cat CHANGELOG.md.tmp
 	@echo "\n=================================="
@@ -77,5 +77,5 @@ release:
 	@echo "Release v$(VERSION) created and pushed. GitHub Actions will handle the Docker build and publish."
 
 changelog-unreleased:
-	@echo "Unreleased changes:"
-	@awk '/## \[Unreleased\]/{p=1;print;next} /## \[[0-9]+\.[0-9]+\.[0-9]+\]/{p=0}p' CHANGELOG.md
+	@echo "Latest changes:"
+	@awk '/## \[Latest\]/{p=1;print;next} /## \[[0-9]+\.[0-9]+\.[0-9]+\]/{p=0}p' CHANGELOG.md
