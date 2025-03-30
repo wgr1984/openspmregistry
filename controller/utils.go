@@ -4,6 +4,7 @@ import (
 	"OpenSPMRegistry/models"
 	"OpenSPMRegistry/responses"
 	"OpenSPMRegistry/utils"
+	"context"
 	"encoding/json"
 	"fmt"
 	"log/slog"
@@ -59,7 +60,12 @@ func checkHeaders(r *http.Request) *HeaderError {
 
 // checkHeadersEnforce checks headers and enforces a certain media type
 func checkHeadersEnforce(r *http.Request, enforceMediaType string) *HeaderError {
-	for _, value := range r.Header.Values("Accept") {
+	acceptHeaders := r.Header.Values("Accept")
+	if len(acceptHeaders) == 0 {
+		return NewHeaderError("missing Accept header")
+	}
+
+	for _, value := range acceptHeaders {
 		if strings.HasPrefix(value, acceptHeaderPrefix) {
 			versionMediaType := strings.Split(value[len(acceptHeaderPrefix):], "+")
 			if len(versionMediaType) == 2 {
@@ -68,7 +74,10 @@ func checkHeadersEnforce(r *http.Request, enforceMediaType string) *HeaderError 
 					if err != nil {
 						return NewHeaderError(fmt.Sprintf("invalid API version: %s", version))
 					}
-					return NewHeaderError(fmt.Sprintf("unsupported API version: %s", version))
+					return &HeaderError{
+						errorMessage:   fmt.Sprintf("unsupported API version: %s", version),
+						httpStatusCode: http.StatusUnsupportedMediaType,
+					}
 				}
 				if len(enforceMediaType) > 0 {
 					if mediaType != enforceMediaType {
@@ -88,16 +97,21 @@ func checkHeadersEnforce(r *http.Request, enforceMediaType string) *HeaderError 
 		}
 	}
 
-	return NewHeaderError("wrong accept header")
+	return &HeaderError{
+		errorMessage:   "wrong accept header",
+		httpStatusCode: http.StatusUnsupportedMediaType,
+	}
 }
 
-func listElements(w http.ResponseWriter, c *Controller, scope string, packageName string) []models.ListElement {
+func listElements(w http.ResponseWriter, c *Controller, scope string, packageName string) ([]models.ListElement, error) {
 	elements, err := c.repo.List(scope, packageName)
 	if err != nil {
 		writeError(fmt.Sprintf("error listing package %s.%s", scope, packageName), w)
+		return nil, err
 	}
 	if elements == nil {
 		writeErrorWithStatusCode(fmt.Sprintf("error package %s.%s was not found", scope, packageName), w, http.StatusNotFound)
+		return make([]models.ListElement, 0), nil
 	}
 
 	slices.SortFunc(elements, func(a models.ListElement, b models.ListElement) int {
@@ -111,7 +125,7 @@ func listElements(w http.ResponseWriter, c *Controller, scope string, packageNam
 		}
 		return v2.Compare(v1)
 	})
-	return elements
+	return elements, nil
 }
 
 func addFirstReleaseAsLatest(elements []models.ListElement, c *Controller, header http.Header) {
@@ -142,7 +156,7 @@ func locationOfElement(c *Controller, element models.ListElement) string {
 }
 
 func writeError(msg string, w http.ResponseWriter) {
-	writeErrorWithStatusCode(msg, w, http.StatusBadRequest)
+	writeErrorWithStatusCode(msg, w, http.StatusInternalServerError)
 }
 
 func writeErrorWithStatusCode(msg string, w http.ResponseWriter, status int) {
@@ -160,7 +174,7 @@ func writeErrorWithStatusCode(msg string, w http.ResponseWriter, status int) {
 }
 
 func printCallInfo(methodName string, r *http.Request) {
-	if slog.Default().Enabled(nil, slog.LevelDebug) {
+	if slog.Default().Enabled(context.TODO(), slog.LevelDebug) {
 		slog.Info(fmt.Sprintf("%s Request:", methodName))
 		for name, values := range r.Header {
 			for _, value := range values {

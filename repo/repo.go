@@ -7,9 +7,9 @@ import (
 )
 
 type (
-	// Repo is the interface that wraps the basic operations
+	// Access is the interface that wraps the basic operations
 	// that a repository should implement
-	Repo interface {
+	Access interface {
 		// Exists checks whether element to be published exists already
 		// Returns true in case it does otherwise false
 		Exists(element *models.UploadElement) bool
@@ -19,8 +19,14 @@ type (
 		GetReader(element *models.UploadElement) (io.ReadSeekCloser, error)
 
 		// GetWriter returns a writer for the specified element
+		// in case element does not exist it creates the necessary sub-structures
 		// returns (writer for the file|error
 		GetWriter(element *models.UploadElement) (io.WriteCloser, error)
+	}
+	// Repo is the interface that wraps the basic operations
+	// that a repository should implement
+	Repo interface {
+		Access
 
 		// ExtractManifestFiles extracts the manifest files from the provided
 		// source archive
@@ -52,15 +58,22 @@ type (
 		FetchMetadata(scope string, name string, version string) (map[string]interface{}, error)
 
 		// GetAlternativeManifests returns the alternative versions of the manifest
+		// - `element` to be checked for alternative versions
 		// returns (alternative versions of the manifest|nil if not exists, error)
 		GetAlternativeManifests(element *models.UploadElement) ([]models.UploadElement, error)
 
 		// GetSwiftToolVersion returns the swift tool version
 		// specified in the first line of the manifest file
+		// - `manifest` to be checked for the swift tool version
 		// returns (swift tool version|nil if not exists, error)
 		GetSwiftToolVersion(manifest *models.UploadElement) (string, error)
 
 		// Lookup returns the list of identifiers for the provided url
 		Lookup(url string) []string
+
+		// Remove deletes the provided element
+		// - `element` to be removed
+		// returns nil if successful otherwise error
+		Remove(element *models.UploadElement) error
 	}
 )

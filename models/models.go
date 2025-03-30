@@ -33,23 +33,25 @@ func (v Version) Compare(v1 *Version) int {
 	if v.Suffix == v1.Suffix {
 		return 0
 	}
-	if v.Suffix == "" {
-		return 1
-	}
-	if v1.Suffix == "" {
+	// we have a suffix
+	if v.Suffix != "" {
+		if v1.Suffix != "" {
+			return strings.Compare(v.Suffix, v1.Suffix)
+		}
 		return -1
 	}
-	return 0
+	// v1 has a suffix but v not, otherwise we would not reach this point
+	return 1
 }
 
 type UploadElementType string
 
 const (
 	SourceArchive          UploadElementType = "source-archive"
-	SourceArchiveSignature                   = "source-archive-signature"
-	Metadata                                 = "metadata"
-	MetadataSignature                        = "metadata-signature"
-	Manifest                                 = "manifest"
+	SourceArchiveSignature UploadElementType = "source-archive-signature"
+	Metadata               UploadElementType = "metadata"
+	MetadataSignature      UploadElementType = "metadata-signature"
+	Manifest               UploadElementType = "manifest"
 )
 
 type UploadElement struct {
@@ -76,22 +78,19 @@ func NewUploadElement(scope string, name string, version string, mimeType string
 
 	switch uploadType {
 	case SourceArchive:
-		break
+		// No overwrite needed
 	case SourceArchiveSignature:
 		element.SetExtOverwrite(".sig")
-		break
 	case Metadata:
 		element.SetFilenameOverwrite("metadata")
-		break
 	case MetadataSignature:
 		element.SetFilenameOverwrite("metadata")
 		element.SetExtOverwrite(".sig")
-		break
 	case Manifest:
 		element.SetFilenameOverwrite("Package")
 		element.SetExtOverwrite(".swift")
 	default:
-		break
+		// No overwrite needed
 	}
 
 	return element
@@ -169,7 +168,7 @@ func (l *ListRelease) MarshalJSON() ([]byte, error) {
 
 	if l == nil {
 		b.WriteString("null")
-		return nil, nil
+		return b.Bytes(), nil
 	}
 
 	b.WriteByte('{')
@@ -192,7 +191,9 @@ func (l *ListRelease) MarshalJSON() ([]byte, error) {
 			}
 			b.WriteByte(',')
 		}
-		b.Truncate(b.Len() - 1)
+		if len(keys) > 0 {
+			b.Truncate(b.Len() - 1)
+		}
 		b.WriteByte('}')
 	}
 
@@ -201,26 +202,46 @@ func (l *ListRelease) MarshalJSON() ([]byte, error) {
 	return b.Bytes(), nil
 }
 
+// ParseVersion parses a version string and returns a Version struct
+// If the version string contains a suffix, it is stored in the Version struct
+// as well.
+// The version string must have at least 1 part.
+// If the version string has less than 2 parts, the missing parts are set to 0.
+// In case of invalid version string, an error is returned.
 func ParseVersion(versionStr string) (*Version, error) {
 	v := &Version{}
 	if strings.Contains(versionStr, "-") {
 		split := strings.Split(versionStr, "-")
+		if len(split) > 2 {
+			return nil, errors.New("version string must have at only 1 suffix")
+		}
 		versionStr = split[0]
 		v.Suffix = split[1]
+		if v.Suffix == "" {
+			return nil, errors.New("suffix cannot be empty once specified")
+		}
 	}
 	split := strings.Split(versionStr, ".")
-	if len(split) < 1 {
-		return nil, errors.New("version string must have at least 1 part")
-	}
+	// as we have at least 1 part, no need to check for empty array
+
 	if len(split) < 2 {
 		split = append(split, "0")
 	}
 	if len(split) < 3 {
 		split = append(split, "0")
 	}
-	v.Major, _ = strconv.Atoi(split[0])
-	v.Minor, _ = strconv.Atoi(split[1])
-	v.Patch, _ = strconv.Atoi(split[2])
+
+	var err error
+
+	if v.Major, err = strconv.Atoi(split[0]); err != nil {
+		return nil, err
+	}
+	if v.Minor, err = strconv.Atoi(split[1]); err != nil {
+		return nil, err
+	}
+	if v.Patch, err = strconv.Atoi(split[2]); err != nil {
+		return nil, err
+	}
 	return v, nil
 }
 
@@ -228,11 +249,11 @@ func SortVersions(versions []string) []string {
 	slices.SortFunc(versions, func(a string, b string) int {
 		v1, err := ParseVersion(a)
 		if err != nil {
-			return 0
+			return 1
 		}
 		v2, err := ParseVersion(b)
 		if err != nil {
-			return 0
+			return -1
 		}
 		return v2.Compare(v1)
 	})

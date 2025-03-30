@@ -1,0 +1,70 @@
+---
+description: Standards for using the SPM-Registry-Spec.md as the authoritative reference for API implementation.
+globs: 
+alwaysApply: false
+---
+# SPM Registry Specification Reference
+
+Standards for using the SPM-Registry-Spec.md as the authoritative reference for API implementation.
+
+<rule>
+name: spm_registry_spec_reference
+description: Use SPM-Registry-Spec.md as the authoritative reference for implementing API endpoints
+
+filters:
+  # Match Go files that might contain API implementations
+  - type: file_extension
+    pattern: "\\.go$"
+  # Match files that look like they contain HTTP handlers or API code
+  - type: content
+    pattern: "(http\\.HandlerFunc|gin\\.HandlerFunc|func.*\\(.*http\\..*\\))"
+
+actions:
+  - type: suggest
+    message: |
+      When implementing API endpoints:
+
+      1. ALWAYS consult SPM-Registry-Spec.md for:
+         - Exact endpoint paths and methods
+         - Required request/response headers
+         - Response status codes and their conditions
+         - Response body formats and required fields
+         - Error handling requirements
+
+      2. For any ambiguity or uncertainty about:
+         - Request handling
+         - Response formatting
+         - Header requirements
+         - Status code usage
+         - Error scenarios
+         REFER TO the corresponding section in SPM-Registry-Spec.md
+
+      3. The specification in SPM-Registry-Spec.md takes precedence over:
+         - Common HTTP practices
+         - Framework defaults
+         - Similar implementations in other systems
+         - Personal preferences
+
+      4. When reviewing or modifying API code:
+         - Verify compliance with SPM-Registry-Spec.md
+         - Update implementation if it deviates from the spec
+         - Add comments referencing relevant spec sections
+
+examples:
+  - input: |
+      // Bad: Implementing without consulting spec
+      func handlePackageList(w http.ResponseWriter, r *http.Request) {
+          // Assumptions about response format
+      }
+
+      // Good: Implementation following spec section 4.1
+      func handlePackageList(w http.ResponseWriter, r *http.Request) {
+          // See SPM-Registry-Spec.md section 4.1 "List package releases"
+          // for response format and requirements
+      }
+    output: "Implementation with spec reference"
+
+metadata:
+  priority: high
+  version: 1.0
+</rule> 

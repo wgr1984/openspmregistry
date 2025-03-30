@@ -5,7 +5,7 @@ import (
 	"OpenSPMRegistry/config"
 	"OpenSPMRegistry/controller"
 	"OpenSPMRegistry/middleware"
-	"OpenSPMRegistry/repo"
+	"OpenSPMRegistry/repo/files"
 	"flag"
 	"fmt"
 	"gopkg.in/yaml.v3"
@@ -13,11 +13,12 @@ import (
 	"log/slog"
 	"net/http"
 	"os"
+	"os/signal"
 	"strings"
+	"syscall"
 )
 
 var (
-	tlsFlag     bool
 	verboseFlag bool
 )
 
@@ -44,7 +45,6 @@ func loadServerConfig() (*config.ServerRoot, error) {
 }
 
 func main() {
-	flag.BoolVar(&tlsFlag, "tls", false, "enable tls enabled")
 	flag.BoolVar(&verboseFlag, "v", false, "show more information")
 	flag.Parse()
 
@@ -67,7 +67,7 @@ func main() {
 		log.Fatal("Only filesystem is supported as repo so far")
 	}
 
-	r := repo.NewFileRepo(repoConfig.Path)
+	r := files.NewFileRepo(repoConfig.Path)
 	a := middleware.NewAuthentication(authenticator.CreateAuthenticator(serverConfig.Server), router)
 	c := controller.NewController(serverConfig.Server, r)
 
@@ -98,7 +98,19 @@ func main() {
 		Handler: a,
 	}
 
-	if tlsFlag {
+	sigChannel := make(chan os.Signal, 1)
+	signal.Notify(sigChannel, os.Interrupt, syscall.SIGTERM)
+
+	go func() {
+		<-sigChannel
+		slog.Info("Shutting down server...")
+		if err := srv.Shutdown(nil); err != nil {
+			slog.Error("Error shutting down server", "error", err)
+		}
+		os.Exit(1)
+	}()
+
+	if serverConfig.Server.TlsEnabled {
 		slog.Info("Starting HTTPS server on", "port", srv.Addr)
 		certFile := serverConfig.Server.Certs.CertFile
 		keyFile := serverConfig.Server.Certs.KeyFile

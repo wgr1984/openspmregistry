@@ -2,15 +2,17 @@ package authenticator
 
 import (
 	"OpenSPMRegistry/config"
+	"OpenSPMRegistry/controller"
 	"OpenSPMRegistry/utils"
 	"context"
 	"errors"
 	"fmt"
-	"github.com/coreos/go-oidc/v3/oidc"
-	"golang.org/x/oauth2"
 	"log/slog"
 	"net/http"
 	"strings"
+
+	"github.com/coreos/go-oidc/v3/oidc"
+	"golang.org/x/oauth2"
 )
 
 type OidcAuthenticator interface {
@@ -28,23 +30,39 @@ type OidcAuthenticator interface {
 
 // OidcAuthenticatorImpl is an authenticator that uses OpenID Connect
 type OidcAuthenticatorImpl struct {
-	cache     *utils.LRUCache[string]
 	verifier  *oidc.IDTokenVerifier
 	provider  *oidc.Provider
 	ctx       context.Context
 	config    oauth2.Config
+	template  controller.TemplateParser
 	grantType string
 }
 
-// NewOIDCAuthenticator creates a new OIDC authenticator
+// NewOIDCAuthenticatorWithConfig creates a new OIDC authenticator
 // based on the provided configuration
-func NewOIDCAuthenticator(ctx context.Context, config config.ServerConfig) *OidcAuthenticatorImpl {
+// ctx is the context to use for the OIDC provider
+// config is the server configuration
+// oidcConfig is the OIDC configuration can be nil in which case the default configuration is used
+// if oidcConfig is provided, the client ID not taken from the server config
+func NewOIDCAuthenticatorWithConfig(
+	ctx context.Context,
+	config config.ServerConfig,
+	oidcConfig *oidc.Config,
+	template controller.TemplateParser,
+) *OidcAuthenticatorImpl {
 	provider, err := oidc.NewProvider(ctx, config.Auth.Issuer)
 	if err != nil {
-		slog.Error("Failed to create OIDC provider", err)
+		slog.Error("Failed to create OIDC provider", "err", err)
 		return nil
 	}
-	verifier := provider.Verifier(&oidc.Config{ClientID: config.Auth.ClientId})
+
+	var oidcConfigToUse *oidc.Config
+	if oidcConfig != nil {
+		oidcConfigToUse = oidcConfig
+	} else {
+		oidcConfigToUse = &oidc.Config{ClientID: config.Auth.ClientId}
+	}
+	verifier := provider.Verifier(oidcConfigToUse)
 
 	oauthConfig := oauth2.Config{
 		ClientID:     config.Auth.ClientId,
@@ -60,29 +78,36 @@ func NewOIDCAuthenticator(ctx context.Context, config config.ServerConfig) *Oidc
 		grantType: config.Auth.GrantType,
 		verifier:  verifier,
 		provider:  provider,
+		template:  template,
 	}
 }
 
-func (a *OidcAuthenticatorImpl) Authenticate(w http.ResponseWriter, r *http.Request) (error, string) {
+// NewOIDCAuthenticator creates a new OIDC authenticator
+// based on the provided configuration
+func NewOIDCAuthenticator(ctx context.Context, config config.ServerConfig) *OidcAuthenticatorImpl {
+	return NewOIDCAuthenticatorWithConfig(ctx, config, nil, controller.NewDefaultTemplateParser())
+}
+
+func (a *OidcAuthenticatorImpl) Authenticate(w http.ResponseWriter, r *http.Request) (string, error) {
 	authorizationHeader := r.Header.Get("Authorization")
 
 	if authorizationHeader == "" {
-		return errors.New("authorization header not found"), ""
+		return "", errors.New("authorization header not found")
 	}
 
 	token, err := getBearerToken(authorizationHeader)
 	if err != nil {
-		return err, ""
+		return "", err
 	}
 
 	_, err = a.verifier.Verify(a.ctx, token)
 	if err == nil {
-		if slog.Default().Enabled(nil, slog.LevelDebug) {
+		if slog.Default().Enabled(context.TODO(), slog.LevelDebug) {
 			slog.Debug("Token still valid")
 		}
-		return nil, token
+		return token, nil
 	}
-	return err, ""
+	return "", err
 }
 
 func (a *OidcAuthenticatorImpl) Login(_ http.ResponseWriter, _ *http.Request) {}
@@ -92,7 +117,13 @@ func (a *OidcAuthenticatorImpl) CheckAuthHeaderPresent(w http.ResponseWriter, r 
 	// if it does, write the token to the response
 	authenticationHeader := r.Header.Get("Authorization")
 	if authenticationHeader != "" {
-		writeTokenOutput(w, authenticationHeader)
+		if a.template == nil {
+			// If no template is available, write token directly
+			w.Header().Set("Content-Type", "text/plain")
+			_, _ = w.Write([]byte(authenticationHeader))
+		} else {
+			writeTokenOutput(w, authenticationHeader, a.template)
+		}
 		return true
 	}
 	return false

@@ -31,3 +31,6 @@ go.work.sum
 /node_modules/
 /static/output.css
 **/.DS_Store
+openspmregistry
+cover.out
+SPM-Registry-Spec.md

@@ -4,11 +4,11 @@ import (
 	"OpenSPMRegistry/mimetypes"
 	"OpenSPMRegistry/models"
 	"OpenSPMRegistry/utils"
+	"context"
 	"encoding/json"
 	"fmt"
 	"log/slog"
 	"net/http"
-	"time"
 )
 
 func (c *Controller) InfoAction(w http.ResponseWriter, r *http.Request) {
@@ -33,10 +33,16 @@ func (c *Controller) InfoAction(w http.ResponseWriter, r *http.Request) {
 
 	header := w.Header()
 
-	addFirstReleaseAsLatest(listElements(w, c, scope, packageName), c, header)
+	// add first release as latest
+	elements, err := listElements(w, c, scope, packageName)
+	if err != nil {
+		return // error already logged
+	}
+
+	addFirstReleaseAsLatest(elements, c, header)
 
 	metadataResult, err := c.repo.FetchMetadata(scope, packageName, version)
-	if err != nil && slog.Default().Enabled(nil, slog.LevelDebug) {
+	if err != nil && slog.Default().Enabled(context.TODO(), slog.LevelDebug) {
 		slog.Debug("Error fetching metadata:", "error", err)
 	}
 	if metadataResult == nil {
@@ -63,15 +69,15 @@ func (c *Controller) InfoAction(w http.ResponseWriter, r *http.Request) {
 	// retrieve publish date from source archive
 	dateTime, dateErr := c.repo.PublishDate(sourceArchive)
 	if dateErr != nil {
-		slog.Debug("Publish Date error:", dateErr)
-		dateTime = time.Now()
+		slog.Debug("Publish Date error:", "err", dateErr)
+		dateTime = c.timeProvider.Now()
 	}
 	dateString := dateTime.Format("2006-01-02T15:04:05Z")
 
 	// retrieve checksum of source archive
 	checksum, err := c.repo.Checksum(sourceArchive)
 	if err != nil {
-		slog.Info("Checksum error:", err)
+		slog.Info("Checksum error:", "err", err)
 		checksum = ""
 	}
 

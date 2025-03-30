@@ -4,12 +4,13 @@ import (
 	"OpenSPMRegistry/mimetypes"
 	"OpenSPMRegistry/models"
 	"OpenSPMRegistry/utils"
+	"encoding/json"
 	"fmt"
+	"io"
 	"log/slog"
 	"net/http"
 	"net/url"
 	"strings"
-	"time"
 )
 
 func (c *Controller) FetchManifestAction(w http.ResponseWriter, r *http.Request) {
@@ -38,7 +39,7 @@ func (c *Controller) FetchManifestAction(w http.ResponseWriter, r *http.Request)
 	// load manifest Package.swift file
 	reader, err := c.repo.GetReader(element)
 	if err != nil {
-		writeError(fmt.Sprintf("%s not found", filename), w)
+		writeErrorWithStatusCode(fmt.Sprintf("%s not found", filename), w, http.StatusNotFound)
 		return // error already logged
 	}
 
@@ -69,12 +70,26 @@ func (c *Controller) FetchManifestAction(w http.ResponseWriter, r *http.Request)
 	header.Set("Content-Disposition", fmt.Sprintf("attachment; filename=\"%s\"", filename))
 	header.Set("Cache-Control", "public, immutable")
 
-	modDate := time.Now()
+	modDate := c.timeProvider.Now()
 	if rawDate, err := c.repo.PublishDate(element); err == nil {
 		modDate = rawDate
 	} else {
 		slog.Error("Error getting publish date:", "error", err)
 	}
+
+	// Test if the reader can seek before serving content
+	if seeker, ok := reader.(io.Seeker); ok {
+		if _, err := seeker.Seek(0, io.SeekStart); err != nil {
+			w.Header().Set("Content-Type", "application/problem+json")
+			w.Header().Set("Content-Version", "1")
+			w.WriteHeader(http.StatusInternalServerError)
+			json.NewEncoder(w).Encode(map[string]string{
+				"detail": "internal server error while preparing manifest",
+			})
+			return
+		}
+	}
+
 	http.ServeContent(w, r, filename, modDate, reader)
 }
 

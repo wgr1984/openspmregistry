@@ -2,21 +2,26 @@ package authenticator
 
 import (
 	"OpenSPMRegistry/config"
+	"OpenSPMRegistry/controller"
 	"context"
-	"html/template"
 	"net/http"
 )
 
 type Authenticator interface {
 	// Authenticate authenticates a user based on their username and password
-	// returns an error if the authentication fails else returns the token
-	Authenticate(w http.ResponseWriter, r *http.Request) (error, string)
+	// returns the token and an error if the authentication fails
+	Authenticate(w http.ResponseWriter, r *http.Request) (string, error)
 }
 
 // writeTokenOutput writes the token to the response
 // to be used by the client to authenticate via --token flag
-func writeTokenOutput(w http.ResponseWriter, token string) {
-	files, err := template.New("token.gohtml").ParseFiles("static/token.gohtml")
+func writeTokenOutput(w http.ResponseWriter, token string, templateParser controller.TemplateParser) {
+	if templateParser == nil {
+		w.Header().Set("Content-Type", "text/plain")
+		_, _ = w.Write([]byte(token))
+		return
+	}
+	files, err := templateParser.ParseFiles("static/token.gohtml")
 	if err != nil {
 		http.Error(w, "Error parsing template", http.StatusInternalServerError)
 		return

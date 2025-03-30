@@ -2,13 +2,14 @@ package authenticator
 
 import (
 	"OpenSPMRegistry/config"
+	"OpenSPMRegistry/controller"
 	"OpenSPMRegistry/utils"
 	"context"
-	"github.com/coreos/go-oidc/v3/oidc"
-	"golang.org/x/oauth2"
 	"log/slog"
 	"net/http"
-	"time"
+
+	"github.com/coreos/go-oidc/v3/oidc"
+	"golang.org/x/oauth2"
 )
 
 // OidcAuthenticatorCode is an authenticator that uses OpenID Connect with code grant
@@ -18,15 +19,45 @@ type OidcAuthenticatorCode interface {
 	Callback(w http.ResponseWriter, r *http.Request)
 }
 
-type OidcAuthenticatorCodeImpl struct {
-	*OidcAuthenticatorImpl
+type randomStringGenerator interface {
+	RandomString(length int) (string, error)
 }
 
-// NewOIDCAuthenticatorCode  creates a new OIDC authenticator with code grant
+type defaultRandomStringGenerator struct{}
+
+func (d *defaultRandomStringGenerator) RandomString(length int) (string, error) {
+	return utils.RandomString(length)
+}
+
+type OidcAuthenticatorCodeImpl struct {
+	*OidcAuthenticatorImpl
+	randomStringGenerator randomStringGenerator
+}
+
+// NewOIDCAuthenticatorCodeWithConfig creates a new OIDC authenticator with code grant
+// based on the provided configuration
+func NewOIDCAuthenticatorCodeWithConfig(
+	ctx context.Context,
+	config config.ServerConfig,
+	oidcConfig *oidc.Config,
+	template controller.TemplateParser,
+) *OidcAuthenticatorCodeImpl {
+	base := NewOIDCAuthenticatorWithConfig(ctx, config, oidcConfig, template)
+	if base == nil {
+		return nil
+	}
+	return &OidcAuthenticatorCodeImpl{
+		OidcAuthenticatorImpl: base,
+		randomStringGenerator: &defaultRandomStringGenerator{},
+	}
+}
+
+// NewOIDCAuthenticatorCode creates a new OIDC authenticator with code grant
 // based on the provided configuration
 func NewOIDCAuthenticatorCode(ctx context.Context, config config.ServerConfig) *OidcAuthenticatorCodeImpl {
 	return &OidcAuthenticatorCodeImpl{
-		NewOIDCAuthenticator(ctx, config),
+		OidcAuthenticatorImpl: NewOIDCAuthenticator(ctx, config),
+		randomStringGenerator: &defaultRandomStringGenerator{},
 	}
 }
 
@@ -35,22 +66,36 @@ func (a *OidcAuthenticatorCodeImpl) AuthCodeURL(state string, nonce oauth2.AuthC
 }
 
 func (a *OidcAuthenticatorCodeImpl) Callback(w http.ResponseWriter, r *http.Request) {
+	stateParam := r.URL.Query().Get("state")
+	if stateParam == "" {
+		slog.Error("State parameter not found in URL")
+		http.Error(w, "state not found", http.StatusUnauthorized)
+		return
+	}
+
 	state, err := r.Cookie("state")
 	if err != nil {
 		slog.Error("Error getting state cookie:", "error", err)
 		http.Error(w, "state not found", http.StatusUnauthorized)
 		return
 	}
-	if r.URL.Query().Get("state") != state.Value {
+
+	if stateParam != state.Value {
 		slog.Error("State did not match")
 		http.Error(w, "state did not match", http.StatusUnauthorized)
 		return
 	}
 
 	code := r.URL.Query().Get("code")
+	if code == "" {
+		slog.Error("Code parameter not found in URL")
+		http.Error(w, "code not found", http.StatusUnauthorized)
+		return
+	}
+
 	token, err := a.config.Exchange(a.ctx, code)
 	if err != nil {
-		slog.Error("Failed to exchange code for token", err)
+		slog.Error("Failed to exchange code for token", "err", err)
 		http.Error(w, "Failed to exchange code for token", http.StatusUnauthorized)
 		return
 	}
@@ -61,7 +106,7 @@ func (a *OidcAuthenticatorCodeImpl) Callback(w http.ResponseWriter, r *http.Requ
 		return
 	}
 
-	writeTokenOutput(w, idToken)
+	writeTokenOutput(w, idToken, a.template)
 }
 
 func (a *OidcAuthenticatorCodeImpl) Login(w http.ResponseWriter, r *http.Request) {
@@ -70,12 +115,12 @@ func (a *OidcAuthenticatorCodeImpl) Login(w http.ResponseWriter, r *http.Request
 	}
 
 	// Otherwise redirect to oauth login
-	state, err := utils.RandomString(16)
+	state, err := a.randomStringGenerator.RandomString(16)
 	if err != nil {
 		utils.WriteAuthorizationHeaderError(w, err)
 		return
 	}
-	nonce, err := utils.RandomString(16)
+	nonce, err := a.randomStringGenerator.RandomString(16)
 	if err != nil {
 		utils.WriteAuthorizationHeaderError(w, err)
 		return
@@ -97,7 +142,7 @@ func setCallbackCookie(w http.ResponseWriter, r *http.Request, name, value strin
 	c := &http.Cookie{
 		Name:     name,
 		Value:    value,
-		MaxAge:   int(time.Hour.Seconds()),
+		MaxAge:   3600, // 1 hour in seconds
 		Secure:   r.TLS != nil,
 		HttpOnly: true,
 		SameSite: http.SameSiteStrictMode,

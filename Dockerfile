@@ -4,6 +4,8 @@ LABEL authors="wolfgangreithmeier"
 ARG upx_version=4.2.2
 ARG GOPROXY
 ARG TARGETARCH=${TARGETARCH:-amd64}
+ARG SERVER_UID=19998
+ARG SERVER_GID=19998
 
 RUN apt-get update && apt-get install -y --no-install-recommends xz-utils && \
   curl -Ls https://github.com/upx/upx/releases/download/v${upx_version}/upx-${upx_version}-${TARGETARCH}_linux.tar.xz -o - | tar xvJf - -C /tmp && \
@@ -14,16 +16,23 @@ RUN apt-get update && apt-get install -y --no-install-recommends xz-utils && \
 
 WORKDIR /app
 
-COPY go.mod go.sum ./
 COPY . .
+RUN go clean -cache
 RUN go mod download
+RUN go test ./...
 
 RUN CGO_ENABLED=0 GOOS=linux go build -ldflags="-s -w" -o openspmreg .
 RUN upx --best --lzma openspmreg
 
-RUN addgroup server &&  \
-     adduser --ingroup server --uid 19998 --shell /bin/false server && \
+# Create and set up files directory with world-readable permissions
+
+RUN addgroup --gid ${SERVER_GID} server &&  \
+     adduser --ingroup server --uid ${SERVER_UID} --shell /bin/false server && \
      cat /etc/passwd | grep server > /etc/passwd_server
+     
+RUN mkdir -p /app/files && \
+    chmod -R 755 /app/files && \
+    chown ${SERVER_UID}:${SERVER_GID} /app/files
 
 FROM scratch AS production-stage
 
@@ -45,4 +54,4 @@ EXPOSE 8080
 
 USER server
 
-ENTRYPOINT ["/app/openspmreg", "-tls=true", "-v"]
+ENTRYPOINT ["/app/openspmreg", "-v"]

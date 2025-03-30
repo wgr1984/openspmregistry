@@ -5,6 +5,7 @@ import (
 	"crypto/rand"
 	"encoding/base64"
 	"fmt"
+	"io"
 	"log/slog"
 	"net/http"
 	"strings"
@@ -25,8 +26,15 @@ func StripExtension(s string, ext string) string {
 }
 
 func RandomString(i int) (string, error) {
+	return randomStringFromGenerator(i, rand.Reader)
+}
+
+func randomStringFromGenerator(i int, r io.Reader) (string, error) {
+	if i < 0 {
+		return "", fmt.Errorf("invalid length: %d", i)
+	}
 	b := make([]byte, i)
-	_, err := rand.Read(b)
+	_, err := io.ReadFull(r, b)
 	if err != nil {
 		return "", err
 	}
@@ -37,7 +45,16 @@ func RandomString(i int) (string, error) {
 // based on the configuration
 // e.g. https://hostname:port
 func BaseUrl(config config.ServerConfig) string {
-	return fmt.Sprintf("https://%s:%d", config.Hostname, config.Port)
+	if config.TlsEnabled {
+		if config.Port == 443 {
+			return fmt.Sprintf("https://%s", config.Hostname)
+		}
+		return fmt.Sprintf("https://%s:%d", config.Hostname, config.Port)
+	}
+	if config.Port == 80 {
+		return fmt.Sprintf("http://%s", config.Hostname)
+	}
+	return fmt.Sprintf("http://%s:%d", config.Hostname, config.Port)
 }
 
 func WriteAuthorizationHeaderError(w http.ResponseWriter, err error) {

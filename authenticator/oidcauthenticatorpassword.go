@@ -7,12 +7,12 @@ import (
 	"crypto/rand"
 	"errors"
 	"fmt"
-	"github.com/go-jose/go-jose/v4"
-	"github.com/go-jose/go-jose/v4/jwt"
-	"html/template"
 	"log/slog"
 	"net/http"
 	"time"
+
+	"github.com/go-jose/go-jose/v4"
+	"github.com/go-jose/go-jose/v4/jwt"
 )
 
 const csrfTokenValue = "csrf-token"
@@ -46,48 +46,42 @@ func (a *OidcAuthenticatorPasswordImpl) Callback(w http.ResponseWriter, _ *http.
 	http.Error(w, "callback not supported", http.StatusUnauthorized)
 }
 
-func (a *OidcAuthenticatorPasswordImpl) Authenticate(w http.ResponseWriter, r *http.Request) (error, string) {
+func (a *OidcAuthenticatorPasswordImpl) Authenticate(w http.ResponseWriter, r *http.Request) (string, error) {
 	username, password, ok := r.BasicAuth()
 	// check if this is a basic auth request
 	if !ok {
 		// if not, try to authenticate using the oidc authenticator
-		err, s := a.OidcAuthenticatorImpl.Authenticate(w, r)
+		token, err := a.OidcAuthenticatorImpl.Authenticate(w, r)
 		if err != nil {
-			return err, ""
+			return "", err
 		}
-		return nil, s
+		return token, nil
 	}
 
 	// check x-csrf-token header
 	csrfToken := r.Header.Get("x-csrf-token")
 	if csrfToken == "" {
-		return errors.New("missing CSRF token"), ""
+		return "", errors.New("missing CSRF token")
 	}
 
 	// decrypt and verify CSRF token
 	err := a.verifyToken(csrfToken, csrfTokenValue)
 	if err != nil {
-		return err, ""
+		return "", err
 	}
 
 	idToken, err := a.requestToken(username, password)
 	if err != nil {
-		return err, ""
+		return "", err
 	}
 
-	writeTokenOutput(w, idToken)
+	writeTokenOutput(w, idToken, a.template)
 
-	return nil, idToken
+	return idToken, nil
 }
 
 func (a *OidcAuthenticatorPasswordImpl) Login(w http.ResponseWriter, r *http.Request) {
 	if a.CheckAuthHeaderPresent(w, r) {
-		return
-	}
-
-	files, err := template.New("login.gohtml").ParseFiles("static/login.gohtml")
-	if err != nil {
-		http.Error(w, "Error parsing template", http.StatusInternalServerError)
 		return
 	}
 
@@ -97,7 +91,13 @@ func (a *OidcAuthenticatorPasswordImpl) Login(w http.ResponseWriter, r *http.Req
 		return
 	}
 
-	err = files.Execute(w, struct {
+	tmpl, err := a.template.ParseFiles("static/login.gohtml")
+	if err != nil {
+		http.Error(w, "Error parsing template", http.StatusInternalServerError)
+		return
+	}
+
+	err = tmpl.Execute(w, struct {
 		Title     string
 		CsrfToken string
 	}{
@@ -121,24 +121,6 @@ func (a *OidcAuthenticatorPasswordImpl) requestToken(username string, password s
 		return "", errors.New("missing id token")
 	}
 	return idToken, nil
-}
-
-// setNonceCookie sets a cookie with the provided name and value
-// the cookie is set to expire in 5 min
-// the cookie is secure if the request is over TLS
-// the cookie is http only
-// the cookie is set to SameSiteStrictMode
-// the cookie is set on the response writer
-func setNonceCookie(w http.ResponseWriter, r *http.Request, name, value string) {
-	c := &http.Cookie{
-		Name:     name,
-		Value:    value,
-		MaxAge:   int(time.Minute.Seconds()) * 5,
-		Secure:   r.TLS != nil,
-		HttpOnly: true,
-		SameSite: http.SameSiteStrictMode,
-	}
-	http.SetCookie(w, c)
 }
 
 // encryptToken encrypts the provided value into a JWT
@@ -190,7 +172,7 @@ func (a *OidcAuthenticatorPasswordImpl) verifyToken(token string, value string) 
 		[]jose.ContentEncryption{jose.A128GCM},
 	)
 	if err != nil {
-		slog.Error("parsing JWT: %s", err)
+		slog.Error("parsing JWT: %s", "err", err)
 		return err
 	}
 
@@ -202,7 +184,7 @@ func (a *OidcAuthenticatorPasswordImpl) verifyToken(token string, value string) 
 
 	out := jwt.Claims{}
 	if err := tok.Claims(a.sharedEncryptionKey, &out, &privateClaim); err != nil {
-		slog.Error("verifying JWT: %s", err)
+		slog.Error("verifying JWT: %s", "err", err)
 		return err
 	}
 

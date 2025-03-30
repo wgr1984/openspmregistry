@@ -1,5 +1,6 @@
 ![GitHub release (latest by date)](https://img.shields.io/github/v/release/wgr1984/openspmregistry)
 [![Docker Hub](https://img.shields.io/docker/pulls/wgr1984/openspmregistry)](https://hub.docker.com/r/wgr1984/openspmregistry)
+![Code Coverage](https://img.shields.io/badge/coverage-88%25-green)
 
 <table>
   <tr>
@@ -79,7 +80,7 @@ server:
 ```
 hit go run:
 ```
- go run main.go -tls=true -v
+ go run main.go -v
 ```
 
 # 📋 Todos ❎
