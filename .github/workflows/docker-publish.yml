@@ -11,6 +11,7 @@ env:
   REGISTRY_GHCR: ghcr.io
   REGISTRY_DOCKER: docker.io
   IMAGE_NAME: ${{ github.repository }}
+  TRIVY_OUTPUT_DIR: trivy-results
 
 jobs:
   build-and-push:
@@ -29,6 +30,9 @@ jobs:
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
+
+      - name: Create Trivy output directory
+        run: mkdir -p ${{ env.TRIVY_OUTPUT_DIR }}
 
       - name: Log into GitHub Container Registry
         if: github.event_name != 'pull_request'
@@ -59,14 +63,13 @@ jobs:
             type=semver,pattern={{major}}.{{minor}}
             type=sha
 
-      - name: Build and push Docker image
+      - name: Build Docker image
+        id: build
         uses: docker/build-push-action@v5
         with:
           context: .
-          push: ${{ github.event_name != 'pull_request' }}
-          tags: ${{ steps.meta.outputs.tags }}
-          labels: ${{ steps.meta.outputs.labels }}
-          platforms: linux/amd64,linux/arm64
+          load: true
+          tags: ${{ env.REGISTRY_GHCR }}/${{ env.IMAGE_NAME }}:${{ github.sha }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
@@ -75,10 +78,23 @@ jobs:
         with:
           image-ref: ${{ env.REGISTRY_GHCR }}/${{ env.IMAGE_NAME }}:${{ github.sha }}
           format: 'sarif'
-          output: 'trivy-results.sarif'
+          output: '${{ env.TRIVY_OUTPUT_DIR }}/trivy-results.sarif'
 
       - name: Upload Trivy scan results to GitHub Security tab
         uses: github/codeql-action/upload-sarif@v3
         if: always()
         with:
-          sarif_file: 'trivy-results.sarif' 
+          sarif_file: '${{ env.TRIVY_OUTPUT_DIR }}/trivy-results.sarif'
+          category: 'Trivy'
+
+      - name: Push Docker images
+        if: github.event_name != 'pull_request'
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          platforms: linux/amd64,linux/arm64
+          cache-from: type=gha
+          cache-to: type=gha,mode=max 
