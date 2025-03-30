@@ -55,8 +55,9 @@ release:
 	fi
 	@# Update CHANGELOG.md
 	@DATE=$$(date +%Y-%m-%d); \
-	sed -i.bak -e "/## \[Unreleased\]/i\\\n## [$(VERSION)] - $$DATE\n" CHANGELOG.md; \
-	rm -f CHANGELOG.md.bak
+	NEW_VERSION="## [$(VERSION)] - $$DATE\n"; \
+	awk -v ver="$$NEW_VERSION" '/## \[Unreleased\]/ { print; print ver; next } { print }' CHANGELOG.md > CHANGELOG.md.tmp && \
+	mv CHANGELOG.md.tmp CHANGELOG.md
 	@# Commit CHANGELOG.md
 	git add CHANGELOG.md
 	git commit -m "chore: update CHANGELOG for v$(VERSION)"
@@ -67,4 +68,4 @@ release:
 
 changelog-unreleased:
 	@echo "Unreleased changes:"
-	@sed -n '/## \[Unreleased\]/,/## \[[0-9]\+\.[0-9]\+\.[0-9]\+\]/p' CHANGELOG.md
+	@awk '/## \[Unreleased\]/{p=1;print;next} /## \[[0-9]+\.[0-9]+\.[0-9]+\]/{p=0}p' CHANGELOG.md
