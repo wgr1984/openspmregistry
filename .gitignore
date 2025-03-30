@@ -33,3 +33,4 @@ go.work.sum
 **/.DS_Store
 openspmregistry
 cover.out
+SPM-Registry-Spec.md
