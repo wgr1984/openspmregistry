@@ -20,6 +20,8 @@ jobs:
       contents: read
       packages: write
       security-events: write
+      id-token: write  # Needed for signing the images
+      actions: write   # Needed for cache operations
 
     steps:
       - name: Checkout repository
