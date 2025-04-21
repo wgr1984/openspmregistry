@@ -128,21 +128,56 @@ func listElements(w http.ResponseWriter, c *Controller, scope string, packageNam
 	return elements, nil
 }
 
-func addFirstReleaseAsLatest(elements []models.ListElement, c *Controller, header http.Header) {
+// addLinkHeaders adds the 'latest-version', 'predecessor-version', and 'successor-version'
+// Link headers based on the list of available versions for the package.
+//
+// Parameters:
+//   - elements: list of available versions for the package
+//   - currentVersion: current version of the package, if not found e.g. "", only add latest-version link
+//   - c: controller
+//   - header: http header
+//
+// Returns:
+//   - void
+func addLinkHeaders(elements []models.ListElement, currentVersion string, c *Controller, header http.Header) {
+	var links []string
+	var currentVersionIndex = -1
+
+	// Find the index of the current version and add the latest-version link
 	for i, element := range elements {
-		location := locationOfElement(c, element)
 		if i == 0 {
-			// TODO add missing header links!!!
-
-			// set latest element header
-			//Link: <https://github.com/mona/LinkedList>; rel="canonical",
-			//	<ssh://git@github.com:mona/LinkedList.git>; rel="alternate",
-			//	<https://packages.example.com/mona/LinkedList/1.1.1>; rel="latest-version",
-			//	<https://github.com/sponsors/mona>; rel="payment"
-
-			header.Set("Link", fmt.Sprintf("<%s>; rel=\"latest-version\"", location))
-			return
+			location := locationOfElement(c, element)
+			links = append(links, fmt.Sprintf("<%s>; rel=\"latest-version\"", location))
 		}
+		if element.Version == currentVersion {
+			currentVersionIndex = i
+		}
+	}
+
+	if currentVersionIndex == -1 {
+		// Current version not found in the list, only add latest-version if available
+		if len(links) > 0 {
+			header.Set("Link", links[0])
+		}
+		return
+	}
+
+	// Add predecessor-version link (element at index + 1 because list is sorted descending)
+	if currentVersionIndex+1 < len(elements) {
+		predecessor := elements[currentVersionIndex+1]
+		location := locationOfElement(c, predecessor)
+		links = append(links, fmt.Sprintf("<%s>; rel=\"predecessor-version\"", location))
+	}
+
+	// Add successor-version link (element at index - 1 because list is sorted descending)
+	if currentVersionIndex-1 >= 0 {
+		successor := elements[currentVersionIndex-1]
+		location := locationOfElement(c, successor)
+		links = append(links, fmt.Sprintf("<%s>; rel=\"successor-version\"", location))
+	}
+
+	if len(links) > 0 {
+		header.Set("Link", strings.Join(links, ", "))
 	}
 }
 
