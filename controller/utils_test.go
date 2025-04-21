@@ -243,52 +243,52 @@ func Test_ListElements_MultipleElements_ReturnsElements(t *testing.T) {
 	}
 }
 
-func Test_AddFirstReleaseAsLatest_EmptyElements_DoesNotSetHeader(t *testing.T) {
+func Test_AddLinkHeaders_EmptyElements_DoesNotSetHeader(t *testing.T) {
 	header := http.Header{}
 	c := &Controller{}
-	addFirstReleaseAsLatest([]models.ListElement{}, c, header)
+	addLinkHeaders([]models.ListElement{}, "", c, header)
 
-	if header.Get("Link") != "" {
-		t.Errorf("expected empty Link header, got %s", header.Get("Link"))
+	if link := header.Get("Link"); link != "" {
+		t.Errorf("expected empty Link header, got %s", link)
 	}
 }
 
-func Test_AddFirstReleaseAsLatest_SingleElement_SetsHeader(t *testing.T) {
+func Test_AddLinkHeaders_SingleElement_SetsLatestHeaderOnly(t *testing.T) {
 	header := http.Header{}
-	c := &Controller{
-		config: config.ServerConfig{
-			Hostname: "example.com",
-			Port:     80,
-		},
-	}
+	serverConfig := config.ServerConfig{Hostname: "localhost", Port: 8080}
+	c := &Controller{config: serverConfig}
 	elements := []models.ListElement{
-		{Scope: "test", PackageName: "Test", Version: "1.0.0"},
+		{Scope: "testScope", PackageName: "testPackage", Version: "1.0.0"},
 	}
-	addFirstReleaseAsLatest(elements, c, header)
+	addLinkHeaders(elements, "1.0.0", c, header)
 
-	expected := "<http://example.com/test/Test/1.0.0>; rel=\"latest-version\""
-	if header.Get("Link") != expected {
-		t.Errorf("expected %s, got %s", expected, header.Get("Link"))
+	expectedLink := "<http://localhost:8080/testScope/testPackage/1.0.0>; rel=\"latest-version\""
+	if link := header.Get("Link"); link != expectedLink {
+		t.Errorf("expected Link header %q, got %q", expectedLink, link)
 	}
 }
 
-func Test_AddFirstReleaseAsLatest_MultipleElements_SetsHeader(t *testing.T) {
+func Test_AddLinkHeaders_MultipleElements_SetsCorrectHeaders(t *testing.T) {
 	header := http.Header{}
-	c := &Controller{
-		config: config.ServerConfig{
-			Hostname: "example.com",
-			Port:     80,
-		},
-	}
+	serverConfig := config.ServerConfig{Hostname: "localhost", Port: 8080}
+	c := &Controller{config: serverConfig}
 	elements := []models.ListElement{
-		{Scope: "test", PackageName: "Test", Version: "1.0.0"},
-		{Scope: "test", PackageName: "Test", Version: "2.0.0"},
+		{Scope: "testScope", PackageName: "testPackage", Version: "2.0.0"}, // Latest
+		{Scope: "testScope", PackageName: "testPackage", Version: "1.1.0"}, // Current
+		{Scope: "testScope", PackageName: "testPackage", Version: "1.0.0"}, // Predecessor
 	}
-	addFirstReleaseAsLatest(elements, c, header)
+	currentVersion := "1.1.0"
+	addLinkHeaders(elements, currentVersion, c, header)
 
-	expected := "<http://example.com/test/Test/1.0.0>; rel=\"latest-version\""
-	if header.Get("Link") != expected {
-		t.Errorf("expected %s, got %s", expected, header.Get("Link"))
+	// Expected order: latest, predecessor, successor
+	expectedLink := strings.Join([]string{
+		"<http://localhost:8080/testScope/testPackage/2.0.0>; rel=\"latest-version\"",
+		"<http://localhost:8080/testScope/testPackage/1.0.0>; rel=\"predecessor-version\"",
+		"<http://localhost:8080/testScope/testPackage/2.0.0>; rel=\"successor-version\"",
+	}, ", ")
+
+	if link := header.Get("Link"); link != expectedLink {
+		t.Errorf("expected Link header %q, got %q", expectedLink, link)
 	}
 }
 
