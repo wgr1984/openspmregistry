@@ -31,7 +31,8 @@ func (c *Controller) ListAction(w http.ResponseWriter, r *http.Request) {
 
 	header := w.Header()
 
-	addFirstReleaseAsLatest(elements, c, header)
+	// For list view, only add latest-version link. Pass empty currentVersion.
+	addLinkHeaders(elements, "", c, header)
 
 	for _, element := range elements {
 		location := locationOfElement(c, element)

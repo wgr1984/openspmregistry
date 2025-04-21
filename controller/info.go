@@ -39,7 +39,7 @@ func (c *Controller) InfoAction(w http.ResponseWriter, r *http.Request) {
 		return // error already logged
 	}
 
-	addFirstReleaseAsLatest(elements, c, header)
+	addLinkHeaders(elements, version, c, header)
 
 	metadataResult, err := c.repo.FetchMetadata(scope, packageName, version)
 	if err != nil && slog.Default().Enabled(context.TODO(), slog.LevelDebug) {
