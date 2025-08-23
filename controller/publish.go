@@ -4,6 +4,7 @@ import (
 	"OpenSPMRegistry/models"
 	"OpenSPMRegistry/utils"
 	"context"
+	"encoding/json"
 	"fmt"
 	"io"
 	"log/slog"
@@ -11,6 +12,8 @@ import (
 	"net/http"
 	"net/url"
 	"regexp"
+	"time"
+	"github.com/google/uuid"
 )
 
 func (c *Controller) PublishAction(w http.ResponseWriter, r *http.Request) {
@@ -22,6 +25,9 @@ func (c *Controller) PublishAction(w http.ResponseWriter, r *http.Request) {
 		return // error already logged
 	}
 
+	// Check if async mode is requested
+	preferAsync := r.Header.Get("Prefer") == "respond-async"
+	
 	// check scope name
 	scope := r.PathValue("scope")
 	packageName := r.PathValue("package")
@@ -83,7 +89,67 @@ func (c *Controller) PublishAction(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	// currently we only support synchronous publishing
+	// Handle async mode if requested and enabled
+	if preferAsync && c.config.Async.Enabled && c.asyncProcessor != nil && packageElement != nil {
+		// Create async operation
+		operation := &models.AsyncOperation{
+			ID:        uuid.New().String(),
+			Status:    models.OperationStatusProcessing,
+			CreatedAt: time.Now(),
+			Scope:     scope,
+			Package:   packageName,
+			Version:   version,
+		}
+		
+		// Store the operation
+		if err := c.operationStore.Store(operation); err != nil {
+			slog.Error("Failed to store async operation", "error", err)
+			writeError("Failed to create async operation", w)
+			return
+		}
+		
+		// Submit job to async processor
+		job := &AsyncPublishJob{
+			Operation: operation,
+			Element:   packageElement,
+			Config:    c.config,
+			Repo:      c.repo,
+		}
+		
+		if err := c.asyncProcessor.Submit(job); err != nil {
+			slog.Error("Failed to submit async job", "error", err)
+			writeError("Failed to submit async job", w)
+			return
+		}
+		
+		// Return async response
+		statusLocation, err := url.JoinPath(
+			utils.BaseUrl(c.config),
+			scope,
+			packageName,
+			version,
+			"status",
+			operation.ID)
+		if err != nil {
+			slog.Error("Failed to build status URL", "error", err)
+			writeError("Failed to build status URL", w)
+			return
+		}
+		
+		header := w.Header()
+		header.Set("Content-Type", "application/json")
+		header.Set("Content-Version", "1")
+		header.Set("Location", statusLocation)
+		w.WriteHeader(http.StatusAccepted)
+		
+		// Return operation info in body
+		if err := json.NewEncoder(w).Encode(operation); err != nil {
+			slog.Error("Failed to encode operation", "error", err)
+		}
+		return
+	}
+	
+	// Synchronous publishing (current behavior)
 	// https://github.com/swiftlang/swift-package-manager/blob/main/Documentation/PackageRegistry/Registry.md#4631-synchronous-publication
 	if packageElement != nil {
 		location, err := url.JoinPath(
@@ -94,6 +160,7 @@ func (c *Controller) PublishAction(w http.ResponseWriter, r *http.Request) {
 		if err != nil {
 			slog.Error("Error", "msg", err)
 			writeError("upload failed", w)
+			return
 		}
 		header := w.Header()
 		header.Set("Content-Version", "1")

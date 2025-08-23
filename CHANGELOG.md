@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Latest]
 - Add prev/next version link in header [#19](https://github.com/wgr1984/openspmregistry/issues/19)
+- Add asynchronous mode support for package publishing [#16](https://github.com/wgr1984/openspmregistry/issues/16)
+  - Support for `Prefer: respond-async` header
+  - Background processing with configurable worker pool
+  - Status checking endpoint for async operations
+  - In-memory operation store with TTL
 
 ## [0.0.2] - 2025-04-21
 - Docker build and publish workflow

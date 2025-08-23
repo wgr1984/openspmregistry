@@ -32,7 +32,9 @@ Quick links:
 - [Documentation](https://wgr1984.github.io/docs/openspmregistry/documention)
 
 # Features
-Browsing, Publishing (including signing) and retrieving of swift packages
+- Browsing, Publishing (including signing) and retrieving of swift packages
+- **Asynchronous mode support** for package publishing (issue #16)
+- Status checking for async operations
 [More](https://wgr1984.github.io/docs/openspmregistry/#features)
 
 ## Use Docker
@@ -77,6 +79,11 @@ server:
     maxSize: 204800
   auth:
     enabled: false
+  async:
+    enabled: true      # Enable async mode
+    workers: 4         # Number of background workers
+    max_queue_size: 100
+    operation_ttl: 24  # hours
 ```
 hit go run:
 ```

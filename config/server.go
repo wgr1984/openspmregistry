@@ -12,6 +12,7 @@ type ServerConfig struct {
 	Publish    PublishConfig `yaml:"publish"`
 	Auth       AuthConfig    `yaml:"auth"`
 	TlsEnabled bool          `yaml:"tlsEnabled"`
+	Async      AsyncConfig   `yaml:"async"`
 }
 
 type Certs struct {
@@ -42,4 +43,11 @@ type AuthConfig struct {
 type User struct {
 	Username string `yaml:"username"`
 	Password string `yaml:"password"`
+}
+
+type AsyncConfig struct {
+	Enabled      bool  `yaml:"enabled"`
+	Workers      int   `yaml:"workers"`
+	MaxQueueSize int   `yaml:"max_queue_size"`
+	OperationTTL int64 `yaml:"operation_ttl"` // In hours
 }

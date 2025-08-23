@@ -84,6 +84,7 @@ func main() {
 	a.HandleFunc("GET /{scope}/{package}/{version}/Package.swift", c.FetchManifestAction)
 	a.HandleFunc("GET /identifiers", c.LookupAction)
 	a.HandleFunc("PUT /{scope}/{package}/{version}", c.PublishAction)
+	a.HandleFunc("GET /{scope}/{package}/{version}/status/{operation_id}", c.StatusAction)
 
 	// public routes
 	router.HandleFunc("GET /", c.MainAction)
@@ -104,6 +105,10 @@ func main() {
 	go func() {
 		<-sigChannel
 		slog.Info("Shutting down server...")
+		
+		// Shutdown controller (which will shutdown async processor)
+		c.Shutdown()
+		
 		if err := srv.Shutdown(nil); err != nil {
 			slog.Error("Error shutting down server", "error", err)
 		}

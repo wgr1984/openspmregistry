@@ -11,3 +11,8 @@ server:
     maxSize: 204800
   auth:
     enabled: false
+  async:
+    enabled: true
+    workers: 4
+    max_queue_size: 100
+    operation_ttl: 24 # hours
