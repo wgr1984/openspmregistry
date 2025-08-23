@@ -4,6 +4,8 @@ import (
 	"OpenSPMRegistry/models"
 	"OpenSPMRegistry/utils"
 	"context"
+	"crypto/rand"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -13,8 +15,16 @@ import (
 	"net/url"
 	"regexp"
 	"time"
-	"github.com/google/uuid"
 )
+
+// generateOperationID generates a unique operation ID using crypto/rand
+func generateOperationID() (string, error) {
+	bytes := make([]byte, 16)
+	if _, err := rand.Read(bytes); err != nil {
+		return "", err
+	}
+	return hex.EncodeToString(bytes), nil
+}
 
 func (c *Controller) PublishAction(w http.ResponseWriter, r *http.Request) {
 
@@ -91,9 +101,17 @@ func (c *Controller) PublishAction(w http.ResponseWriter, r *http.Request) {
 
 	// Handle async mode if requested and enabled
 	if preferAsync && c.config.Async.Enabled && c.asyncProcessor != nil && packageElement != nil {
+		// Generate operation ID
+		operationID, err := generateOperationID()
+		if err != nil {
+			slog.Error("Failed to generate operation ID", "error", err)
+			writeError("Failed to generate operation ID", w)
+			return
+		}
+		
 		// Create async operation
 		operation := &models.AsyncOperation{
-			ID:        uuid.New().String(),
+			ID:        operationID,
 			Status:    models.OperationStatusProcessing,
 			CreatedAt: time.Now(),
 			Scope:     scope,

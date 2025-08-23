@@ -38,7 +38,7 @@ Headers:
 
 Body:
 {
-  "id": "550e8400-e29b-41d4-a716-446655440000",
+  "id": "a1b2c3d4e5f6789012345678901234567890",
   "status": "processing",
   "created_at": "2024-01-20T10:00:00Z"
 }
@@ -58,14 +58,14 @@ Headers:
 
 Body (Processing):
 {
-  "id": "550e8400-e29b-41d4-a716-446655440000",
+  "id": "a1b2c3d4e5f6789012345678901234567890",
   "status": "processing",
   "created_at": "2024-01-20T10:00:00Z"
 }
 
 Body (Completed):
 {
-  "id": "550e8400-e29b-41d4-a716-446655440000",
+  "id": "a1b2c3d4e5f6789012345678901234567890",
   "status": "completed",
   "created_at": "2024-01-20T10:00:00Z",
   "completed_at": "2024-01-20T10:01:00Z",
@@ -77,7 +77,7 @@ Body (Completed):
 
 Body (Failed):
 {
-  "id": "550e8400-e29b-41d4-a716-446655440000",
+  "id": "a1b2c3d4e5f6789012345678901234567890",
   "status": "failed",
   "created_at": "2024-01-20T10:00:00Z",
   "completed_at": "2024-01-20T10:00:30Z",
@@ -116,7 +116,7 @@ curl -X PUT \
 Response:
 ```json
 {
-  "id": "550e8400-e29b-41d4-a716-446655440000",
+  "id": "a1b2c3d4e5f6789012345678901234567890",
   "status": "processing",
   "created_at": "2024-01-20T10:00:00Z"
 }
@@ -125,7 +125,7 @@ Response:
 ### 2. Poll for Status
 
 ```bash
-curl https://registry.example.com/myscope/MyPackage/1.0.0/status/550e8400-e29b-41d4-a716-446655440000
+curl https://registry.example.com/myscope/MyPackage/1.0.0/status/a1b2c3d4e5f6789012345678901234567890
 ```
 
 ### 3. Handle in Swift
