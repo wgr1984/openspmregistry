@@ -44,6 +44,7 @@ func (c *Controller) PublishAction(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var packageElement *models.UploadElement
+	var storedElements []*models.UploadElement
 
 	for {
 		part, errPart := reader.NextPart()
@@ -79,6 +80,7 @@ func (c *Controller) PublishAction(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
+		storedElements = append(storedElements, element)
 		if name == string(models.SourceArchive) {
 			packageElement = element
 		}
@@ -94,8 +96,8 @@ func (c *Controller) PublishAction(w http.ResponseWriter, r *http.Request) {
 			packageJsonElement := models.NewUploadElement(scope, packageName, version, mimetypes.ApplicationJson, models.PackageManifestJson)
 			if !c.repo.Exists(packageJsonElement) {
 				writeErrorWithStatusCode("upload failed: Package.json is required but not found in archive", w, http.StatusUnprocessableEntity)
-				// Clean up the uploaded archive
-				_ = c.repo.Remove(packageElement)
+				// Clean up all stored elements including extracted manifests
+				cleanupStoredElements(c, storedElements, scope, packageName, version)
 				return
 			}
 		}
@@ -175,4 +177,50 @@ func storeElements(w http.ResponseWriter, name string, scope string, packageName
 	}
 
 	return false, element
+}
+
+// cleanupStoredElements removes all stored elements and extracted manifest files
+// when a publish operation needs to be rolled back.
+//
+// Parameters:
+//   - c: Controller instance with repository access
+//   - storedElements: Slice of elements that were stored during upload
+//   - scope: Package scope
+//   - packageName: Package name
+//   - version: Package version
+func cleanupStoredElements(c *Controller, storedElements []*models.UploadElement, scope, packageName, version string) {
+	// Remove all stored elements (metadata, signatures, source archive)
+	for _, element := range storedElements {
+		if err := c.repo.Remove(element); err != nil {
+			slog.Warn("Failed to cleanup stored element during rollback", "element", element.FileName(), "error", err)
+		}
+	}
+
+	// Remove extracted Package.swift manifest files
+	// ExtractManifestFiles may have created these from the source archive
+	manifestElement := models.NewUploadElement(scope, packageName, version, mimetypes.TextXSwift, models.Manifest)
+	alternatives, err := c.repo.GetAlternativeManifests(manifestElement)
+	if err == nil {
+		for _, alt := range alternatives {
+			altCopy := alt
+			if err := c.repo.Remove(&altCopy); err != nil {
+				slog.Warn("Failed to cleanup manifest file during rollback", "manifest", alt.FileName(), "error", err)
+			}
+		}
+	}
+
+	// Also remove the base Package.swift if it exists
+	if c.repo.Exists(manifestElement) {
+		if err := c.repo.Remove(manifestElement); err != nil {
+			slog.Warn("Failed to cleanup base manifest during rollback", "error", err)
+		}
+	}
+
+	// Remove Package.json if it was extracted
+	packageJsonElement := models.NewUploadElement(scope, packageName, version, mimetypes.ApplicationJson, models.PackageManifestJson)
+	if c.repo.Exists(packageJsonElement) {
+		if err := c.repo.Remove(packageJsonElement); err != nil {
+			slog.Warn("Failed to cleanup Package.json during rollback", "error", err)
+		}
+	}
 }
