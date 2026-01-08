@@ -18,11 +18,6 @@ func (c *Controller) GlobalCollectionAction(w http.ResponseWriter, r *http.Reque
 		return
 	}
 
-	if err := checkHeadersEnforce(r, "json"); err != nil {
-		err.writeResponse(w)
-		return
-	}
-
 	// Get all packages
 	packages, err := c.repo.ListAll()
 	if err != nil {
@@ -58,11 +53,6 @@ func (c *Controller) ScopeCollectionAction(w http.ResponseWriter, r *http.Reques
 	// Check if collections are enabled
 	if !c.config.PackageCollections.Enabled {
 		writeErrorWithStatusCode("Package collections are not enabled", w, http.StatusNotFound)
-		return
-	}
-
-	if err := checkHeadersEnforce(r, "json"); err != nil {
-		err.writeResponse(w)
 		return
 	}
 
