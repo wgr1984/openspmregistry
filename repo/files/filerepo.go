@@ -393,10 +393,10 @@ func (f *FileRepo) ListInScope(scope string) ([]models.ListElement, error) {
 	var packages []models.ListElement
 	for _, entry := range entries {
 		if entry.IsDir() {
-			// Get any version to create a list element (we just need package names)
+			// Get all versions for this package
 			versions, err := f.List(scope, entry.Name())
-			if err == nil && len(versions) > 0 {
-				packages = append(packages, versions[0])
+			if err == nil {
+				packages = append(packages, versions...)
 			}
 		}
 	}

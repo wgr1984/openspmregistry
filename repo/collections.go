@@ -66,15 +66,9 @@ func GenerateCollection(r Repo, scope string, packages []models.ListElement) (*m
 
 // buildCollectionPackage builds a CollectionPackage from package versions
 func buildCollectionPackage(r Repo, scope string, name string, versionElements []models.ListElement) (*models.CollectionPackage, error) {
-	// Get all versions for this package
-	versions, err := r.List(scope, name)
-	if err != nil {
-		return nil, err
-	}
-
 	// Build package versions
 	var packageVersions []models.PackageVersion
-	for _, versionElement := range versions {
+	for _, versionElement := range versionElements {
 		pkgVersion, err := buildPackageVersion(r, scope, name, versionElement.Version)
 		if err != nil {
 			slog.Warn("Skipping version without Package.json", "package", fmt.Sprintf("%s.%s", scope, name), "version", versionElement.Version, "error", err)
@@ -88,9 +82,9 @@ func buildCollectionPackage(r Repo, scope string, name string, versionElements [
 	var license *models.License
 	var readmeURL string
 
-	if len(versions) > 0 {
+	if len(versionElements) > 0 {
 		// Use the first version's metadata
-		metadata, err := r.LoadMetadata(scope, name, versions[0].Version)
+		metadata, err := r.LoadMetadata(scope, name, versionElements[0].Version)
 		if err == nil {
 			if desc, ok := metadata["description"].(string); ok {
 				summary = desc
