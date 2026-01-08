@@ -90,6 +90,9 @@ func NewUploadElement(scope string, name string, version string, mimeType string
 	case Manifest:
 		element.SetFilenameOverwrite("Package")
 		element.SetExtOverwrite(".swift")
+	case PackageManifestJson:
+		element.SetFilenameOverwrite("Package")
+		element.SetExtOverwrite(".json")
 	default:
 		// No overwrite needed
 	}
