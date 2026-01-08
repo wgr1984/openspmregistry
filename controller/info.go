@@ -41,7 +41,7 @@ func (c *Controller) InfoAction(w http.ResponseWriter, r *http.Request) {
 
 	addLinkHeaders(elements, version, c, header)
 
-	metadataResult, err := c.repo.FetchMetadata(scope, packageName, version)
+	metadataResult, err := c.repo.LoadMetadata(scope, packageName, version)
 	if err != nil && slog.Default().Enabled(context.TODO(), slog.LevelDebug) {
 		slog.Debug("Error fetching metadata:", "error", err)
 	}

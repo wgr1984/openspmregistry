@@ -52,6 +52,7 @@ const (
 	Metadata               UploadElementType = "metadata"
 	MetadataSignature      UploadElementType = "metadata-signature"
 	Manifest               UploadElementType = "manifest"
+	PackageManifestJson    UploadElementType = "package-manifest-json"
 )
 
 type UploadElement struct {

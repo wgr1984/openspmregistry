@@ -1,0 +1,324 @@
+package repo
+
+import (
+	"OpenSPMRegistry/mimetypes"
+	"OpenSPMRegistry/models"
+	"fmt"
+	"log/slog"
+	"strings"
+	"time"
+)
+
+// GenerateCollection generates a package collection from the given packages
+func GenerateCollection(r Repo, scope string, packages []models.ListElement) (*models.PackageCollection, error) {
+	// Group packages by scope/name
+	packageMap := make(map[string][]models.ListElement)
+	for _, pkg := range packages {
+		key := fmt.Sprintf("%s.%s", pkg.Scope, pkg.PackageName)
+		packageMap[key] = append(packageMap[key], pkg)
+	}
+
+	// Build collection packages
+	var collectionPackages []models.CollectionPackage
+	for pkgKey, versions := range packageMap {
+		parts := strings.Split(pkgKey, ".")
+		if len(parts) != 2 {
+			continue
+		}
+		pkgScope, pkgName := parts[0], parts[1]
+
+		collPkg, err := buildCollectionPackage(r, pkgScope, pkgName, versions)
+		if err != nil {
+			slog.Warn("Error building collection package", "package", pkgKey, "error", err)
+			continue
+		}
+
+		// Skip packages with no valid versions
+		if len(collPkg.Versions) == 0 {
+			slog.Info("Skipping package with no valid versions", "package", pkgKey)
+			continue
+		}
+
+		collectionPackages = append(collectionPackages, *collPkg)
+	}
+
+	// Build collection metadata
+	collectionName := "All Packages"
+	collectionOverview := "All packages in registry"
+	if scope != "" {
+		collectionName = fmt.Sprintf("%s Packages", scope)
+		collectionOverview = fmt.Sprintf("Package collection for %s scope", scope)
+	}
+
+	collection := &models.PackageCollection{
+		Name:          collectionName,
+		Overview:      collectionOverview,
+		Packages:      collectionPackages,
+		FormatVersion: "1.0",
+		GeneratedAt:   time.Now().UTC().Format(time.RFC3339),
+		GeneratedBy: models.GeneratedBy{
+			Name: "OpenSPMRegistry",
+		},
+	}
+
+	return collection, nil
+}
+
+// buildCollectionPackage builds a CollectionPackage from package versions
+func buildCollectionPackage(r Repo, scope string, name string, versionElements []models.ListElement) (*models.CollectionPackage, error) {
+	// Get all versions for this package
+	versions, err := r.List(scope, name)
+	if err != nil {
+		return nil, err
+	}
+
+	// Build package versions
+	var packageVersions []models.PackageVersion
+	for _, versionElement := range versions {
+		pkgVersion, err := buildPackageVersion(r, scope, name, versionElement.Version)
+		if err != nil {
+			slog.Warn("Skipping version without Package.json", "package", fmt.Sprintf("%s.%s", scope, name), "version", versionElement.Version, "error", err)
+			continue
+		}
+		packageVersions = append(packageVersions, *pkgVersion)
+	}
+
+	// Get metadata for summary and license
+	var summary string
+	var license *models.License
+	var readmeURL string
+
+	if len(versions) > 0 {
+		// Use the first version's metadata
+		metadata, err := r.LoadMetadata(scope, name, versions[0].Version)
+		if err == nil {
+			if desc, ok := metadata["description"].(string); ok {
+				summary = desc
+			}
+			if licenseURLStr, ok := metadata["licenseURL"].(string); ok {
+				license = &models.License{URL: licenseURLStr}
+			}
+			if readmeURLStr, ok := metadata["readmeURL"].(string); ok {
+				readmeURL = readmeURLStr
+			}
+		}
+	}
+
+	collectionPackage := &models.CollectionPackage{
+		URL:       fmt.Sprintf("%s.%s", scope, name), // Use scope.name as URL
+		Summary:   summary,
+		Versions:  packageVersions,
+		ReadmeURL: readmeURL,
+		License:   license,
+	}
+
+	return collectionPackage, nil
+}
+
+// buildPackageVersion builds a PackageVersion from a specific version
+func buildPackageVersion(r Repo, scope string, name string, version string) (*models.PackageVersion, error) {
+	// Load Package.json
+	packageJson, err := r.LoadPackageJson(scope, name, version)
+	if err != nil {
+		return nil, err
+	}
+
+	// Get tools version from Package.swift
+	manifestElement := models.NewUploadElement(scope, name, version, mimetypes.TextXSwift, models.Manifest)
+	toolsVersionStr, err := r.GetSwiftToolVersion(manifestElement)
+	if err != nil {
+		slog.Warn("Could not get tools version", "package", fmt.Sprintf("%s.%s@%s", scope, name, version), "error", err)
+		toolsVersionStr = "5.0" // default
+	}
+
+	// Strip patch version from tools version (e.g., "5.10.0" -> "5.10")
+	toolsVersion := stripPatchVersion(strings.TrimSpace(toolsVersionStr))
+
+	// Convert Package.json to manifest
+	manifest := convertPackageJsonToManifest(packageJson, toolsVersion)
+
+	// Build manifests map
+	manifests := map[string]models.PackageManifest{
+		toolsVersion: manifest,
+	}
+
+	// Get metadata for author info
+	metadata, _ := r.LoadMetadata(scope, name, version)
+	var author *models.Author
+	var license *models.License
+
+	if metadata != nil {
+		author = extractAuthor(metadata)
+		if licenseURLStr, ok := metadata["licenseURL"].(string); ok {
+			license = &models.License{URL: licenseURLStr}
+		}
+	}
+
+	// Get publish date
+	publishDate, err := r.PublishDate(models.NewUploadElement(scope, name, version, "application/zip", models.SourceArchive))
+	if err != nil {
+		publishDate = time.Now()
+	}
+
+	packageVersion := &models.PackageVersion{
+		Version:             version,
+		Manifests:           manifests,
+		DefaultToolsVersion: toolsVersion,
+		Author:              author,
+		License:             license,
+		CreatedAt:           publishDate.UTC().Format(time.RFC3339),
+	}
+
+	return packageVersion, nil
+}
+
+// convertPackageJsonToManifest converts Package.json (swift package dump-package output) to SE-0291 manifest format
+func convertPackageJsonToManifest(packageJson map[string]interface{}, toolsVersion string) models.PackageManifest {
+	manifest := models.PackageManifest{
+		ToolsVersion: toolsVersion,
+		Targets:      []models.Target{},
+		Products:     []models.Product{},
+	}
+
+	// Extract package name
+	if name, ok := packageJson["name"].(string); ok {
+		manifest.PackageName = name
+	}
+
+	// Extract targets (only regular targets, skip test targets)
+	if targets, ok := packageJson["targets"].([]interface{}); ok {
+		for _, t := range targets {
+			if targetMap, ok := t.(map[string]interface{}); ok {
+				// Skip test targets
+				if targetType, ok := targetMap["type"].(string); ok && targetType == "test" {
+					continue
+				}
+
+				if targetName, ok := targetMap["name"].(string); ok {
+					manifest.Targets = append(manifest.Targets, models.Target{
+						Name:       targetName,
+						ModuleName: targetName, // Use same name as module
+					})
+				}
+			}
+		}
+	}
+
+	// Extract products
+	if products, ok := packageJson["products"].([]interface{}); ok {
+		for _, p := range products {
+			if productMap, ok := p.(map[string]interface{}); ok {
+				product := models.Product{
+					Type: make(map[string][]string),
+				}
+
+				if productName, ok := productMap["name"].(string); ok {
+					product.Name = productName
+				}
+
+				// Extract targets
+				if targetsArr, ok := productMap["targets"].([]interface{}); ok {
+					for _, t := range targetsArr {
+						if targetStr, ok := t.(string); ok {
+							product.Targets = append(product.Targets, targetStr)
+						}
+					}
+				}
+
+				// Extract product type (library: [automatic], library: [dynamic], etc.)
+				if productType, ok := productMap["type"].(map[string]interface{}); ok {
+					for typeKey, typeValue := range productType {
+						if typeArr, ok := typeValue.([]interface{}); ok {
+							var typeStrs []string
+							for _, tv := range typeArr {
+								if tvStr, ok := tv.(string); ok {
+									typeStrs = append(typeStrs, tvStr)
+								}
+							}
+							product.Type[typeKey] = typeStrs
+						}
+					}
+				}
+
+				manifest.Products = append(manifest.Products, product)
+			}
+		}
+	}
+
+	// Extract platforms
+	if platforms, ok := packageJson["platforms"].([]interface{}); ok {
+		for _, p := range platforms {
+			if platformMap, ok := p.(map[string]interface{}); ok {
+				platformName, hasName := platformMap["platformName"].(string)
+				platformVersion, hasVersion := platformMap["version"].(string)
+
+				if hasName && hasVersion {
+					manifest.MinimumPlatformVersions = append(manifest.MinimumPlatformVersions, models.MinimumPlatformVersion{
+						Name:    platformName, // Already lowercase in Package.json
+						Version: platformVersion,
+					})
+				}
+			}
+		}
+	}
+
+	return manifest
+}
+
+// extractAuthor extracts author information from metadata
+func extractAuthor(metadata map[string]interface{}) *models.Author {
+	if authorData, ok := metadata["author"].(map[string]interface{}); ok {
+		author := &models.Author{}
+
+		if name, ok := authorData["name"].(string); ok {
+			author.Name = name
+		} else {
+			return nil // Name is required
+		}
+
+		if email, ok := authorData["email"].(string); ok {
+			author.Email = email
+		}
+
+		if description, ok := authorData["description"].(string); ok {
+			author.Description = description
+		}
+
+		if url, ok := authorData["url"].(string); ok {
+			author.URL = url
+		}
+
+		if orgData, ok := authorData["organization"].(map[string]interface{}); ok {
+			org := &models.Organization{}
+			if orgName, ok := orgData["name"].(string); ok {
+				org.Name = orgName
+				author.Organization = org
+
+				if orgEmail, ok := orgData["email"].(string); ok {
+					org.Email = orgEmail
+				}
+				if orgDesc, ok := orgData["description"].(string); ok {
+					org.Description = orgDesc
+				}
+				if orgURL, ok := orgData["url"].(string); ok {
+					org.URL = orgURL
+				}
+			}
+		}
+
+		return author
+	}
+
+	return nil
+}
+
+// stripPatchVersion strips the patch version from a tools version string
+// e.g., "5.10.0" -> "5.10", "6.0.0" -> "6.0"
+func stripPatchVersion(version string) string {
+	version = strings.TrimSpace(version)
+	parts := strings.Split(version, ".")
+	if len(parts) >= 2 {
+		return fmt.Sprintf("%s.%s", parts[0], parts[1])
+	}
+	return version
+}

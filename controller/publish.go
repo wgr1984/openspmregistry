@@ -1,6 +1,7 @@
 package controller
 
 import (
+	"OpenSPMRegistry/mimetypes"
 	"OpenSPMRegistry/models"
 	"OpenSPMRegistry/utils"
 	"context"
@@ -86,6 +87,19 @@ func (c *Controller) PublishAction(w http.ResponseWriter, r *http.Request) {
 	// currently we only support synchronous publishing
 	// https://github.com/swiftlang/swift-package-manager/blob/main/Documentation/PackageRegistry/Registry.md#4631-synchronous-publication
 	if packageElement != nil {
+		// Check if Package.json is required and validate its presence
+		// Note: Package.json is extracted from the source archive zip during ExtractManifestFiles
+		// (called in storeElements), so it should exist here if it was in the archive
+		if c.config.PackageCollections.RequirePackageJson {
+			packageJsonElement := models.NewUploadElement(scope, packageName, version, mimetypes.ApplicationJson, models.PackageManifestJson)
+			if !c.repo.Exists(packageJsonElement) {
+				writeErrorWithStatusCode("upload failed: Package.json is required but not found in archive", w, http.StatusUnprocessableEntity)
+				// Clean up the uploaded archive
+				_ = c.repo.Remove(packageElement)
+				return
+			}
+		}
+
 		location, err := url.JoinPath(
 			utils.BaseUrl(c.config),
 			scope,

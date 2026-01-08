@@ -51,6 +51,9 @@ type OsAdapter interface {
 	// for the operating system. This is unlike [io/fs.WalkDir], which always
 	// uses slash separated paths.
 	WalkDir(root string, fn fs.WalkDirFunc) error
+
+	// ReadDir reads the named directory and returns all its directory entries sorted by filename.
+	ReadDir(name string) ([]fs.DirEntry, error)
 }
 
 // osAdapterDefault is the default implementation of the OsAdapter interface
@@ -75,4 +78,8 @@ func (*osAdapterDefault) Create(name string) (*os.File, error) {
 
 func (*osAdapterDefault) WalkDir(root string, fn fs.WalkDirFunc) error {
 	return filepath.WalkDir(root, fn)
+}
+
+func (*osAdapterDefault) ReadDir(name string) ([]fs.DirEntry, error) {
+	return os.ReadDir(name)
 }

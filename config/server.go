@@ -5,13 +5,14 @@ type ServerRoot struct {
 }
 
 type ServerConfig struct {
-	Hostname   string        `yaml:"hostname"`
-	Port       int           `yaml:"port"`
-	Certs      Certs         `yaml:"certs"`
-	Repo       Repo          `yaml:"repo"`
-	Publish    PublishConfig `yaml:"publish"`
-	Auth       AuthConfig    `yaml:"auth"`
-	TlsEnabled bool          `yaml:"tlsEnabled"`
+	Hostname           string                   `yaml:"hostname"`
+	Port               int                      `yaml:"port"`
+	Certs              Certs                    `yaml:"certs"`
+	Repo               Repo                     `yaml:"repo"`
+	Publish            PublishConfig            `yaml:"publish"`
+	Auth               AuthConfig               `yaml:"auth"`
+	TlsEnabled         bool                     `yaml:"tlsEnabled"`
+	PackageCollections PackageCollectionsConfig `yaml:"packageCollections"`
 }
 
 type Certs struct {
@@ -42,4 +43,9 @@ type AuthConfig struct {
 type User struct {
 	Username string `yaml:"username"`
 	Password string `yaml:"password"`
+}
+
+type PackageCollectionsConfig struct {
+	Enabled            bool `yaml:"enabled"`
+	RequirePackageJson bool `yaml:"requirePackageJson"`
 }

@@ -22,7 +22,30 @@ func ExtractPackageSwiftFiles(element *models.UploadElement, fileLocation string
 			filename := file.FileInfo().Name()
 			ext := filepath.Ext(filename)
 
+			// Extract Package.swift files
 			if strings.HasPrefix(filename, "Package") && ext == ".swift" {
+				readerCloser, err := file.Open()
+				if err != nil {
+					if e := ensureReaderClosed(r); e != nil {
+						return e
+					}
+					return err
+				}
+
+				if errReader := packageSwiftReader(filename, readerCloser); errReader != nil {
+					if e := ensureReaderClosed(readerCloser, r); e != nil {
+						return e
+					}
+					return errReader
+				}
+
+				if e := ensureReaderClosed(readerCloser); e != nil {
+					return e
+				}
+			}
+
+			// Extract Package.json file
+			if filename == "Package.json" {
 				readerCloser, err := file.Open()
 				if err != nil {
 					if e := ensureReaderClosed(r); e != nil {

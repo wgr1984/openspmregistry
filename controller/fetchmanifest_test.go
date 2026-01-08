@@ -534,7 +534,7 @@ func (m *mockRepo) Checksum(element *models.UploadElement) (string, error) {
 	return "", nil
 }
 
-func (m *mockRepo) FetchMetadata(scope string, name string, version string) (map[string]interface{}, error) {
+func (m *mockRepo) LoadMetadata(scope string, name string, version string) (map[string]interface{}, error) {
 	return nil, nil
 }
 
@@ -548,6 +548,22 @@ func (m *mockRepo) Lookup(url string) []string {
 
 func (m *mockRepo) Remove(element *models.UploadElement) error {
 	return nil
+}
+
+func (m *mockRepo) ListScopes() ([]string, error) {
+	return nil, nil
+}
+
+func (m *mockRepo) ListInScope(scope string) ([]models.ListElement, error) {
+	return nil, nil
+}
+
+func (m *mockRepo) ListAll() ([]models.ListElement, error) {
+	return nil, nil
+}
+
+func (m *mockRepo) LoadPackageJson(scope string, name string, version string) (map[string]interface{}, error) {
+	return nil, nil
 }
 
 // mockTimeProvider is a mock implementation of the time provider

@@ -132,7 +132,7 @@ func (f *FileRepo) PublishDate(element *models.UploadElement) (time.Time, error)
 	return stat.ModTime(), nil
 }
 
-func (f *FileRepo) FetchMetadata(scope string, name string, version string) (map[string]interface{}, error) {
+func (f *FileRepo) LoadMetadata(scope string, name string, version string) (map[string]interface{}, error) {
 	pathFolder := filepath.Join(f.path, scope, name, version)
 	_, err := f.osModule.Stat(pathFolder)
 	if errors.Is(err, os.ErrNotExist) {
@@ -275,7 +275,7 @@ func (f *FileRepo) Lookup(url string) []string {
 		version := filepath.Base(filepath.Dir(path))
 		scope := filepath.Base(filepath.Dir(filepath.Dir(filepath.Dir(path))))
 		packageName := filepath.Base(filepath.Dir(filepath.Dir(path)))
-		metadata, err := f.FetchMetadata(scope, packageName, version)
+		metadata, err := f.LoadMetadata(scope, packageName, version)
 		if err != nil {
 			return nil
 		}
@@ -355,4 +355,95 @@ func closeFile(name string, file *os.File) error {
 	}
 	slog.Info("Filerepo closed", "filename", name)
 	return nil
+}
+
+// ListScopes returns all available scopes in the registry
+func (f *FileRepo) ListScopes() ([]string, error) {
+	var scopes []string
+	entries, err := f.osModule.ReadDir(f.path)
+	if err != nil {
+		return nil, err
+	}
+
+	for _, entry := range entries {
+		if entry.IsDir() {
+			scopes = append(scopes, entry.Name())
+		}
+	}
+
+	return scopes, nil
+}
+
+// ListInScope returns all packages in a specific scope
+func (f *FileRepo) ListInScope(scope string) ([]models.ListElement, error) {
+	scopePath := filepath.Join(f.path, scope)
+	_, err := f.osModule.Stat(scopePath)
+	if errors.Is(err, os.ErrNotExist) {
+		return nil, err
+	}
+	if err != nil {
+		return nil, err
+	}
+
+	entries, err := f.osModule.ReadDir(scopePath)
+	if err != nil {
+		return nil, err
+	}
+
+	var packages []models.ListElement
+	for _, entry := range entries {
+		if entry.IsDir() {
+			// Get any version to create a list element (we just need package names)
+			versions, err := f.List(scope, entry.Name())
+			if err == nil && len(versions) > 0 {
+				packages = append(packages, versions[0])
+			}
+		}
+	}
+
+	return packages, nil
+}
+
+// ListAll returns all packages across all scopes
+func (f *FileRepo) ListAll() ([]models.ListElement, error) {
+	scopes, err := f.ListScopes()
+	if err != nil {
+		return nil, err
+	}
+
+	var allPackages []models.ListElement
+	for _, scope := range scopes {
+		packages, err := f.ListInScope(scope)
+		if err != nil {
+			slog.Warn("Error listing packages in scope", "scope", scope, "error", err)
+			continue
+		}
+		allPackages = append(allPackages, packages...)
+	}
+
+	return allPackages, nil
+}
+
+// LoadPackageJson loads the Package.json file for a package version
+func (f *FileRepo) LoadPackageJson(scope string, name string, version string) (map[string]interface{}, error) {
+	element := models.NewUploadElement(scope, name, version, "application/json", models.PackageManifestJson)
+
+	if !f.Exists(element) {
+		return nil, errors.New(fmt.Sprintf("Package.json not found for %s.%s@%s", scope, name, version))
+	}
+
+	pathFile := filepath.Join(f.path, scope, name, version, element.FileName())
+	file, err := f.osModule.Open(pathFile)
+	if err != nil {
+		return nil, err
+	}
+	defer file.Close()
+
+	var packageJson map[string]interface{}
+	decoder := json.NewDecoder(file)
+	if err := decoder.Decode(&packageJson); err != nil {
+		return nil, fmt.Errorf("failed to parse Package.json: %w", err)
+	}
+
+	return packageJson, nil
 }

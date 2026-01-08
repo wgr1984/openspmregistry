@@ -403,7 +403,7 @@ func (m *MockInfoRepo) Exists(element *models.UploadElement) bool {
 	return m.exists
 }
 
-func (m *MockInfoRepo) FetchMetadata(scope, packageName, version string) (map[string]interface{}, error) {
+func (m *MockInfoRepo) LoadMetadata(scope, packageName, version string) (map[string]interface{}, error) {
 	return m.metadata, m.metadataErr
 }
 

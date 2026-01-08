@@ -11,3 +11,6 @@ server:
     maxSize: 204800
   auth:
     enabled: false
+  packageCollections:
+    enabled: true
+    requirePackageJson: false

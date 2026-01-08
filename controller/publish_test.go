@@ -378,7 +378,7 @@ func (m *mockPublishRepo) Checksum(element *models.UploadElement) (string, error
 	return "", nil
 }
 
-func (m *mockPublishRepo) FetchMetadata(scope string, name string, version string) (map[string]interface{}, error) {
+func (m *mockPublishRepo) LoadMetadata(scope string, name string, version string) (map[string]interface{}, error) {
 	return nil, nil
 }
 
@@ -396,6 +396,22 @@ func (m *mockPublishRepo) Lookup(url string) []string {
 
 func (m *mockPublishRepo) Remove(element *models.UploadElement) error {
 	return nil
+}
+
+func (m *mockPublishRepo) ListScopes() ([]string, error) {
+	return nil, nil
+}
+
+func (m *mockPublishRepo) ListInScope(scope string) ([]models.ListElement, error) {
+	return nil, nil
+}
+
+func (m *mockPublishRepo) ListAll() ([]models.ListElement, error) {
+	return nil, nil
+}
+
+func (m *mockPublishRepo) LoadPackageJson(scope string, name string, version string) (map[string]interface{}, error) {
+	return nil, nil
 }
 
 func (m *mockPublishRepo) List(scope, packageName string) ([]models.ListElement, error) {
