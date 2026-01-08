@@ -53,8 +53,10 @@ func GenerateCollection(r Repo, scope string, packages []models.ListElement) (*m
 	collection := &models.PackageCollection{
 		Name:          collectionName,
 		Overview:      collectionOverview,
+		Keywords:      []string{},
 		Packages:      collectionPackages,
 		FormatVersion: "1.0",
+		Revision:      1,
 		GeneratedAt:   time.Now().UTC().Format(time.RFC3339),
 		GeneratedBy: models.GeneratedBy{
 			Name: "OpenSPMRegistry",
@@ -77,7 +79,7 @@ func buildCollectionPackage(r Repo, scope string, name string, versionElements [
 		packageVersions = append(packageVersions, *pkgVersion)
 	}
 
-	// Get metadata for summary and license
+	// Get metadata for summary, license, and repository URL
 	var summary string
 	var license *models.License
 	var readmeURL string
@@ -99,8 +101,9 @@ func buildCollectionPackage(r Repo, scope string, name string, versionElements [
 	}
 
 	collectionPackage := &models.CollectionPackage{
-		URL:       fmt.Sprintf("%s.%s", scope, name), // Use scope.name as URL
+		URL:       fmt.Sprintf("%s.%s", scope, name),
 		Summary:   summary,
+		Keywords:  []string{},
 		Versions:  packageVersions,
 		ReadmeURL: readmeURL,
 		License:   license,
@@ -144,7 +147,11 @@ func buildPackageVersion(r Repo, scope string, name string, version string) (*mo
 	if metadata != nil {
 		author = extractAuthor(metadata)
 		if licenseURLStr, ok := metadata["licenseURL"].(string); ok {
-			license = &models.License{URL: licenseURLStr}
+			licenseName := "License"
+			if name, ok := metadata["licenseName"].(string); ok {
+				licenseName = name
+			}
+			license = &models.License{Name: licenseName, URL: licenseURLStr}
 		}
 	}
 
@@ -189,10 +196,14 @@ func convertPackageJsonToManifest(packageJson map[string]interface{}, toolsVersi
 				}
 
 				if targetName, ok := targetMap["name"].(string); ok {
-					manifest.Targets = append(manifest.Targets, models.Target{
-						Name:       targetName,
-						ModuleName: targetName, // Use same name as module
-					})
+					target := models.Target{
+						Name: targetName,
+					}
+					// Only set moduleName if it's different from name (optional in spec)
+					if moduleName, ok := targetMap["moduleName"].(string); ok && moduleName != targetName {
+						target.ModuleName = moduleName
+					}
+					manifest.Targets = append(manifest.Targets, target)
 				}
 			}
 		}
@@ -219,10 +230,13 @@ func convertPackageJsonToManifest(packageJson map[string]interface{}, toolsVersi
 					}
 				}
 
-				// Extract product type (library: [automatic], library: [dynamic], etc.)
+				// Extract product type (library: [automatic], library: [dynamic], executable, etc.)
 				if productType, ok := productMap["type"].(map[string]interface{}); ok {
 					for typeKey, typeValue := range productType {
-						if typeArr, ok := typeValue.([]interface{}); ok {
+						if typeValue == nil {
+							// Handle null values (common for executable: null)
+							product.Type[typeKey] = []string{}
+						} else if typeArr, ok := typeValue.([]interface{}); ok {
 							var typeStrs []string
 							for _, tv := range typeArr {
 								if tvStr, ok := tv.(string); ok {
@@ -266,41 +280,8 @@ func extractAuthor(metadata map[string]interface{}) *models.Author {
 
 		if name, ok := authorData["name"].(string); ok {
 			author.Name = name
-		} else {
-			return nil // Name is required
+			return author
 		}
-
-		if email, ok := authorData["email"].(string); ok {
-			author.Email = email
-		}
-
-		if description, ok := authorData["description"].(string); ok {
-			author.Description = description
-		}
-
-		if url, ok := authorData["url"].(string); ok {
-			author.URL = url
-		}
-
-		if orgData, ok := authorData["organization"].(map[string]interface{}); ok {
-			org := &models.Organization{}
-			if orgName, ok := orgData["name"].(string); ok {
-				org.Name = orgName
-				author.Organization = org
-
-				if orgEmail, ok := orgData["email"].(string); ok {
-					org.Email = orgEmail
-				}
-				if orgDesc, ok := orgData["description"].(string); ok {
-					org.Description = orgDesc
-				}
-				if orgURL, ok := orgData["url"].(string); ok {
-					org.URL = orgURL
-				}
-			}
-		}
-
-		return author
 	}
 
 	return nil

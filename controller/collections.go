@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"log/slog"
 	"net/http"
+	"strconv"
 )
 
 // GlobalCollectionAction handles GET /collection requests for the global collection
@@ -35,14 +36,21 @@ func (c *Controller) GlobalCollectionAction(w http.ResponseWriter, r *http.Reque
 	}
 
 	// Set headers
+	data, err := json.Marshal(collection)
+	if err != nil {
+		slog.Error("Error marshaling collection JSON", "error", err)
+		writeErrorWithStatusCode("Error generating collection", w, http.StatusInternalServerError)
+		return
+	}
+
 	header := w.Header()
-	header.Set("Content-Version", "1")
 	header.Set("Content-Type", mimetypes.ApplicationJson)
+	header.Set("Content-Length", strconv.Itoa(len(data)))
 
 	// Return collection as JSON
 	w.WriteHeader(http.StatusOK)
-	if err := json.NewEncoder(w).Encode(collection); err != nil {
-		slog.Error("Error encoding collection JSON", "error", err)
+	if _, err := w.Write(data); err != nil {
+		slog.Error("Error writing collection JSON", "error", err)
 	}
 }
 
@@ -85,13 +93,20 @@ func (c *Controller) ScopeCollectionAction(w http.ResponseWriter, r *http.Reques
 	}
 
 	// Set headers
+	data, err := json.Marshal(collection)
+	if err != nil {
+		slog.Error("Error marshaling collection JSON", "error", err)
+		writeErrorWithStatusCode("Error generating collection", w, http.StatusInternalServerError)
+		return
+	}
+
 	header := w.Header()
-	header.Set("Content-Version", "1")
 	header.Set("Content-Type", mimetypes.ApplicationJson)
+	header.Set("Content-Length", strconv.Itoa(len(data)))
 
 	// Return collection as JSON
 	w.WriteHeader(http.StatusOK)
-	if err := json.NewEncoder(w).Encode(collection); err != nil {
-		slog.Error("Error encoding collection JSON", "error", err)
+	if _, err := w.Write(data); err != nil {
+		slog.Error("Error writing collection JSON", "error", err)
 	}
 }

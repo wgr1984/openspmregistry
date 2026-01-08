@@ -15,7 +15,7 @@ type PackageCollection struct {
 
 // GeneratedBy describes who generated the collection
 type GeneratedBy struct {
-	Name string `json:"name"`
+	Name string `json:"name,omitempty"`
 }
 
 // CollectionPackage represents a package within a collection
@@ -30,15 +30,15 @@ type CollectionPackage struct {
 
 // PackageVersion represents a specific version of a package
 type PackageVersion struct {
-	Version               string                       `json:"version"`
-	Summary               string                       `json:"summary,omitempty"`
-	Manifests             map[string]PackageManifest   `json:"manifests"`
-	DefaultToolsVersion   string                       `json:"defaultToolsVersion"`
-	VerifiedCompatibility []VerifiedCompatibility      `json:"verifiedCompatibility,omitempty"`
-	License               *License                     `json:"license,omitempty"`
-	Author                *Author                      `json:"author,omitempty"`
-	Signer                *Signer                      `json:"signer,omitempty"`
-	CreatedAt             string                       `json:"createdAt,omitempty"`
+	Version               string                     `json:"version"`
+	Summary               string                     `json:"summary,omitempty"`
+	Manifests             map[string]PackageManifest `json:"manifests"`
+	DefaultToolsVersion   string                     `json:"defaultToolsVersion"`
+	VerifiedCompatibility []VerifiedCompatibility    `json:"verifiedCompatibility,omitempty"`
+	License               *License                   `json:"license,omitempty"`
+	Author                *Author                    `json:"author,omitempty"`
+	Signer                *Signer                    `json:"signer,omitempty"`
+	CreatedAt             string                     `json:"createdAt,omitempty"`
 }
 
 // PackageManifest represents the manifest details for a specific tools version
@@ -59,7 +59,7 @@ type Target struct {
 // Product represents a product in the manifest
 type Product struct {
 	Name    string              `json:"name"`
-	Type    map[string][]string `json:"type"`
+	Type    map[string][]string `json:"type,omitempty"`
 	Targets []string            `json:"targets"`
 }
 
@@ -80,27 +80,15 @@ type Platform struct {
 	Name string `json:"name"`
 }
 
+// Author represents author information
+type Author struct {
+	Name string `json:"name"`
+}
+
 // License represents license information
 type License struct {
 	Name string `json:"name,omitempty"`
-	URL  string `json:"url,omitempty"`
-}
-
-// Author represents author information
-type Author struct {
-	Name         string        `json:"name"`
-	Email        string        `json:"email,omitempty"`
-	Description  string        `json:"description,omitempty"`
-	Organization *Organization `json:"organization,omitempty"`
-	URL          string        `json:"url,omitempty"`
-}
-
-// Organization represents an organization
-type Organization struct {
-	Name        string `json:"name"`
-	Email       string `json:"email,omitempty"`
-	Description string `json:"description,omitempty"`
-	URL         string `json:"url,omitempty"`
+	URL  string `json:"url"`
 }
 
 // Signer represents package signing information
@@ -108,4 +96,3 @@ type Signer struct {
 	CommonName   string `json:"commonName,omitempty"`
 	Organization string `json:"organization,omitempty"`
 }
-

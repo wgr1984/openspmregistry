@@ -44,8 +44,7 @@ func TestPackageCollectionJSONMarshaling(t *testing.T) {
 							},
 						},
 						Author: &Author{
-							Name:  "Alamofire Software Foundation",
-							Email: "info@alamofire.org",
+							Name: "Alamofire Software Foundation",
 						},
 						CreatedAt: "2024-01-06T04:00:00Z",
 					},

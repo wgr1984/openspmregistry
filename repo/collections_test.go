@@ -28,11 +28,7 @@ func TestExtractAuthor(t *testing.T) {
 	// Test with valid author data
 	metadata := map[string]interface{}{
 		"author": map[string]interface{}{
-			"name":  "John Doe",
-			"email": "john@example.com",
-			"organization": map[string]interface{}{
-				"name": "Example Org",
-			},
+			"name": "John Doe",
 		},
 	}
 
@@ -43,18 +39,6 @@ func TestExtractAuthor(t *testing.T) {
 
 	if author.Name != "John Doe" {
 		t.Errorf("Expected name 'John Doe', got '%s'", author.Name)
-	}
-
-	if author.Email != "john@example.com" {
-		t.Errorf("Expected email 'john@example.com', got '%s'", author.Email)
-	}
-
-	if author.Organization == nil {
-		t.Fatal("Expected organization, got nil")
-	}
-
-	if author.Organization.Name != "Example Org" {
-		t.Errorf("Expected organization name 'Example Org', got '%s'", author.Organization.Name)
 	}
 
 	// Test with missing author
@@ -132,8 +116,8 @@ func TestConvertPackageJsonToManifest(t *testing.T) {
 		if manifest.Targets[0].Name != "Alamofire" {
 			t.Errorf("Expected target name 'Alamofire', got '%s'", manifest.Targets[0].Name)
 		}
-		if manifest.Targets[0].ModuleName != "Alamofire" {
-			t.Errorf("Expected moduleName 'Alamofire', got '%s'", manifest.Targets[0].ModuleName)
+		if manifest.Targets[0].ModuleName != "" {
+			t.Errorf("Expected empty moduleName (omitted when same as name), got '%s'", manifest.Targets[0].ModuleName)
 		}
 	}
 
@@ -190,18 +174,5 @@ func TestConvertPackageJsonToManifestEmpty(t *testing.T) {
 
 	if len(manifest.MinimumPlatformVersions) != 0 {
 		t.Errorf("Expected 0 platforms, got %d", len(manifest.MinimumPlatformVersions))
-	}
-}
-
-func TestBuildCollectionPackageURL(t *testing.T) {
-	// Test that package URL is in scope.name format
-	scope := "ext"
-	name := "Alamofire"
-
-	expected := "ext.Alamofire"
-	result := scope + "." + name
-
-	if result != expected {
-		t.Errorf("Expected URL '%s', got '%s'", expected, result)
 	}
 }
