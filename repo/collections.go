@@ -41,6 +41,11 @@ func GenerateCollection(r Repo, scope string, packages []models.ListElement) (*m
 		}
 	}
 
+	// sort collection packages by (lowercase) URL in ascending order
+	slices.SortFunc(collectionPackages, func(a models.CollectionPackage, b models.CollectionPackage) int {
+		return strings.Compare(strings.ToLower(a.URL), strings.ToLower(b.URL))
+	})
+
 	// Build collection metadata
 	collectionName := "All Packages"
 	collectionOverview := "All packages in registry"
