@@ -207,8 +207,7 @@ func cleanupStoredElements(c *Controller, storedElements []*models.UploadElement
 	alternatives, err := c.repo.GetAlternativeManifests(manifestElement)
 	if err == nil {
 		for _, alt := range alternatives {
-			altCopy := alt
-			if err := c.repo.Remove(&altCopy); err != nil {
+			if err := c.repo.Remove(&alt); err != nil {
 				slog.Warn("Failed to cleanup manifest file during rollback", "manifest", alt.FileName(), "error", err)
 			}
 		}
