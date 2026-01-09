@@ -171,6 +171,84 @@ func Test_ExtractPackageSwiftFiles_CloseError_OnFileInsideZipFile_ReturnsError(t
 	// to be implemented
 }
 
+func Test_ExtractPackageSwiftFiles_PackageJson_RootOnly(t *testing.T) {
+	defer teardown(t)
+
+	element := models.NewUploadElement(
+		"testScope",
+		"testName",
+		"1.0.0",
+		mimetypes.ApplicationZip,
+		models.PackageManifestJson,
+	)
+
+	path := filepath.Join("/tmp/openspmsreg_tests", element.Scope, element.Name, element.Version, element.FileName())
+	os.MkdirAll(filepath.Dir(path), os.ModePerm)
+	file, err := os.Create(path)
+	if err != nil {
+		t.Fatalf("failed to create file: %v", err)
+	}
+	defer file.Close()
+
+	zipWriter := zip.NewWriter(file)
+
+	rootManifest, err := zipWriter.Create("Package.json")
+	if err != nil {
+		t.Fatalf("failed to create root Package.json entry: %v", err)
+	}
+	if _, err := rootManifest.Write([]byte("root-manifest")); err != nil {
+		t.Fatalf("failed to write root Package.json: %v", err)
+	}
+
+	nestedManifest, err := zipWriter.Create("Tests/Fixtures/Package.json")
+	if err != nil {
+		t.Fatalf("failed to create nested Package.json entry: %v", err)
+	}
+	if _, err := nestedManifest.Write([]byte("nested-manifest")); err != nil {
+		t.Fatalf("failed to write nested Package.json: %v", err)
+	}
+
+	nestedSwift, err := zipWriter.Create("Tests/Package.swift")
+	if err != nil {
+		t.Fatalf("failed to create nested Package.swift entry: %v", err)
+	}
+	if _, err := nestedSwift.Write([]byte("nested swift")); err != nil {
+		t.Fatalf("failed to write nested Package.swift: %v", err)
+	}
+
+	err = zipWriter.Close()
+	if err != nil {
+		t.Fatalf("failed to close zip writer: %v", err)
+	}
+
+	var extractedNames []string
+	var extractedContents []string
+	err = ExtractPackageSwiftFiles(element, path, func(name string, r io.ReadCloser) error {
+		data, err := io.ReadAll(r)
+		if err != nil {
+			return err
+		}
+		extractedNames = append(extractedNames, name)
+		extractedContents = append(extractedContents, string(data))
+		return nil
+	})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if len(extractedNames) != 1 {
+		t.Fatalf("expected 1 manifest extracted, got %d", len(extractedNames))
+	}
+
+	if extractedNames[0] != "Package.json" {
+		t.Errorf("expected root Package.json, got %s", extractedNames[0])
+	}
+
+	if extractedContents[0] != "root-manifest" {
+		t.Errorf("expected root manifest content, got %s", extractedContents[0])
+	}
+}
+
 func Test_EnsureReaderClosed_CloseFail_ReturnsReaderError(t *testing.T) {
 	closer := &utils.ErrorReadCloser{}
 
