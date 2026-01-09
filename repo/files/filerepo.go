@@ -94,7 +94,7 @@ func (f *FileRepo) List(scope string, name string) ([]models.ListElement, error)
 
 func (f *FileRepo) EncodeBase64(element *models.UploadElement) (string, error) {
 	if !f.Exists(element) {
-		return "", errors.New(fmt.Sprintf("file not exists: %s", element.FileName()))
+		return "", fmt.Errorf("file not exists: %s", element.FileName())
 	}
 
 	reader, err := f.GetReader(element)
@@ -136,7 +136,7 @@ func (f *FileRepo) LoadMetadata(scope string, name string, version string) (map[
 	pathFolder := filepath.Join(f.path, scope, name, version)
 	_, err := f.osModule.Stat(pathFolder)
 	if errors.Is(err, os.ErrNotExist) {
-		return nil, errors.New(fmt.Sprintf("path does not exists: %s", pathFolder))
+		return nil, fmt.Errorf("path does not exists: %s", pathFolder)
 	}
 	if err != nil {
 		return nil, err
@@ -144,7 +144,7 @@ func (f *FileRepo) LoadMetadata(scope string, name string, version string) (map[
 
 	metadata := models.NewUploadElement(scope, name, version, mimetypes.ApplicationJson, models.Metadata)
 	if !f.Exists(metadata) {
-		return nil, errors.New(fmt.Sprintf("file not exists: %s", metadata.FileName()))
+		return nil, fmt.Errorf("file not exists: %s", metadata.FileName())
 	}
 
 	reader, err := f.GetReader(metadata)
@@ -176,7 +176,7 @@ func (f *FileRepo) LoadMetadata(scope string, name string, version string) (map[
 
 func (f *FileRepo) Checksum(element *models.UploadElement) (string, error) {
 	if !f.Exists(element) {
-		return "", errors.New(fmt.Sprintf("file not exists: %s", element.FileName()))
+		return "", fmt.Errorf("file not exists: %s", element.FileName())
 	}
 
 	pathFile := filepath.Join(f.path, element.Scope, element.Name, element.Version, element.FileName())
@@ -201,7 +201,7 @@ func (f *FileRepo) GetAlternativeManifests(element *models.UploadElement) ([]mod
 	pathFolder := filepath.Join(f.path, element.Scope, element.Name, element.Version)
 	_, err := f.osModule.Stat(pathFolder)
 	if errors.Is(err, os.ErrNotExist) {
-		return nil, errors.New(fmt.Sprintf("path does not exists: %s", pathFolder))
+		return nil, fmt.Errorf("path does not exists: %s", pathFolder)
 	}
 	if err != nil {
 		return nil, err
@@ -238,7 +238,7 @@ func (f *FileRepo) GetAlternativeManifests(element *models.UploadElement) ([]mod
 
 func (f *FileRepo) GetSwiftToolVersion(manifest *models.UploadElement) (string, error) {
 	if !f.Exists(manifest) {
-		return "", errors.New(fmt.Sprintf("file not exists: %s", manifest.FileName()))
+		return "", fmt.Errorf("file not exists: %s", manifest.FileName())
 	}
 
 	pathFile := filepath.Join(f.path, manifest.Scope, manifest.Name, manifest.Version, manifest.FileName())
@@ -306,7 +306,7 @@ func (f *FileRepo) Remove(element *models.UploadElement) error {
 	if f.Exists(element) {
 		return os.Remove(path)
 	}
-	return errors.New(fmt.Sprintf("file not exists: %s", element.FileName()))
+	return fmt.Errorf("file not exists: %s", element.FileName())
 }
 
 func writePackageSwiftFiles(pathFolder string) func(name string, r io.ReadCloser) error {
@@ -429,7 +429,7 @@ func (f *FileRepo) LoadPackageJson(scope string, name string, version string) (m
 	element := models.NewUploadElement(scope, name, version, "application/json", models.PackageManifestJson)
 
 	if !f.Exists(element) {
-		return nil, errors.New(fmt.Sprintf("Package.json not found for %s.%s@%s", scope, name, version))
+		return nil, fmt.Errorf("Package.json not found for %s.%s@%s", scope, name, version)
 	}
 
 	pathFile := filepath.Join(f.path, scope, name, version, element.FileName())
