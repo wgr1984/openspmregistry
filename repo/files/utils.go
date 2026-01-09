@@ -9,7 +9,7 @@ import (
 	"strings"
 )
 
-func ExtractPackageSwiftFiles(element *models.UploadElement, fileLocation string, packageSwiftReader func(name string, r io.ReadCloser) error) error {
+func ExtractPackageSwiftFiles(element *models.UploadElement, fileLocation string, fileExtractor func(name string, r io.ReadCloser) error) error {
 	// extract Package Swifts
 	if element.MimeType == mimetypes.ApplicationZip {
 		r, err := zip.OpenReader(fileLocation)
@@ -32,7 +32,7 @@ func ExtractPackageSwiftFiles(element *models.UploadElement, fileLocation string
 					return err
 				}
 
-				if errReader := packageSwiftReader(filename, readerCloser); errReader != nil {
+				if errReader := fileExtractor(filename, readerCloser); errReader != nil {
 					if e := ensureReaderClosed(readerCloser, r); e != nil {
 						return e
 					}
@@ -54,7 +54,7 @@ func ExtractPackageSwiftFiles(element *models.UploadElement, fileLocation string
 					return err
 				}
 
-				if errReader := packageSwiftReader(filename, readerCloser); errReader != nil {
+				if errReader := fileExtractor(filename, readerCloser); errReader != nil {
 					if e := ensureReaderClosed(readerCloser, r); e != nil {
 						return e
 					}
