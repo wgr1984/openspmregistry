@@ -148,8 +148,8 @@ func buildPackageVersion(r Repo, scope string, name string, version string) (*mo
 		author = extractAuthor(metadata)
 		if licenseURLStr, ok := metadata["licenseURL"].(string); ok {
 			licenseName := "License"
-			if name, ok := metadata["licenseName"].(string); ok {
-				licenseName = name
+			if licName, ok := metadata["licenseName"].(string); ok {
+				licenseName = licName
 			}
 			license = &models.License{Name: licenseName, URL: licenseURLStr}
 		}
