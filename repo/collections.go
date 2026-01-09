@@ -22,7 +22,7 @@ func GenerateCollection(r Repo, scope string, packages []models.ListElement) (*m
 	}
 
 	// Build collection packages
-	var collectionPackages []models.CollectionPackage
+	collectionPackages := make([]models.CollectionPackage, 0)
 	for pkgScope, scopedPackages := range packagesByScope {
 		for pkgName, versions := range scopedPackages {
 			collPkg, err := buildCollectionPackage(r, pkgScope, pkgName, versions)
