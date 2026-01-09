@@ -202,7 +202,7 @@ func buildPackageVersion(r Repo, scope string, name string, version string) (*mo
 }
 
 // convertPackageJsonToManifest converts Package.json (swift package dump-package output) to SE-0291 manifest format
-func convertPackageJsonToManifest(packageJson map[string]interface{}, toolsVersion string) models.PackageManifest {
+func convertPackageJsonToManifest(packageJson map[string]any, toolsVersion string) models.PackageManifest {
 	manifest := models.PackageManifest{
 		ToolsVersion: toolsVersion,
 		Targets:      []models.Target{},
@@ -215,9 +215,9 @@ func convertPackageJsonToManifest(packageJson map[string]interface{}, toolsVersi
 	}
 
 	// Extract targets (only regular targets, skip test targets)
-	if targets, ok := packageJson["targets"].([]interface{}); ok {
+	if targets, ok := packageJson["targets"].([]any); ok {
 		for _, t := range targets {
-			if targetMap, ok := t.(map[string]interface{}); ok {
+			if targetMap, ok := t.(map[string]any); ok {
 				// Skip test targets
 				if targetType, ok := targetMap["type"].(string); ok && targetType == "test" {
 					continue
@@ -238,9 +238,9 @@ func convertPackageJsonToManifest(packageJson map[string]interface{}, toolsVersi
 	}
 
 	// Extract products
-	if products, ok := packageJson["products"].([]interface{}); ok {
+	if products, ok := packageJson["products"].([]any); ok {
 		for _, p := range products {
-			if productMap, ok := p.(map[string]interface{}); ok {
+			if productMap, ok := p.(map[string]any); ok {
 				product := models.Product{
 					Type: make(map[string][]string),
 				}
@@ -250,7 +250,7 @@ func convertPackageJsonToManifest(packageJson map[string]interface{}, toolsVersi
 				}
 
 				// Extract targets
-				if targetsArr, ok := productMap["targets"].([]interface{}); ok {
+				if targetsArr, ok := productMap["targets"].([]any); ok {
 					for _, t := range targetsArr {
 						if targetStr, ok := t.(string); ok {
 							product.Targets = append(product.Targets, targetStr)
@@ -259,12 +259,12 @@ func convertPackageJsonToManifest(packageJson map[string]interface{}, toolsVersi
 				}
 
 				// Extract product type (library: [automatic], library: [dynamic], executable, etc.)
-				if productType, ok := productMap["type"].(map[string]interface{}); ok {
+				if productType, ok := productMap["type"].(map[string]any); ok {
 					for typeKey, typeValue := range productType {
 						if typeValue == nil {
 							// Handle null values (common for executable: null)
 							product.Type[typeKey] = []string{}
-						} else if typeArr, ok := typeValue.([]interface{}); ok {
+						} else if typeArr, ok := typeValue.([]any); ok {
 							var typeStrs []string
 							for _, tv := range typeArr {
 								if tvStr, ok := tv.(string); ok {
@@ -282,9 +282,9 @@ func convertPackageJsonToManifest(packageJson map[string]interface{}, toolsVersi
 	}
 
 	// Extract platforms
-	if platforms, ok := packageJson["platforms"].([]interface{}); ok {
+	if platforms, ok := packageJson["platforms"].([]any); ok {
 		for _, p := range platforms {
-			if platformMap, ok := p.(map[string]interface{}); ok {
+			if platformMap, ok := p.(map[string]any); ok {
 				platformName, hasName := platformMap["platformName"].(string)
 				platformVersion, hasVersion := platformMap["version"].(string)
 
@@ -302,8 +302,8 @@ func convertPackageJsonToManifest(packageJson map[string]interface{}, toolsVersi
 }
 
 // extractAuthor extracts author information from metadata
-func extractAuthor(metadata map[string]interface{}) *models.Author {
-	if authorData, ok := metadata["author"].(map[string]interface{}); ok {
+func extractAuthor(metadata map[string]any) *models.Author {
+	if authorData, ok := metadata["author"].(map[string]any); ok {
 		author := &models.Author{}
 
 		if name, ok := authorData["name"].(string); ok {

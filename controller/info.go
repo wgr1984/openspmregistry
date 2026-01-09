@@ -46,7 +46,7 @@ func (c *Controller) InfoAction(w http.ResponseWriter, r *http.Request) {
 		slog.Debug("Error fetching metadata:", "error", err)
 	}
 	if metadataResult == nil {
-		metadataResult = make(map[string]interface{})
+		metadataResult = make(map[string]any)
 	}
 
 	// encode signature
@@ -56,9 +56,9 @@ func (c *Controller) InfoAction(w http.ResponseWriter, r *http.Request) {
 		slog.Info("Signature not found:")
 	}
 
-	var signatureJson map[string]interface{}
+	var signatureJson map[string]any
 	if len(signatureSourceArchive) > 0 {
-		signatureJson = map[string]interface{}{
+		signatureJson = map[string]any{
 			"signatureBase64Encoded": signatureSourceArchive,
 			"signatureFormat":        "cms-1.0.0",
 		}
@@ -81,11 +81,11 @@ func (c *Controller) InfoAction(w http.ResponseWriter, r *http.Request) {
 		checksum = ""
 	}
 
-	result := map[string]interface{}{
+	result := map[string]any{
 		"id":      fmt.Sprintf("%s.%s", scope, packageName),
 		"version": version,
-		"resources": []interface{}{
-			map[string]interface{}{
+		"resources": []any{
+			map[string]any{
 				"name":     models.SourceArchive,
 				"type":     mimetypes.ApplicationZip,
 				"checksum": checksum,

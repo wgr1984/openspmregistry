@@ -26,8 +26,8 @@ func TestStripPatchVersion(t *testing.T) {
 
 func TestExtractAuthor(t *testing.T) {
 	// Test with valid author data
-	metadata := map[string]interface{}{
-		"author": map[string]interface{}{
+	metadata := map[string]any{
+		"author": map[string]any{
 			"name": "John Doe",
 		},
 	}
@@ -42,15 +42,15 @@ func TestExtractAuthor(t *testing.T) {
 	}
 
 	// Test with missing author
-	emptyMetadata := map[string]interface{}{}
+	emptyMetadata := map[string]any{}
 	author = extractAuthor(emptyMetadata)
 	if author != nil {
 		t.Errorf("Expected nil author, got %v", author)
 	}
 
 	// Test with author missing name (required field)
-	invalidMetadata := map[string]interface{}{
-		"author": map[string]interface{}{
+	invalidMetadata := map[string]any{
+		"author": map[string]any{
 			"email": "test@example.com",
 		},
 	}
@@ -62,33 +62,33 @@ func TestExtractAuthor(t *testing.T) {
 
 func TestConvertPackageJsonToManifest(t *testing.T) {
 	// Sample Package.json structure
-	packageJson := map[string]interface{}{
+	packageJson := map[string]any{
 		"name": "Alamofire",
-		"platforms": []interface{}{
-			map[string]interface{}{
+		"platforms": []any{
+			map[string]any{
 				"platformName": "macos",
 				"version":      "10.13",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"platformName": "ios",
 				"version":      "12.0",
 			},
 		},
-		"products": []interface{}{
-			map[string]interface{}{
+		"products": []any{
+			map[string]any{
 				"name":    "Alamofire",
-				"targets": []interface{}{"Alamofire"},
-				"type": map[string]interface{}{
-					"library": []interface{}{"automatic"},
+				"targets": []any{"Alamofire"},
+				"type": map[string]any{
+					"library": []any{"automatic"},
 				},
 			},
 		},
-		"targets": []interface{}{
-			map[string]interface{}{
+		"targets": []any{
+			map[string]any{
 				"name": "Alamofire",
 				"type": "regular",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name": "AlamofireTests",
 				"type": "test",
 			},
@@ -156,7 +156,7 @@ func TestConvertPackageJsonToManifest(t *testing.T) {
 
 func TestConvertPackageJsonToManifestEmpty(t *testing.T) {
 	// Test with empty/minimal Package.json
-	packageJson := map[string]interface{}{}
+	packageJson := map[string]any{}
 
 	manifest := convertPackageJsonToManifest(packageJson, "5.0")
 

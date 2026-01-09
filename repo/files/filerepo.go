@@ -132,7 +132,7 @@ func (f *FileRepo) PublishDate(element *models.UploadElement) (time.Time, error)
 	return stat.ModTime(), nil
 }
 
-func (f *FileRepo) LoadMetadata(scope string, name string, version string) (map[string]interface{}, error) {
+func (f *FileRepo) LoadMetadata(scope string, name string, version string) (map[string]any, error) {
 	pathFolder := filepath.Join(f.path, scope, name, version)
 	_, err := f.osModule.Stat(pathFolder)
 	if errors.Is(err, os.ErrNotExist) {
@@ -166,7 +166,7 @@ func (f *FileRepo) LoadMetadata(scope string, name string, version string) (map[
 		return nil, err2
 	}
 
-	var metadataResult map[string]interface{}
+	var metadataResult map[string]any
 	if err := json.Unmarshal(b, &metadataResult); err != nil {
 		return nil, err
 	}
@@ -280,7 +280,7 @@ func (f *FileRepo) Lookup(url string) []string {
 			return nil
 		}
 
-		if repositoryURLs, ok := metadata["repositoryURLs"].([]interface{}); ok {
+		if repositoryURLs, ok := metadata["repositoryURLs"].([]any); ok {
 			for _, repoURL := range repositoryURLs {
 				if repoURLStr, ok := repoURL.(string); ok && repoURLStr == url {
 					foundId := fmt.Sprintf("%s.%s", scope, packageName)
@@ -425,7 +425,7 @@ func (f *FileRepo) ListAll() ([]models.ListElement, error) {
 }
 
 // LoadPackageJson loads the Package.json file for a package version
-func (f *FileRepo) LoadPackageJson(scope string, name string, version string) (map[string]interface{}, error) {
+func (f *FileRepo) LoadPackageJson(scope string, name string, version string) (map[string]any, error) {
 	element := models.NewUploadElement(scope, name, version, "application/json", models.PackageManifestJson)
 
 	if !f.Exists(element) {
@@ -439,7 +439,7 @@ func (f *FileRepo) LoadPackageJson(scope string, name string, version string) (m
 	}
 	defer file.Close()
 
-	var packageJson map[string]interface{}
+	var packageJson map[string]any
 	decoder := json.NewDecoder(file)
 	if err := decoder.Decode(&packageJson); err != nil {
 		return nil, fmt.Errorf("failed to parse Package.json: %w", err)

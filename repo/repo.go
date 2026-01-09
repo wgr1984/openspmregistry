@@ -55,7 +55,7 @@ type (
 		// - `name` of the package
 		// - `version` of the package
 		// returns (metadata map|nil if not exists, error)
-		LoadMetadata(scope string, name string, version string) (map[string]interface{}, error)
+		LoadMetadata(scope string, name string, version string) (map[string]any, error)
 
 		// GetAlternativeManifests returns the alternative versions of the manifest
 		// - `element` to be checked for alternative versions
@@ -94,6 +94,6 @@ type (
 		// - `name` of the package
 		// - `version` of the package
 		// returns (json data as map|nil if not exists, error)
-		LoadPackageJson(scope string, name string, version string) (map[string]interface{}, error)
+		LoadPackageJson(scope string, name string, version string) (map[string]any, error)
 	}
 )

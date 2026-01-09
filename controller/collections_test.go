@@ -200,8 +200,8 @@ type collectionTestRepo struct {
 	listInScope    []models.ListElement
 	listAllErr     error
 	listInScopeErr error
-	packageJson    map[string]interface{}
-	metadata       map[string]interface{}
+	packageJson    map[string]any
+	metadata       map[string]any
 	swiftVersion   string
 	publishDate    time.Time
 }
@@ -214,28 +214,28 @@ func newCollectionTestRepo(elements []models.ListElement) *collectionTestRepo {
 	return &collectionTestRepo{
 		listAll:     elements,
 		listInScope: elements,
-		packageJson: map[string]interface{}{
+		packageJson: map[string]any{
 			"name": pkgName,
-			"targets": []interface{}{
-				map[string]interface{}{"name": "Target"},
+			"targets": []any{
+				map[string]any{"name": "Target"},
 			},
-			"products": []interface{}{
-				map[string]interface{}{
+			"products": []any{
+				map[string]any{
 					"name":    "Product",
-					"targets": []interface{}{"Target"},
-					"type": map[string]interface{}{
-						"library": []interface{}{"automatic"},
+					"targets": []any{"Target"},
+					"type": map[string]any{
+						"library": []any{"automatic"},
 					},
 				},
 			},
-			"platforms": []interface{}{
-				map[string]interface{}{
+			"platforms": []any{
+				map[string]any{
 					"platformName": "macos",
 					"version":      "10.15",
 				},
 			},
 		},
-		metadata: map[string]interface{}{
+		metadata: map[string]any{
 			"description": "test package",
 			"licenseURL":  "https://example.com/license",
 			"readmeURL":   "https://example.com/readme",
@@ -268,11 +268,11 @@ func (r *collectionTestRepo) ListInScope(scope string) ([]models.ListElement, er
 	return filtered, nil
 }
 
-func (r *collectionTestRepo) LoadPackageJson(scope string, name string, version string) (map[string]interface{}, error) {
+func (r *collectionTestRepo) LoadPackageJson(scope string, name string, version string) (map[string]any, error) {
 	return r.packageJson, nil
 }
 
-func (r *collectionTestRepo) LoadMetadata(scope string, name string, version string) (map[string]interface{}, error) {
+func (r *collectionTestRepo) LoadMetadata(scope string, name string, version string) (map[string]any, error) {
 	return r.metadata, nil
 }
 

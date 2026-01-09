@@ -378,7 +378,7 @@ func (m *mockPublishRepo) Checksum(element *models.UploadElement) (string, error
 	return "", nil
 }
 
-func (m *mockPublishRepo) LoadMetadata(scope string, name string, version string) (map[string]interface{}, error) {
+func (m *mockPublishRepo) LoadMetadata(scope string, name string, version string) (map[string]any, error) {
 	return nil, nil
 }
 
@@ -410,7 +410,7 @@ func (m *mockPublishRepo) ListAll() ([]models.ListElement, error) {
 	return nil, nil
 }
 
-func (m *mockPublishRepo) LoadPackageJson(scope string, name string, version string) (map[string]interface{}, error) {
+func (m *mockPublishRepo) LoadPackageJson(scope string, name string, version string) (map[string]any, error) {
 	return nil, nil
 }
 
@@ -661,7 +661,7 @@ func (m *mockPublishRepoWithCleanupTracking) Checksum(element *models.UploadElem
 	return "", nil
 }
 
-func (m *mockPublishRepoWithCleanupTracking) LoadMetadata(scope string, name string, version string) (map[string]interface{}, error) {
+func (m *mockPublishRepoWithCleanupTracking) LoadMetadata(scope string, name string, version string) (map[string]any, error) {
 	return nil, nil
 }
 
@@ -685,7 +685,7 @@ func (m *mockPublishRepoWithCleanupTracking) ListAll() ([]models.ListElement, er
 	return nil, nil
 }
 
-func (m *mockPublishRepoWithCleanupTracking) LoadPackageJson(scope string, name string, version string) (map[string]interface{}, error) {
+func (m *mockPublishRepoWithCleanupTracking) LoadPackageJson(scope string, name string, version string) (map[string]any, error) {
 	return nil, nil
 }
 

@@ -534,7 +534,7 @@ func (m *mockRepo) Checksum(element *models.UploadElement) (string, error) {
 	return "", nil
 }
 
-func (m *mockRepo) LoadMetadata(scope string, name string, version string) (map[string]interface{}, error) {
+func (m *mockRepo) LoadMetadata(scope string, name string, version string) (map[string]any, error) {
 	return nil, nil
 }
 
@@ -562,7 +562,7 @@ func (m *mockRepo) ListAll() ([]models.ListElement, error) {
 	return nil, nil
 }
 
-func (m *mockRepo) LoadPackageJson(scope string, name string, version string) (map[string]interface{}, error) {
+func (m *mockRepo) LoadPackageJson(scope string, name string, version string) (map[string]any, error) {
 	return nil, nil
 }
 
