@@ -5,6 +5,7 @@ import (
 	"OpenSPMRegistry/models"
 	"fmt"
 	"log/slog"
+	"slices"
 	"strings"
 	"time"
 )
@@ -66,8 +67,12 @@ func GenerateCollection(r Repo, scope string, packages []models.ListElement) (*m
 
 // buildCollectionPackage builds a CollectionPackage from package versions
 func buildCollectionPackage(r Repo, scope string, name string, versionElements []models.ListElement) (*models.CollectionPackage, error) {
+	// Prefer newest versions first so we pick metadata from the latest included version
+	sortVersionsDesc(versionElements)
+
 	// Build package versions
 	var packageVersions []models.PackageVersion
+	var metadataVersion string
 	for _, versionElement := range versionElements {
 		pkgVersion, err := buildPackageVersion(r, scope, name, versionElement.Version)
 		if err != nil {
@@ -75,6 +80,10 @@ func buildCollectionPackage(r Repo, scope string, name string, versionElements [
 			continue
 		}
 		packageVersions = append(packageVersions, *pkgVersion)
+
+		if metadataVersion == "" {
+			metadataVersion = versionElement.Version
+		}
 	}
 
 	// Get metadata for summary, license, and repository URL
@@ -82,9 +91,9 @@ func buildCollectionPackage(r Repo, scope string, name string, versionElements [
 	var license *models.License
 	var readmeURL string
 
-	if len(versionElements) > 0 {
-		// Use the first version's metadata
-		metadata, err := r.LoadMetadata(scope, name, versionElements[0].Version)
+	if metadataVersion != "" {
+		// Use metadata from the first version that is actually included
+		metadata, err := r.LoadMetadata(scope, name, metadataVersion)
 		if err == nil {
 			if desc, ok := metadata["description"].(string); ok {
 				summary = desc
@@ -108,6 +117,22 @@ func buildCollectionPackage(r Repo, scope string, name string, versionElements [
 	}
 
 	return collectionPackage, nil
+}
+
+// sortVersionsDesc sorts list elements by semantic-ish version in descending order (best effort)
+func sortVersionsDesc(versionElements []models.ListElement) {
+	slices.SortFunc(versionElements, func(a models.ListElement, b models.ListElement) int {
+		v1, err := models.ParseVersion(strings.TrimSpace(a.Version))
+		if err != nil {
+			return 0
+		}
+		v2, err := models.ParseVersion(strings.TrimSpace(b.Version))
+		if err != nil {
+			return 0
+		}
+		// Descending: newer (larger) first
+		return v2.Compare(v1)
+	})
 }
 
 // buildPackageVersion builds a PackageVersion from a specific version
