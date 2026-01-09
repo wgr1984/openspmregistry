@@ -76,12 +76,14 @@ func (c *Controller) PublishAction(w http.ResponseWriter, r *http.Request) {
 
 		// currently we support only source archive storing
 		element, err := storeElements(w, name, scope, packageName, version, mimeType, c, part)
+		if element != nil {
+			storedElements = append(storedElements, element)
+		}
 		if err != nil {
 			cleanupStoredElements(c, storedElements, scope, packageName, version)
 			return // error already logged
 		}
 
-		storedElements = append(storedElements, element)
 		if name == string(models.SourceArchive) {
 			packageElement = element
 		}
@@ -123,6 +125,8 @@ func (c *Controller) PublishAction(w http.ResponseWriter, r *http.Request) {
 	writeError("upload failed, nothing found to store", w)
 }
 
+// storeElements stores the given element in the repository
+// returns the stored element and an error if the element could not be stored
 func storeElements(w http.ResponseWriter, name string, scope string, packageName string, version string, mimeType string, c *Controller, part *multipart.Part) (*models.UploadElement, error) {
 	uploadType, err := validateUploadType(name)
 	if err != nil {
@@ -144,7 +148,8 @@ func storeElements(w http.ResponseWriter, name string, scope string, packageName
 	if err != nil {
 		slog.Error("Error", "msg", err)
 		writeError("upload failed, error storing file", w)
-		return nil, fmt.Errorf("error storing file: %s", element.FileName())
+		// return element so it get cleaned up
+		return element, fmt.Errorf("error storing file: %s", element.FileName())
 	}
 
 	defer func() {
@@ -163,7 +168,8 @@ func storeElements(w http.ResponseWriter, name string, scope string, packageName
 		if err != nil {
 			slog.Error("Error", "msg", err)
 			writeError("upload failed, error storing file", w)
-			return nil, fmt.Errorf("error storing file: %s", element.FileName())
+			// return element so it get cleaned up
+			return element, fmt.Errorf("error storing file: %s", element.FileName())
 		}
 	}
 
