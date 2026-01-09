@@ -75,9 +75,10 @@ func (c *Controller) PublishAction(w http.ResponseWriter, r *http.Request) {
 		mimeType := part.Header.Get("Content-Type")
 
 		// currently we support only source archive storing
-		unsupported, element := storeElements(w, name, scope, packageName, version, mimeType, c, part)
-		if unsupported {
-			return
+		element, err := storeElements(w, name, scope, packageName, version, mimeType, c, part)
+		if err != nil {
+			slog.Error("Error", "msg", err)
+			continue
 		}
 
 		storedElements = append(storedElements, element)
@@ -122,33 +123,22 @@ func (c *Controller) PublishAction(w http.ResponseWriter, r *http.Request) {
 	writeError("upload failed, nothing found to store", w)
 }
 
-func storeElements(w http.ResponseWriter, name string, scope string, packageName string, version string, mimeType string, c *Controller, part *multipart.Part) (bool, *models.UploadElement) {
-	uploadType := models.UploadElementType(name)
-	element := models.NewUploadElement(scope, packageName, version, mimeType, uploadType)
-
-	switch uploadType {
-	case models.SourceArchive,
-		models.SourceArchiveSignature,
-		models.Metadata,
-		models.MetadataSignature:
-		// These are supported types, continue processing
-	default:
-		return false, nil
-	}
+func storeElements(w http.ResponseWriter, name string, scope string, packageName string, version string, mimeType string, c *Controller, part *multipart.Part) (*models.UploadElement, error) {
+	element := models.NewUploadElement(scope, packageName, version, mimeType, models.UploadElementType(name))
 
 	// check if file exist in repo
 	if c.repo.Exists(element) {
 		msg := fmt.Sprint("upload failed, package exists:", element.FileName())
 		slog.Error("Error", "msg", msg)
 		writeErrorWithStatusCode(msg, w, http.StatusConflict)
-		return true, element
+		return nil, fmt.Errorf("package exists: %s", element.FileName())
 	}
 
 	writer, err := c.repo.GetWriter(element)
 	if err != nil {
 		slog.Error("Error", "msg", err)
 		writeError("upload failed, error storing file", w)
-		return true, element
+		return nil, fmt.Errorf("error storing file: %s", element.FileName())
 	}
 
 	defer func() {
@@ -167,7 +157,7 @@ func storeElements(w http.ResponseWriter, name string, scope string, packageName
 		if err != nil {
 			slog.Error("Error", "msg", err)
 			writeError("upload failed, error storing file", w)
-			return true, element
+			return nil, fmt.Errorf("error storing file: %s", element.FileName())
 		}
 	}
 
@@ -176,7 +166,7 @@ func storeElements(w http.ResponseWriter, name string, scope string, packageName
 		// Continue even if extraction fails
 	}
 
-	return false, element
+	return element, nil
 }
 
 // cleanupStoredElements removes all stored elements and extracted manifest files
