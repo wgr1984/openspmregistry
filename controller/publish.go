@@ -77,8 +77,8 @@ func (c *Controller) PublishAction(w http.ResponseWriter, r *http.Request) {
 		// currently we support only source archive storing
 		element, err := storeElements(w, name, scope, packageName, version, mimeType, c, part)
 		if err != nil {
-			slog.Error("Error", "msg", err)
-			continue
+			cleanupStoredElements(c, storedElements, scope, packageName, version)
+			return // error already logged
 		}
 
 		storedElements = append(storedElements, element)
@@ -124,7 +124,13 @@ func (c *Controller) PublishAction(w http.ResponseWriter, r *http.Request) {
 }
 
 func storeElements(w http.ResponseWriter, name string, scope string, packageName string, version string, mimeType string, c *Controller, part *multipart.Part) (*models.UploadElement, error) {
-	element := models.NewUploadElement(scope, packageName, version, mimeType, models.UploadElementType(name))
+	uploadType, err := validateUploadType(name)
+	if err != nil {
+		writeErrorWithStatusCode(err.Error(), w, http.StatusBadRequest)
+		return nil, err
+	}
+
+	element := models.NewUploadElement(scope, packageName, version, mimeType, uploadType)
 
 	// check if file exist in repo
 	if c.repo.Exists(element) {
@@ -167,6 +173,15 @@ func storeElements(w http.ResponseWriter, name string, scope string, packageName
 	}
 
 	return element, nil
+}
+
+func validateUploadType(name string) (models.UploadElementType, error) {
+	switch models.UploadElementType(name) {
+	case models.SourceArchive, models.SourceArchiveSignature, models.Metadata, models.MetadataSignature:
+		return models.UploadElementType(name), nil
+	default:
+		return "", fmt.Errorf("upload failed: unsupported upload type: %s", name)
+	}
 }
 
 // cleanupStoredElements removes all stored elements and extracted manifest files

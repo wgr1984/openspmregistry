@@ -16,6 +16,13 @@ import (
 	"time"
 )
 
+type multipartPart struct {
+	name        string
+	filename    string
+	contentType string
+	content     []byte
+}
+
 func createMultipartRequest(t *testing.T, files map[string][]byte) *http.Request {
 	var b bytes.Buffer
 	w := multipart.NewWriter(&b)
@@ -64,6 +71,37 @@ func createMultipartRequest(t *testing.T, files map[string][]byte) *http.Request
 	return req
 }
 
+func createMultipartRequestWithParts(t *testing.T, parts []multipartPart) *http.Request {
+	var b bytes.Buffer
+	w := multipart.NewWriter(&b)
+
+	for _, part := range parts {
+		h := make(textproto.MIMEHeader)
+		h.Set("Content-Disposition", fmt.Sprintf(`form-data; name="%s"; filename="%s"`, part.name, part.filename))
+		h.Set("Content-Type", part.contentType)
+
+		p, err := w.CreatePart(h)
+		if err != nil {
+			t.Fatalf("failed to create form part: %v", err)
+		}
+		if _, err := p.Write(part.content); err != nil {
+			t.Fatalf("failed to write form part: %v", err)
+		}
+	}
+
+	if err := w.Close(); err != nil {
+		t.Fatalf("failed to close multipart writer: %v", err)
+	}
+
+	req := httptest.NewRequest("POST", "/scope/package/1.0.0", &b)
+	req.Header.Set("Content-Type", w.FormDataContentType())
+	req.Header.Set("Accept", "application/vnd.swift.registry.v1+json")
+	req.SetPathValue("scope", "scope")
+	req.SetPathValue("package", "package")
+	req.SetPathValue("version", "1.0.0")
+	return req
+}
+
 func Test_PublishAction_MultipleFiles_StoresAll(t *testing.T) {
 	mockRepo := &mockPublishRepo{}
 	ctrl := &Controller{repo: mockRepo}
@@ -92,6 +130,69 @@ func Test_PublishAction_MultipleFiles_StoresAll(t *testing.T) {
 		if content := string(mockRepo.storedFiles[filename]); content != expectedContent {
 			t.Errorf("file %s: expected content %q, got %q", filename, expectedContent, content)
 		}
+	}
+}
+
+func Test_PublishAction_UnsupportedUploadType_ReturnsBadRequest(t *testing.T) {
+	mockRepo := &mockPublishRepo{}
+	ctrl := &Controller{repo: mockRepo}
+
+	req := createMultipartRequestWithParts(t, []multipartPart{
+		{
+			name:        "custom-part",
+			filename:    "custom.zip",
+			contentType: "application/zip",
+			content:     []byte("unexpected"),
+		},
+	})
+
+	w := httptest.NewRecorder()
+	ctrl.PublishAction(w, req)
+
+	if w.Code != http.StatusBadRequest {
+		t.Errorf("expected status code %d, got %d", http.StatusBadRequest, w.Code)
+	}
+
+	if len(mockRepo.storedFiles) != 0 {
+		t.Errorf("expected no files to be stored for unsupported upload type, got %d", len(mockRepo.storedFiles))
+	}
+}
+
+func Test_PublishAction_UnsupportedUploadType_CleansUpStoredElements(t *testing.T) {
+	mockRepo := &mockPublishRepoWithCleanupTracking{
+		storedFiles:  make(map[string][]byte),
+		removedFiles: make([]string, 0),
+	}
+	ctrl := &Controller{repo: mockRepo}
+
+	req := createMultipartRequestWithParts(t, []multipartPart{
+		{
+			name:        string(models.SourceArchive),
+			filename:    "source-archive.zip",
+			contentType: "application/zip",
+			content:     []byte("archive data"),
+		},
+		{
+			name:        "custom-part",
+			filename:    "custom.zip",
+			contentType: "application/zip",
+			content:     []byte("unexpected"),
+		},
+	})
+
+	w := httptest.NewRecorder()
+	ctrl.PublishAction(w, req)
+
+	if w.Code != http.StatusBadRequest {
+		t.Errorf("expected status code %d, got %d", http.StatusBadRequest, w.Code)
+	}
+
+	if len(mockRepo.removedFiles) == 0 {
+		t.Errorf("expected stored elements to be cleaned up, none were removed")
+	}
+
+	if len(mockRepo.storedFiles) != 0 {
+		t.Errorf("expected no files to remain after cleanup, found %d", len(mockRepo.storedFiles))
 	}
 }
 
