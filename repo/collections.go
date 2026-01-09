@@ -11,35 +11,33 @@ import (
 
 // GenerateCollection generates a package collection from the given packages
 func GenerateCollection(r Repo, scope string, packages []models.ListElement) (*models.PackageCollection, error) {
-	// Group packages by scope/name
-	packageMap := make(map[string][]models.ListElement)
+	// Group packages by scope/name without string splitting
+	packagesByScope := make(map[string]map[string][]models.ListElement)
 	for _, pkg := range packages {
-		key := fmt.Sprintf("%s.%s", pkg.Scope, pkg.PackageName)
-		packageMap[key] = append(packageMap[key], pkg)
+		if _, ok := packagesByScope[pkg.Scope]; !ok {
+			packagesByScope[pkg.Scope] = make(map[string][]models.ListElement)
+		}
+		packagesByScope[pkg.Scope][pkg.PackageName] = append(packagesByScope[pkg.Scope][pkg.PackageName], pkg)
 	}
 
 	// Build collection packages
 	var collectionPackages []models.CollectionPackage
-	for pkgKey, versions := range packageMap {
-		parts := strings.Split(pkgKey, ".")
-		if len(parts) != 2 {
-			continue
-		}
-		pkgScope, pkgName := parts[0], parts[1]
+	for pkgScope, scopedPackages := range packagesByScope {
+		for pkgName, versions := range scopedPackages {
+			collPkg, err := buildCollectionPackage(r, pkgScope, pkgName, versions)
+			if err != nil {
+				slog.Warn("Error building collection package", "package", fmt.Sprintf("%s.%s", pkgScope, pkgName), "error", err)
+				continue
+			}
 
-		collPkg, err := buildCollectionPackage(r, pkgScope, pkgName, versions)
-		if err != nil {
-			slog.Warn("Error building collection package", "package", pkgKey, "error", err)
-			continue
-		}
+			// Skip packages with no valid versions
+			if len(collPkg.Versions) == 0 {
+				slog.Info("Skipping package with no valid versions", "package", fmt.Sprintf("%s.%s", pkgScope, pkgName))
+				continue
+			}
 
-		// Skip packages with no valid versions
-		if len(collPkg.Versions) == 0 {
-			slog.Info("Skipping package with no valid versions", "package", pkgKey)
-			continue
+			collectionPackages = append(collectionPackages, *collPkg)
 		}
-
-		collectionPackages = append(collectionPackages, *collPkg)
 	}
 
 	// Build collection metadata
