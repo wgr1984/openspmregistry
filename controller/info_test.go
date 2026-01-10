@@ -83,7 +83,7 @@ func Test_InfoAction_Success(t *testing.T) {
 	publishDate := time.Date(2024, 3, 15, 12, 0, 0, 0, time.UTC)
 	mockRepo := &MockInfoRepo{
 		exists:      true,
-		metadata:    map[string]interface{}{"key": "value"},
+		metadata:    map[string]any{"key": "value"},
 		signature:   "test-signature",
 		publishDate: publishDate,
 		checksum:    "test-checksum",
@@ -116,26 +116,26 @@ func Test_InfoAction_Success(t *testing.T) {
 	}
 
 	// Parse and verify response body
-	var response map[string]interface{}
+	var response map[string]any
 	if err := json.NewDecoder(w.Body).Decode(&response); err != nil {
 		t.Fatalf("failed to decode response body: %v", err)
 	}
 
-	expectedResponse := map[string]interface{}{
+	expectedResponse := map[string]any{
 		"id":      "scope.package",
 		"version": "1.0.0",
-		"resources": []interface{}{
-			map[string]interface{}{
+		"resources": []any{
+			map[string]any{
 				"name":     "source-archive",
 				"type":     "application/zip",
 				"checksum": "test-checksum",
-				"signing": map[string]interface{}{
+				"signing": map[string]any{
 					"signatureBase64Encoded": "test-signature",
 					"signatureFormat":        "cms-1.0.0",
 				},
 			},
 		},
-		"metadata":    map[string]interface{}{"key": "value"},
+		"metadata":    map[string]any{"key": "value"},
 		"publishedAt": "2024-03-15T12:00:00Z",
 	}
 
@@ -192,12 +192,12 @@ func Test_InfoAction_MetadataError_LogsAndContinues(t *testing.T) {
 	}
 
 	// Verify empty metadata in response
-	var response map[string]interface{}
+	var response map[string]any
 	if err := json.NewDecoder(w.Body).Decode(&response); err != nil {
 		t.Fatalf("failed to decode response body: %v", err)
 	}
 
-	metadata, ok := response["metadata"].(map[string]interface{})
+	metadata, ok := response["metadata"].(map[string]any)
 	if !ok {
 		t.Error("expected metadata to be an empty object")
 	} else if len(metadata) != 0 {
@@ -246,17 +246,17 @@ func Test_InfoAction_SignatureError_LogsAndContinues(t *testing.T) {
 	}
 
 	// Verify null signing in response
-	var response map[string]interface{}
+	var response map[string]any
 	if err := json.NewDecoder(w.Body).Decode(&response); err != nil {
 		t.Fatalf("failed to decode response body: %v", err)
 	}
 
-	resources, ok := response["resources"].([]interface{})
+	resources, ok := response["resources"].([]any)
 	if !ok || len(resources) == 0 {
 		t.Fatal("expected non-empty resources array")
 	}
 
-	resource, ok := resources[0].(map[string]interface{})
+	resource, ok := resources[0].(map[string]any)
 	if !ok {
 		t.Fatal("expected resource to be an object")
 	}
@@ -307,17 +307,17 @@ func Test_InfoAction_ChecksumError_LogsAndContinues(t *testing.T) {
 	}
 
 	// Verify empty checksum in response
-	var response map[string]interface{}
+	var response map[string]any
 	if err := json.NewDecoder(w.Body).Decode(&response); err != nil {
 		t.Fatalf("failed to decode response body: %v", err)
 	}
 
-	resources, ok := response["resources"].([]interface{})
+	resources, ok := response["resources"].([]any)
 	if !ok || len(resources) == 0 {
 		t.Fatal("expected non-empty resources array")
 	}
 
-	resource, ok := resources[0].(map[string]interface{})
+	resource, ok := resources[0].(map[string]any)
 	if !ok {
 		t.Fatal("expected resource to be an object")
 	}
@@ -362,7 +362,7 @@ func Test_InfoAction_PublishDateError_UsesCurrentTime(t *testing.T) {
 		t.Errorf("expected status code %d, got %d", http.StatusOK, resp.StatusCode)
 	}
 
-	var result map[string]interface{}
+	var result map[string]any
 	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
 		t.Fatalf("failed to decode response body: %v", err)
 	}
@@ -389,7 +389,7 @@ func Test_InfoAction_PublishDateError_UsesCurrentTime(t *testing.T) {
 type MockInfoRepo struct {
 	MockRepo
 	exists         bool
-	metadata       map[string]interface{}
+	metadata       map[string]any
 	metadataErr    error
 	signature      string
 	signatureErr   error
@@ -403,7 +403,7 @@ func (m *MockInfoRepo) Exists(element *models.UploadElement) bool {
 	return m.exists
 }
 
-func (m *MockInfoRepo) FetchMetadata(scope, packageName, version string) (map[string]interface{}, error) {
+func (m *MockInfoRepo) LoadMetadata(scope, packageName, version string) (map[string]any, error) {
 	return m.metadata, m.metadataErr
 }
 

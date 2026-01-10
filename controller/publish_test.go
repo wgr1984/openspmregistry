@@ -16,6 +16,13 @@ import (
 	"time"
 )
 
+type multipartPart struct {
+	name        string
+	filename    string
+	contentType string
+	content     []byte
+}
+
 func createMultipartRequest(t *testing.T, files map[string][]byte) *http.Request {
 	var b bytes.Buffer
 	w := multipart.NewWriter(&b)
@@ -64,6 +71,37 @@ func createMultipartRequest(t *testing.T, files map[string][]byte) *http.Request
 	return req
 }
 
+func createMultipartRequestWithParts(t *testing.T, parts []multipartPart) *http.Request {
+	var b bytes.Buffer
+	w := multipart.NewWriter(&b)
+
+	for _, part := range parts {
+		h := make(textproto.MIMEHeader)
+		h.Set("Content-Disposition", fmt.Sprintf(`form-data; name="%s"; filename="%s"`, part.name, part.filename))
+		h.Set("Content-Type", part.contentType)
+
+		p, err := w.CreatePart(h)
+		if err != nil {
+			t.Fatalf("failed to create form part: %v", err)
+		}
+		if _, err := p.Write(part.content); err != nil {
+			t.Fatalf("failed to write form part: %v", err)
+		}
+	}
+
+	if err := w.Close(); err != nil {
+		t.Fatalf("failed to close multipart writer: %v", err)
+	}
+
+	req := httptest.NewRequest("POST", "/scope/package/1.0.0", &b)
+	req.Header.Set("Content-Type", w.FormDataContentType())
+	req.Header.Set("Accept", "application/vnd.swift.registry.v1+json")
+	req.SetPathValue("scope", "scope")
+	req.SetPathValue("package", "package")
+	req.SetPathValue("version", "1.0.0")
+	return req
+}
+
 func Test_PublishAction_MultipleFiles_StoresAll(t *testing.T) {
 	mockRepo := &mockPublishRepo{}
 	ctrl := &Controller{repo: mockRepo}
@@ -92,6 +130,69 @@ func Test_PublishAction_MultipleFiles_StoresAll(t *testing.T) {
 		if content := string(mockRepo.storedFiles[filename]); content != expectedContent {
 			t.Errorf("file %s: expected content %q, got %q", filename, expectedContent, content)
 		}
+	}
+}
+
+func Test_PublishAction_UnsupportedUploadType_ReturnsBadRequest(t *testing.T) {
+	mockRepo := &mockPublishRepo{}
+	ctrl := &Controller{repo: mockRepo}
+
+	req := createMultipartRequestWithParts(t, []multipartPart{
+		{
+			name:        "custom-part",
+			filename:    "custom.zip",
+			contentType: "application/zip",
+			content:     []byte("unexpected"),
+		},
+	})
+
+	w := httptest.NewRecorder()
+	ctrl.PublishAction(w, req)
+
+	if w.Code != http.StatusBadRequest {
+		t.Errorf("expected status code %d, got %d", http.StatusBadRequest, w.Code)
+	}
+
+	if len(mockRepo.storedFiles) != 0 {
+		t.Errorf("expected no files to be stored for unsupported upload type, got %d", len(mockRepo.storedFiles))
+	}
+}
+
+func Test_PublishAction_UnsupportedUploadType_CleansUpStoredElements(t *testing.T) {
+	mockRepo := &mockPublishRepoWithCleanupTracking{
+		storedFiles:  make(map[string][]byte),
+		removedFiles: make([]string, 0),
+	}
+	ctrl := &Controller{repo: mockRepo}
+
+	req := createMultipartRequestWithParts(t, []multipartPart{
+		{
+			name:        string(models.SourceArchive),
+			filename:    "source-archive.zip",
+			contentType: "application/zip",
+			content:     []byte("archive data"),
+		},
+		{
+			name:        "custom-part",
+			filename:    "custom.zip",
+			contentType: "application/zip",
+			content:     []byte("unexpected"),
+		},
+	})
+
+	w := httptest.NewRecorder()
+	ctrl.PublishAction(w, req)
+
+	if w.Code != http.StatusBadRequest {
+		t.Errorf("expected status code %d, got %d", http.StatusBadRequest, w.Code)
+	}
+
+	if len(mockRepo.removedFiles) == 0 {
+		t.Errorf("expected stored elements to be cleaned up, none were removed")
+	}
+
+	if len(mockRepo.storedFiles) != 0 {
+		t.Errorf("expected no files to remain after cleanup, found %d", len(mockRepo.storedFiles))
 	}
 }
 
@@ -378,7 +479,7 @@ func (m *mockPublishRepo) Checksum(element *models.UploadElement) (string, error
 	return "", nil
 }
 
-func (m *mockPublishRepo) FetchMetadata(scope string, name string, version string) (map[string]interface{}, error) {
+func (m *mockPublishRepo) LoadMetadata(scope string, name string, version string) (map[string]any, error) {
 	return nil, nil
 }
 
@@ -396,6 +497,22 @@ func (m *mockPublishRepo) Lookup(url string) []string {
 
 func (m *mockPublishRepo) Remove(element *models.UploadElement) error {
 	return nil
+}
+
+func (m *mockPublishRepo) ListScopes() ([]string, error) {
+	return nil, nil
+}
+
+func (m *mockPublishRepo) ListInScope(scope string) ([]models.ListElement, error) {
+	return nil, nil
+}
+
+func (m *mockPublishRepo) ListAll() ([]models.ListElement, error) {
+	return nil, nil
+}
+
+func (m *mockPublishRepo) LoadPackageJson(scope string, name string, version string) (map[string]any, error) {
+	return nil, nil
 }
 
 func (m *mockPublishRepo) List(scope, packageName string) ([]models.ListElement, error) {
@@ -490,5 +607,209 @@ func (w *publishWriteFailWriter) Write(p []byte) (n int, err error) {
 }
 
 func (w *publishWriteFailWriter) Close() error {
+	return nil
+}
+
+// Test that all stored elements are cleaned up when Package.json validation fails
+func Test_PublishAction_RequirePackageJsonFails_CleansUpAllElements(t *testing.T) {
+	mockRepo := &mockPublishRepoWithCleanupTracking{
+		storedFiles:       make(map[string][]byte),
+		removedFiles:      make([]string, 0),
+		existsPackageJson: false,
+	}
+
+	ctrl := &Controller{
+		repo: mockRepo,
+		config: config.ServerConfig{
+			PackageCollections: config.PackageCollectionsConfig{
+				RequirePackageJson: true,
+			},
+		},
+	}
+
+	// Create a request with multiple files
+	req := createMultipartRequest(t, map[string][]byte{
+		string(models.SourceArchive):          []byte("archive data"),
+		string(models.SourceArchiveSignature): []byte("signature data"),
+		string(models.Metadata):               []byte("metadata"),
+		string(models.MetadataSignature):      []byte("metadata signature"),
+	})
+
+	w := httptest.NewRecorder()
+
+	ctrl.PublishAction(w, req)
+
+	// Should fail with 422 Unprocessable Entity
+	if w.Code != http.StatusUnprocessableEntity {
+		t.Errorf("Expected status code %d, got %d", http.StatusUnprocessableEntity, w.Code)
+	}
+
+	// Verify error message
+	if !strings.Contains(w.Body.String(), "Package.json is required but not found") {
+		t.Errorf("Expected error message about Package.json, got: %s", w.Body.String())
+	}
+
+	// Log what was actually removed for debugging
+	t.Logf("Stored files: %v", mockRepo.storedFiles)
+	t.Logf("Removed files: %v", mockRepo.removedFiles)
+
+	// Verify all uploaded files were cleaned up
+	// The filenames come from UploadElement.FileName() which generates names based on scope.name-version
+	expectedMinimumCleanups := 4 // source-archive, source-archive.sig, metadata, metadata.sig
+
+	// Verify at least the basic files were attempted to be removed
+	if len(mockRepo.removedFiles) < expectedMinimumCleanups {
+		t.Errorf("Expected at least %d files to be cleaned up, got %d: %v", expectedMinimumCleanups, len(mockRepo.removedFiles), mockRepo.removedFiles)
+	}
+
+	// Verify that storedFiles is empty after cleanup
+	if len(mockRepo.storedFiles) > 0 {
+		t.Errorf("Expected all stored files to be removed, but %d remain: %v", len(mockRepo.storedFiles), mockRepo.storedFiles)
+	}
+}
+
+// Test that cleanup doesn't happen when Package.json validation passes
+func Test_PublishAction_RequirePackageJsonSucceeds_NoCleanup(t *testing.T) {
+	mockRepo := &mockPublishRepoWithCleanupTracking{
+		storedFiles:       make(map[string][]byte),
+		removedFiles:      make([]string, 0),
+		existsPackageJson: true,
+	}
+
+	ctrl := &Controller{
+		repo: mockRepo,
+		config: config.ServerConfig{
+			PackageCollections: config.PackageCollectionsConfig{
+				RequirePackageJson: true,
+			},
+		},
+	}
+
+	req := createMultipartRequest(t, map[string][]byte{
+		string(models.SourceArchive): []byte("archive data"),
+	})
+
+	w := httptest.NewRecorder()
+
+	ctrl.PublishAction(w, req)
+
+	// Should succeed
+	if w.Code != http.StatusCreated {
+		t.Errorf("Expected status code %d, got %d", http.StatusCreated, w.Code)
+	}
+
+	// Verify the source archive was stored
+	if len(mockRepo.storedFiles) < 1 {
+		t.Errorf("Expected no files to be stored, but %d were stored: %v", len(mockRepo.storedFiles), mockRepo.storedFiles)
+	}
+
+	// Verify no files were removed
+	if len(mockRepo.removedFiles) > 0 {
+		t.Errorf("Expected no files to be removed, but %d were removed: %v", len(mockRepo.removedFiles), mockRepo.removedFiles)
+	}
+}
+
+// mockPublishRepoWithCleanupTracking tracks which files are stored and removed
+type mockPublishRepoWithCleanupTracking struct {
+	storedFiles       map[string][]byte
+	removedFiles      []string
+	existsPackageJson bool
+}
+
+func (m *mockPublishRepoWithCleanupTracking) Exists(element *models.UploadElement) bool {
+	// Special handling for Package.json
+	if element.FileName() == "Package.json" {
+		return m.existsPackageJson
+	}
+	_, exists := m.storedFiles[element.FileName()]
+	return exists
+}
+
+func (m *mockPublishRepoWithCleanupTracking) GetWriter(element *models.UploadElement) (io.WriteCloser, error) {
+	if m.storedFiles == nil {
+		m.storedFiles = make(map[string][]byte)
+	}
+	var buf bytes.Buffer
+	return &mockWriterWithCleanupTracking{buf: &buf, filename: element.FileName(), repo: m}, nil
+}
+
+func (m *mockPublishRepoWithCleanupTracking) Remove(element *models.UploadElement) error {
+	m.removedFiles = append(m.removedFiles, element.FileName())
+	delete(m.storedFiles, element.FileName())
+	return nil
+}
+
+func (m *mockPublishRepoWithCleanupTracking) Write(filename string, data []byte) {
+	m.storedFiles[filename] = data
+}
+
+func (m *mockPublishRepoWithCleanupTracking) ExtractManifestFiles(element *models.UploadElement) error {
+	return nil
+}
+
+func (m *mockPublishRepoWithCleanupTracking) GetAlternativeManifests(element *models.UploadElement) ([]models.UploadElement, error) {
+	return []models.UploadElement{}, nil
+}
+
+func (m *mockPublishRepoWithCleanupTracking) GetReader(element *models.UploadElement) (io.ReadSeekCloser, error) {
+	return nil, nil
+}
+
+func (m *mockPublishRepoWithCleanupTracking) EncodeBase64(element *models.UploadElement) (string, error) {
+	return "", nil
+}
+
+func (m *mockPublishRepoWithCleanupTracking) PublishDate(element *models.UploadElement) (time.Time, error) {
+	return time.Now(), nil
+}
+
+func (m *mockPublishRepoWithCleanupTracking) Checksum(element *models.UploadElement) (string, error) {
+	return "", nil
+}
+
+func (m *mockPublishRepoWithCleanupTracking) LoadMetadata(scope string, name string, version string) (map[string]any, error) {
+	return nil, nil
+}
+
+func (m *mockPublishRepoWithCleanupTracking) GetSwiftToolVersion(manifest *models.UploadElement) (string, error) {
+	return "", nil
+}
+
+func (m *mockPublishRepoWithCleanupTracking) Lookup(url string) []string {
+	return nil
+}
+
+func (m *mockPublishRepoWithCleanupTracking) ListScopes() ([]string, error) {
+	return nil, nil
+}
+
+func (m *mockPublishRepoWithCleanupTracking) ListInScope(scope string) ([]models.ListElement, error) {
+	return nil, nil
+}
+
+func (m *mockPublishRepoWithCleanupTracking) ListAll() ([]models.ListElement, error) {
+	return nil, nil
+}
+
+func (m *mockPublishRepoWithCleanupTracking) LoadPackageJson(scope string, name string, version string) (map[string]any, error) {
+	return nil, nil
+}
+
+func (m *mockPublishRepoWithCleanupTracking) List(scope, packageName string) ([]models.ListElement, error) {
+	return nil, nil
+}
+
+type mockWriterWithCleanupTracking struct {
+	buf      *bytes.Buffer
+	filename string
+	repo     *mockPublishRepoWithCleanupTracking
+}
+
+func (m *mockWriterWithCleanupTracking) Write(p []byte) (n int, err error) {
+	return m.buf.Write(p)
+}
+
+func (m *mockWriterWithCleanupTracking) Close() error {
+	m.repo.Write(m.filename, m.buf.Bytes())
 	return nil
 }

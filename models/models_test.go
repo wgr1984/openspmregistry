@@ -569,3 +569,16 @@ func Test_NewUploadElement_UploadTypeManifest_ReturnsUploadElement(t *testing.T)
 		t.Errorf("expected Package.swift, got %s", element.FileName())
 	}
 }
+
+func Test_NewUploadElement_UploadTypePackageManifestJson_ReturnsUploadElement(t *testing.T) {
+	scope := "testScope"
+	name := "testName"
+	version := "1.0.0"
+	mimeType := mimetypes.ApplicationJson
+	uploadType := PackageManifestJson
+
+	element := NewUploadElement(scope, name, version, mimeType, uploadType)
+	if element.FileName() != "Package.json" {
+		t.Errorf("expected Package.json, got %s", element.FileName())
+	}
+}

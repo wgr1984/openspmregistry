@@ -24,11 +24,11 @@ func NewAuthentication(auth authenticator.Authenticator, router *http.ServeMux) 
 	}
 
 	// Register the callback handler for the token authenticator
-	tokenAuth, ok := auth.(interface{}).(authenticator.OidcAuthenticatorCode)
+	tokenAuth, ok := auth.(any).(authenticator.OidcAuthenticatorCode)
 	if ok {
 		router.HandleFunc("GET /callback", tokenAuth.Callback)
 	}
-	oidcAuth, ok := auth.(interface{}).(authenticator.OidcAuthenticator)
+	oidcAuth, ok := auth.(any).(authenticator.OidcAuthenticator)
 	if ok {
 		router.HandleFunc("GET /login", oidcAuth.Login)
 	}

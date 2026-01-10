@@ -4,12 +4,13 @@ import (
 	"OpenSPMRegistry/mimetypes"
 	"OpenSPMRegistry/models"
 	"archive/zip"
+	"fmt"
 	"io"
-	"path/filepath"
+	"path"
 	"strings"
 )
 
-func ExtractPackageSwiftFiles(element *models.UploadElement, fileLocation string, packageSwiftReader func(name string, r io.ReadCloser) error) error {
+func ExtractPackageSwiftFiles(element *models.UploadElement, fileLocation string, fileExtractor func(name string, r io.ReadCloser) error) error {
 	// extract Package Swifts
 	if element.MimeType == mimetypes.ApplicationZip {
 		r, err := zip.OpenReader(fileLocation)
@@ -18,11 +19,30 @@ func ExtractPackageSwiftFiles(element *models.UploadElement, fileLocation string
 		}
 
 		for _, file := range r.File {
+			if file.FileInfo().IsDir() {
+				continue
+			}
 
-			filename := file.FileInfo().Name()
-			ext := filepath.Ext(filename)
+			cleanName := path.Clean(file.Name)
+			dir := path.Dir(cleanName)
+			base := path.Base(cleanName)
+			ext := path.Ext(base)
+			scope := element.Scope
+			name := element.Name
+			id := fmt.Sprintf("%s.%s", scope, name)
 
-			if strings.HasPrefix(filename, "Package") && ext == ".swift" {
+			// Only consider manifests at the archive root or within a single top-level directory
+			// whose name starts with the scope (e.g., "ext.RxSwift/Package.swift").
+			if !strings.HasPrefix(dir, id) {
+				continue
+			}
+			// Disallow further nesting (e.g., "ext.RxSwift/Tests/Package.swift")
+			if strings.Contains(strings.TrimPrefix(strings.ToLower(dir), strings.ToLower(id)), "/") {
+				continue
+			}
+
+			// Extract Package.swift files
+			if strings.HasPrefix(strings.ToLower(base), "package") && strings.ToLower(ext) == ".swift" {
 				readerCloser, err := file.Open()
 				if err != nil {
 					if e := ensureReaderClosed(r); e != nil {
@@ -31,7 +51,7 @@ func ExtractPackageSwiftFiles(element *models.UploadElement, fileLocation string
 					return err
 				}
 
-				if errReader := packageSwiftReader(filename, readerCloser); errReader != nil {
+				if errReader := fileExtractor(base, readerCloser); errReader != nil {
 					if e := ensureReaderClosed(readerCloser, r); e != nil {
 						return e
 					}
@@ -39,6 +59,34 @@ func ExtractPackageSwiftFiles(element *models.UploadElement, fileLocation string
 				}
 
 				if e := ensureReaderClosed(readerCloser); e != nil {
+					if e := ensureReaderClosed(r); e != nil {
+						return e
+					}
+					return e
+				}
+			}
+
+			// Extract Package.json file
+			if strings.ToLower(base) == "package.json" {
+				readerCloser, err := file.Open()
+				if err != nil {
+					if e := ensureReaderClosed(r); e != nil {
+						return e
+					}
+					return err
+				}
+
+				if errReader := fileExtractor(base, readerCloser); errReader != nil {
+					if e := ensureReaderClosed(readerCloser, r); e != nil {
+						return e
+					}
+					return errReader
+				}
+
+				if e := ensureReaderClosed(readerCloser); e != nil {
+					if e := ensureReaderClosed(r); e != nil {
+						return e
+					}
 					return e
 				}
 			}

@@ -85,6 +85,10 @@ func main() {
 	a.HandleFunc("GET /identifiers", c.LookupAction)
 	a.HandleFunc("PUT /{scope}/{package}/{version}", c.PublishAction)
 
+	// Package Collections endpoints (if enabled)
+	a.HandleFunc("GET /collection", c.GlobalCollectionAction)
+	a.HandleFunc("GET /collection/{scope}", c.ScopeCollectionAction)
+
 	// public routes
 	router.HandleFunc("GET /", c.MainAction)
 

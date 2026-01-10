@@ -32,8 +32,11 @@ Quick links:
 - [Documentation](https://wgr1984.github.io/docs/openspmregistry/documention)
 
 # Features
-Browsing, Publishing (including signing) and retrieving of swift packages
-[More](https://wgr1984.github.io/docs/openspmregistry/#features)
+Browsing, Publishing (including signing) and retrieving of swift packages.
+
+**New**: Support for [SE-0291 Package Collections](PACKAGE_COLLECTIONS.md) - discover packages through curated collections in Xcode!
+
+[More Features](https://wgr1984.github.io/docs/openspmregistry/#features)
 
 ## Use Docker
 
@@ -77,6 +80,9 @@ server:
     maxSize: 204800
   auth:
     enabled: false
+  packageCollections:
+    enabled: true
+    requirePackageJson: false
 ```
 hit go run:
 ```

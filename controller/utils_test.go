@@ -470,7 +470,7 @@ func (m *MockRepo) Checksum(element *models.UploadElement) (string, error) {
 	return "", nil
 }
 
-func (m *MockRepo) FetchMetadata(scope string, name string, version string) (map[string]interface{}, error) {
+func (m *MockRepo) LoadMetadata(scope string, name string, version string) (map[string]any, error) {
 	return nil, nil
 }
 
@@ -494,6 +494,22 @@ func (m *MockRepo) List(scope, packageName string) ([]models.ListElement, error)
 	if m.shouldError {
 		return nil, fmt.Errorf("simulated error")
 	}
+	return nil, nil
+}
+
+func (m *MockRepo) ListScopes() ([]string, error) {
+	return nil, nil
+}
+
+func (m *MockRepo) ListInScope(scope string) ([]models.ListElement, error) {
+	return nil, nil
+}
+
+func (m *MockRepo) ListAll() ([]models.ListElement, error) {
+	return nil, nil
+}
+
+func (m *MockRepo) LoadPackageJson(scope string, name string, version string) (map[string]any, error) {
 	return nil, nil
 }
 
@@ -537,7 +553,7 @@ func (m MockListElementsRepo) Checksum(element *models.UploadElement) (string, e
 	return "", nil
 }
 
-func (m MockListElementsRepo) FetchMetadata(scope string, name string, version string) (map[string]interface{}, error) {
+func (m MockListElementsRepo) LoadMetadata(scope string, name string, version string) (map[string]any, error) {
 	return nil, nil
 }
 
@@ -555,4 +571,20 @@ func (m MockListElementsRepo) Lookup(url string) []string {
 
 func (m MockListElementsRepo) Remove(element *models.UploadElement) error {
 	return nil
+}
+
+func (m MockListElementsRepo) ListScopes() ([]string, error) {
+	return nil, nil
+}
+
+func (m MockListElementsRepo) ListInScope(scope string) ([]models.ListElement, error) {
+	return nil, nil
+}
+
+func (m MockListElementsRepo) ListAll() ([]models.ListElement, error) {
+	return nil, nil
+}
+
+func (m MockListElementsRepo) LoadPackageJson(scope string, name string, version string) (map[string]any, error) {
+	return nil, nil
 }

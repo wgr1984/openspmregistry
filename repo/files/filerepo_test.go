@@ -149,7 +149,7 @@ func Test_ExtractManifestFiles_ValidZipFile_ExtractsFiles(t *testing.T) {
 	zipWriter := zip.NewWriter(file)
 
 	// sample Package.swift file
-	packageSwift, err := zipWriter.Create("Package.swift")
+	packageSwift, err := zipWriter.Create("testScope.testName/Package.swift")
 	if err != nil {
 		t.Fatalf("failed to create Package.swift file: %v", err)
 	}
@@ -186,6 +186,19 @@ let package = Package(
 		t.Fatalf("failed to write to Package.swift file: %v", err)
 	}
 
+	// sample Package.json file
+	packageJson, err := zipWriter.Create("testScope.testName/Package.json")
+	if err != nil {
+		t.Fatalf("failed to create Package.json file: %v", err)
+	}
+	_, err = packageJson.Write([]byte(`{
+		"name": "SamplePackage",
+		"version": "1.0.0",
+	}`))
+	if err != nil {
+		t.Fatalf("failed to write to Package.json file: %v", err)
+	}
+
 	if err := zipWriter.Close(); err != nil {
 		t.Fatalf("failed to close zip writer: %v", err)
 	}
@@ -196,8 +209,14 @@ let package = Package(
 		t.Errorf("unexpected error: %v", err)
 	}
 
-	// Check if files are extracted
+	// Check if Package.swift was extracted
 	extractedPath := filepath.Join("/tmp/openspmsreg_tests", element.Scope, element.Name, element.Version, "Package.swift")
+	if _, err := os.Stat(extractedPath); errors.Is(err, os.ErrNotExist) {
+		t.Errorf("expected file to be extracted, but it does not exist")
+	}
+
+	// Check if Package.json was extracted
+	extractedPath = filepath.Join("/tmp/openspmsreg_tests", element.Scope, element.Name, element.Version, "Package.json")
 	if _, err := os.Stat(extractedPath); errors.Is(err, os.ErrNotExist) {
 		t.Errorf("expected file to be extracted, but it does not exist")
 	}

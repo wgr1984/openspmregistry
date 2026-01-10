@@ -50,12 +50,12 @@ type (
 		// returns (checksum string|empty string if not exists, error)
 		Checksum(element *models.UploadElement) (string, error)
 
-		// FetchMetadata retrieves the metadata of the package
+		// LoadMetadata retrieves the metadata of the package
 		// - `scope` of the package
 		// - `name` of the package
 		// - `version` of the package
 		// returns (metadata map|nil if not exists, error)
-		FetchMetadata(scope string, name string, version string) (map[string]interface{}, error)
+		LoadMetadata(scope string, name string, version string) (map[string]any, error)
 
 		// GetAlternativeManifests returns the alternative versions of the manifest
 		// - `element` to be checked for alternative versions
@@ -75,5 +75,25 @@ type (
 		// - `element` to be removed
 		// returns nil if successful otherwise error
 		Remove(element *models.UploadElement) error
+
+		// ListScopes returns all available scopes in the registry
+		// returns (scope names|error)
+		ListScopes() ([]string, error)
+
+		// ListInScope returns all packages in a specific scope
+		// - `scope` to list packages from
+		// returns (list of packages|error)
+		ListInScope(scope string) ([]models.ListElement, error)
+
+		// ListAll returns all packages across all scopes
+		// returns (list of all packages|error)
+		ListAll() ([]models.ListElement, error)
+
+		// LoadPackageJson loads the Package.json file for a package version
+		// - `scope` of the package
+		// - `name` of the package
+		// - `version` of the package
+		// returns (json data as map|nil if not exists, error)
+		LoadPackageJson(scope string, name string, version string) (map[string]any, error)
 	}
 )

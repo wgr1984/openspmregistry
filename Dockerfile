@@ -1,5 +1,6 @@
 FROM golang:1.23  AS build-stage
 LABEL authors="wolfgangreithmeier"
+LABEL org.opencontainers.image.description="Open Source Swift Package Manager Registry implementation based on https://github.com/swiftlang/swift-package-manager/blob/main/Documentation/PackageRegistry/Registry.md"
 
 ARG upx_version=4.2.2
 ARG GOPROXY
@@ -49,6 +50,7 @@ COPY --chown=server config.yml /app/config.yml
 COPY --chown=server server.crt /app/server.crt
 COPY --chown=server server.key /app/server.key
 COPY --chown=server static  /app/static
+COPY --chown=server CHANGELOG.md /app/CHANGELOG.md
 
 EXPOSE 8080
 

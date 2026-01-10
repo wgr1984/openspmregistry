@@ -30,7 +30,7 @@ func (c *Controller) LookupAction(w http.ResponseWriter, r *http.Request) {
 	header.Set("Content-Version", "1")
 	header.Set("Content-Type", "application/json")
 
-	if err := json.NewEncoder(w).Encode(map[string]interface{}{
+	if err := json.NewEncoder(w).Encode(map[string]any{
 		"identifiers": identifiers,
 	}); err != nil {
 		slog.Error("Error encoding JSON:", "error", err)

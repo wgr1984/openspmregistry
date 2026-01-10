@@ -32,7 +32,7 @@ func (f *access) GetWriter(element *models.UploadElement) (io.WriteCloser, error
 
 func (f *access) GetReader(element *models.UploadElement) (io.ReadSeekCloser, error) {
 	if !f.Exists(element) {
-		return nil, errors.New(fmt.Sprintf("file not exists: %s", element.FileName()))
+		return nil, fmt.Errorf("file not exists: %s", element.FileName())
 	}
 
 	pathFile := filepath.Join(f.path, element.Scope, element.Name, element.Version, element.FileName())
