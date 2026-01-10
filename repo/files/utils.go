@@ -59,6 +59,9 @@ func ExtractPackageSwiftFiles(element *models.UploadElement, fileLocation string
 				}
 
 				if e := ensureReaderClosed(readerCloser); e != nil {
+					if e := ensureReaderClosed(r); e != nil {
+						return e
+					}
 					return e
 				}
 			}
@@ -81,6 +84,9 @@ func ExtractPackageSwiftFiles(element *models.UploadElement, fileLocation string
 				}
 
 				if e := ensureReaderClosed(readerCloser); e != nil {
+					if e := ensureReaderClosed(r); e != nil {
+						return e
+					}
 					return e
 				}
 			}
