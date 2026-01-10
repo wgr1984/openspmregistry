@@ -698,6 +698,11 @@ func Test_PublishAction_RequirePackageJsonSucceeds_NoCleanup(t *testing.T) {
 		t.Errorf("Expected status code %d, got %d", http.StatusCreated, w.Code)
 	}
 
+	// Verify the source archive was stored
+	if len(mockRepo.storedFiles) < 1 {
+		t.Errorf("Expected no files to be stored, but %d were stored: %v", len(mockRepo.storedFiles), mockRepo.storedFiles)
+	}
+
 	// Verify no files were removed
 	if len(mockRepo.removedFiles) > 0 {
 		t.Errorf("Expected no files to be removed, but %d were removed: %v", len(mockRepo.removedFiles), mockRepo.removedFiles)

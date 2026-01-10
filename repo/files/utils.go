@@ -27,8 +27,14 @@ func ExtractPackageSwiftFiles(element *models.UploadElement, fileLocation string
 			base := path.Base(cleanName)
 			ext := path.Ext(base)
 
-			// Only consider manifests at the archive root to avoid nested Package.* files
-			if dir != "." && dir != "/" {
+			// Only consider manifests at the archive root or within a single top-level directory
+			// whose name starts with the scope (e.g., "ext.RxSwift/Package.swift").
+			// if dir != "." && dir != "/" {
+			if !strings.HasPrefix(dir, element.Scope) {
+				continue
+			}
+			// Disallow further nesting (e.g., "ext.RxSwift/Tests/Package.swift")
+			if strings.Contains(strings.TrimPrefix(dir, element.Scope), "/") {
 				continue
 			}
 

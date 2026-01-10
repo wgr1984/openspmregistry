@@ -148,7 +148,7 @@ func Test_ExtractPackageSwiftFiles_ReadError_ReturnsError(t *testing.T) {
 	zipWriter := zip.NewWriter(file)
 	defer zipWriter.Close()
 
-	fileWriter, err := zipWriter.Create("Package.swift")
+	fileWriter, err := zipWriter.Create("testScope.testName/Package.swift")
 	if err != nil {
 		t.Fatalf("failed to create zip entry: %v", err)
 	}
@@ -171,19 +171,21 @@ func Test_ExtractPackageSwiftFiles_CloseError_OnFileInsideZipFile_ReturnsError(t
 	// to be implemented
 }
 
-func Test_ExtractPackageSwiftFiles_PackageJson_RootOnly(t *testing.T) {
+func Test_ExtractPackageSwiftFiles_AllowsSingleTopLevelDirectory(t *testing.T) {
 	defer teardown(t)
 
 	element := models.NewUploadElement(
-		"testScope",
-		"testName",
-		"1.0.0",
+		"ext",
+		"RxSwift",
+		"6.9.0",
 		mimetypes.ApplicationZip,
-		models.PackageManifestJson,
+		models.Manifest,
 	)
 
 	path := filepath.Join("/tmp/openspmsreg_tests", element.Scope, element.Name, element.Version, element.FileName())
-	os.MkdirAll(filepath.Dir(path), os.ModePerm)
+	if err := os.MkdirAll(filepath.Dir(path), os.ModePerm); err != nil {
+		t.Fatalf("failed to create directories: %v", err)
+	}
 	file, err := os.Create(path)
 	if err != nil {
 		t.Fatalf("failed to create file: %v", err)
@@ -192,32 +194,23 @@ func Test_ExtractPackageSwiftFiles_PackageJson_RootOnly(t *testing.T) {
 
 	zipWriter := zip.NewWriter(file)
 
-	rootManifest, err := zipWriter.Create("Package.json")
+	rootManifest, err := zipWriter.Create("ext.RxSwift/Package.swift")
 	if err != nil {
-		t.Fatalf("failed to create root Package.json entry: %v", err)
+		t.Fatalf("failed to create root entry: %v", err)
 	}
-	if _, err := rootManifest.Write([]byte("root-manifest")); err != nil {
-		t.Fatalf("failed to write root Package.json: %v", err)
+	if _, err := rootManifest.Write([]byte("root-package")); err != nil {
+		t.Fatalf("failed to write root manifest: %v", err)
 	}
 
-	nestedManifest, err := zipWriter.Create("Tests/Fixtures/Package.json")
+	nestedManifest, err := zipWriter.Create("ext.RxSwift/Tests/Package.swift")
 	if err != nil {
-		t.Fatalf("failed to create nested Package.json entry: %v", err)
+		t.Fatalf("failed to create nested entry: %v", err)
 	}
-	if _, err := nestedManifest.Write([]byte("nested-manifest")); err != nil {
-		t.Fatalf("failed to write nested Package.json: %v", err)
+	if _, err := nestedManifest.Write([]byte("nested-package")); err != nil {
+		t.Fatalf("failed to write nested manifest: %v", err)
 	}
 
-	nestedSwift, err := zipWriter.Create("Tests/Package.swift")
-	if err != nil {
-		t.Fatalf("failed to create nested Package.swift entry: %v", err)
-	}
-	if _, err := nestedSwift.Write([]byte("nested swift")); err != nil {
-		t.Fatalf("failed to write nested Package.swift: %v", err)
-	}
-
-	err = zipWriter.Close()
-	if err != nil {
+	if err := zipWriter.Close(); err != nil {
 		t.Fatalf("failed to close zip writer: %v", err)
 	}
 
@@ -240,11 +233,11 @@ func Test_ExtractPackageSwiftFiles_PackageJson_RootOnly(t *testing.T) {
 		t.Fatalf("expected 1 manifest extracted, got %d", len(extractedNames))
 	}
 
-	if extractedNames[0] != "Package.json" {
-		t.Errorf("expected root Package.json, got %s", extractedNames[0])
+	if extractedNames[0] != "Package.swift" {
+		t.Errorf("expected root Package.swift, got %s", extractedNames[0])
 	}
 
-	if extractedContents[0] != "root-manifest" {
+	if extractedContents[0] != "root-package" {
 		t.Errorf("expected root manifest content, got %s", extractedContents[0])
 	}
 }
