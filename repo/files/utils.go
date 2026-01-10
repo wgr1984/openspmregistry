@@ -4,6 +4,7 @@ import (
 	"OpenSPMRegistry/mimetypes"
 	"OpenSPMRegistry/models"
 	"archive/zip"
+	"fmt"
 	"io"
 	"path"
 	"strings"
@@ -26,20 +27,22 @@ func ExtractPackageSwiftFiles(element *models.UploadElement, fileLocation string
 			dir := path.Dir(cleanName)
 			base := path.Base(cleanName)
 			ext := path.Ext(base)
+			scope := element.Scope
+			name := element.Name
+			id := fmt.Sprintf("%s.%s", scope, name)
 
 			// Only consider manifests at the archive root or within a single top-level directory
 			// whose name starts with the scope (e.g., "ext.RxSwift/Package.swift").
-			// if dir != "." && dir != "/" {
-			if !strings.HasPrefix(dir, element.Scope) {
+			if !strings.HasPrefix(dir, id) {
 				continue
 			}
 			// Disallow further nesting (e.g., "ext.RxSwift/Tests/Package.swift")
-			if strings.Contains(strings.TrimPrefix(dir, element.Scope), "/") {
+			if strings.Contains(strings.TrimPrefix(strings.ToLower(dir), strings.ToLower(id)), "/") {
 				continue
 			}
 
 			// Extract Package.swift files
-			if strings.HasPrefix(base, "Package") && ext == ".swift" {
+			if strings.HasPrefix(strings.ToLower(base), "package") && strings.ToLower(ext) == ".swift" {
 				readerCloser, err := file.Open()
 				if err != nil {
 					if e := ensureReaderClosed(r); e != nil {
@@ -61,7 +64,7 @@ func ExtractPackageSwiftFiles(element *models.UploadElement, fileLocation string
 			}
 
 			// Extract Package.json file
-			if base == "Package.json" {
+			if strings.ToLower(base) == "package.json" {
 				readerCloser, err := file.Open()
 				if err != nil {
 					if e := ensureReaderClosed(r); e != nil {
