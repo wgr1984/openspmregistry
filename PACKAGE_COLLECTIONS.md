@@ -20,7 +20,7 @@ Accept: application/json
 **Response:**
 ```json
 {
-  "name": "All Packages",
+  "name": "localhost: All Packages",
   "overview": "All packages in registry",
   "packages": [...],
   "formatVersion": "1.0",

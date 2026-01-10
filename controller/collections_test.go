@@ -42,6 +42,7 @@ func Test_GlobalCollectionAction_ReturnsCollectionJSON(t *testing.T) {
 	})
 	c := &Controller{
 		config: config.ServerConfig{
+			Hostname:           "example.com",
 			PackageCollections: config.PackageCollectionsConfig{Enabled: true},
 		},
 		repo: repo,
@@ -64,8 +65,8 @@ func Test_GlobalCollectionAction_ReturnsCollectionJSON(t *testing.T) {
 		t.Fatalf("failed to decode collection: %v", err)
 	}
 
-	if coll.Name != "All Packages" {
-		t.Fatalf("expected collection name %q, got %q", "All Packages", coll.Name)
+	if coll.Name != "example.com: All Packages" {
+		t.Fatalf("expected collection name %q, got %q", "example.com: All Packages", coll.Name)
 	}
 	if len(coll.Packages) != 1 {
 		t.Fatalf("expected exactly one package, got %d", len(coll.Packages))
@@ -106,6 +107,7 @@ func Test_ScopeCollectionAction_ListError_ReturnsNotFound(t *testing.T) {
 	repo.listInScopeErr = errors.New("boom")
 	c := &Controller{
 		config: config.ServerConfig{
+			Hostname:           "example.com",
 			PackageCollections: config.PackageCollectionsConfig{Enabled: true},
 		},
 		repo: repo,
@@ -165,6 +167,7 @@ func Test_ScopeCollectionAction_ReturnsScopeCollection(t *testing.T) {
 	})
 	c := &Controller{
 		config: config.ServerConfig{
+			Hostname:           "example.com",
 			PackageCollections: config.PackageCollectionsConfig{Enabled: true},
 		},
 		repo: repo,
@@ -183,7 +186,7 @@ func Test_ScopeCollectionAction_ReturnsScopeCollection(t *testing.T) {
 	if err := json.NewDecoder(w.Body).Decode(&coll); err != nil {
 		t.Fatalf("failed to decode collection: %v", err)
 	}
-	if coll.Name != "scope Packages" {
+	if coll.Name != "example.com: scope Packages" {
 		t.Fatalf("unexpected collection name %q", coll.Name)
 	}
 	if coll.Overview != "Package collection for scope scope" {

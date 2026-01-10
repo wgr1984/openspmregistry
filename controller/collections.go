@@ -28,7 +28,7 @@ func (c *Controller) GlobalCollectionAction(w http.ResponseWriter, r *http.Reque
 	}
 
 	// Generate collection
-	collection, err := repo.GenerateCollection(c.repo, "", packages)
+	collection, err := repo.GenerateCollection(c.repo, "", packages, c.config.Hostname)
 	if err != nil {
 		slog.Error("Error generating collection", "error", err)
 		writeErrorWithStatusCode("Error generating collection", w, http.StatusInternalServerError)
@@ -85,7 +85,7 @@ func (c *Controller) ScopeCollectionAction(w http.ResponseWriter, r *http.Reques
 	}
 
 	// Generate collection
-	collection, err := repo.GenerateCollection(c.repo, scope, packages)
+	collection, err := repo.GenerateCollection(c.repo, scope, packages, c.config.Hostname)
 	if err != nil {
 		slog.Error("Error generating collection", "scope", scope, "error", err)
 		writeErrorWithStatusCode("Error generating collection", w, http.StatusInternalServerError)

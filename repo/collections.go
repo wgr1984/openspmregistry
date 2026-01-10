@@ -10,8 +10,9 @@ import (
 	"time"
 )
 
-// GenerateCollection generates a package collection from the given packages
-func GenerateCollection(r Repo, scope string, packages []models.ListElement) (*models.PackageCollection, error) {
+// GenerateCollection generates a package collection from the given packages.
+// The collection name is prefixed with the provided hostname when available.
+func GenerateCollection(r Repo, scope string, packages []models.ListElement, hostname string) (*models.PackageCollection, error) {
 	// Group packages by scope/name without string splitting
 	packagesByScope := make(map[string]map[string][]models.ListElement)
 	for _, pkg := range packages {
@@ -52,6 +53,10 @@ func GenerateCollection(r Repo, scope string, packages []models.ListElement) (*m
 	if scope != "" {
 		collectionName = fmt.Sprintf("%s Packages", scope)
 		collectionOverview = fmt.Sprintf("Package collection for %s scope", scope)
+	}
+
+	if trimmedHostname := strings.TrimSpace(hostname); trimmedHostname != "" {
+		collectionName = fmt.Sprintf("%s: %s", trimmedHostname, collectionName)
 	}
 
 	collection := &models.PackageCollection{
