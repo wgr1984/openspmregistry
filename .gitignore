@@ -27,6 +27,7 @@ go.work.sum
 #idea
 .idea
 /files/
+/maven-files/
 **/config.local.yml
 /node_modules/
 /static/output.css

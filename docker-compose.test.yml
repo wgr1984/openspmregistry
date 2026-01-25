@@ -1,0 +1,17 @@
+services:
+  reposilite:
+    image: dzikoysk/reposilite:3.5.0
+    container_name: reposilite-test
+    ports:
+      - "8080:8080"
+    environment:
+      - REPOSILITE_OPTS=--working-directory=/app/data --token ${ADMIN_TOKEN:-admin:admin123}
+    volumes:
+      - ./maven-files:/app/data
+    # Health check is performed externally by the Makefile
+    networks:
+      - test-network
+
+networks:
+  test-network:
+    driver: bridge

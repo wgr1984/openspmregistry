@@ -2,7 +2,7 @@ TAILWIND = npx tailwindcss -i ./static/input.css -o ./static/output.css
 VERSION ?= 0.0.0
 RELEASE_TYPE ?= patch
 
-.PHONY: help build clean build-docker run tailwind tailwind-watch release changelog-unreleased
+.PHONY: help build clean build-docker run tailwind tailwind-watch release changelog-unreleased test-integration test-integration-up test-integration-down
 
 # Default target when no arguments are given to make
 help:
@@ -19,6 +19,9 @@ help:
 	@echo "  tailwind-watch- Watch and rebuild Tailwind CSS on changes"
 	@echo "  release       - Create a new release (Usage: make release VERSION=1.2.3)"
 	@echo "  changelog-unreleased - Show unreleased changes"
+	@echo "  test-integration - Run integration tests (requires Docker)"
+	@echo "  test-integration-up - Start Reposilite test server"
+	@echo "  test-integration-down - Stop Reposilite test server"
 	@echo ""
 	@echo "Example usage:"
 	@echo "  make build              - Build the project"
@@ -79,3 +82,41 @@ release:
 changelog-unreleased:
 	@echo "Latest changes:"
 	@awk '/## \[Latest\]/{p=1;print;next} /## \[[0-9]+\.[0-9]+\.[0-9]+\]/{p=0}p' CHANGELOG.md
+
+# Integration test targets
+test-integration-up:
+	@echo "Starting Reposilite test server..."
+	docker-compose -f docker-compose.test.yml up -d
+	@echo "Waiting for Reposilite to be ready (this may take up to 30 seconds)..."
+	@timeout=60; \
+	while [ $$timeout -gt 0 ]; do \
+		ready=0; \
+		if command -v curl > /dev/null 2>&1; then \
+			if curl -f http://localhost:8080/ > /dev/null 2>&1; then \
+				ready=1; \
+			fi; \
+		fi; \
+		if [ $$ready -eq 0 ]; then \
+			if docker inspect reposilite-test 2>/dev/null | grep -q '"Status": "running"'; then \
+				ready=1; \
+			fi; \
+		fi; \
+		if [ $$ready -eq 1 ]; then \
+			echo "Reposilite is ready!"; \
+			break; \
+		fi; \
+		sleep 2; \
+		timeout=$$((timeout - 2)); \
+	done; \
+	if [ $$timeout -le 0 ]; then \
+		echo "Warning: Reposilite may not be fully ready yet. Check with: docker ps"; \
+	fi
+
+test-integration-down:
+	@echo "Stopping Reposilite test server..."
+	docker-compose -f docker-compose.test.yml down
+
+test-integration: test-integration-up
+	@echo "Running integration tests..."
+	@INTEGRATION_TESTS=1 MAVEN_REPO_URL=http://localhost:8080 go test -tags=integration -v ./repo/maven/... -run TestIntegration
+	@$(MAKE) test-integration-down
