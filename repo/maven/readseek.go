@@ -46,7 +46,7 @@ func newRangeReadSeekCloser(client *client, url string, ctx context.Context) (*r
 		size:   size,
 	}
 
-	// Fetch initial data
+	// Fetch initial data (lock not needed here since no other goroutine can access r yet)
 	if err := r.fetchRange(0, -1); err != nil {
 		return nil, err
 	}
@@ -55,10 +55,8 @@ func newRangeReadSeekCloser(client *client, url string, ctx context.Context) (*r
 }
 
 // fetchRange fetches a byte range from the server
+// Caller must hold r.mu lock
 func (r *rangeReadSeekCloser) fetchRange(start int64, end int64) error {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-
 	if r.closed {
 		return io.ErrClosedPipe
 	}

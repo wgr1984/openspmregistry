@@ -52,36 +52,43 @@ func (a *access) buildMavenPathForElement(element *models.UploadElement) (string
 	}
 
 	// Handle sidecar files (metadata.json, Package.swift, Package.json)
-	// These are stored with classifier suffix
-	if strings.HasPrefix(filename, "metadata") {
+	// These are stored with classifier suffix (using lowercase per Maven conventions)
+	if strings.HasPrefix(strings.ToLower(filename), "metadata") {
 		// metadata.json or metadata.sig
 		if strings.HasSuffix(filename, ".json") {
-			return buildMavenPath(groupId, artifactId, version, "-metadata.json"), nil
+			return buildMavenPath(groupId, artifactId, version, "metadata", ".json"), nil
 		}
 		if strings.HasSuffix(filename, ".sig") {
-			return buildMavenPath(groupId, artifactId, version, "-metadata.sig"), nil
+			return buildMavenPath(groupId, artifactId, version, "metadata", ".sig"), nil
 		}
 	}
-	if strings.HasPrefix(filename, "Package") {
+	if strings.HasPrefix(strings.ToLower(filename), "package") {
 		if strings.HasSuffix(filename, ".swift") {
 			// Check for alternative manifests like Package@swift-5.0.swift
 			if strings.Contains(filename, "@") {
 				// Extract the swift version part
+				// Format: Package@swift-5.7.0.swift -> extract "5.7.0"
 				parts := strings.Split(filename, "@")
 				if len(parts) == 2 {
-					swiftVersion := strings.TrimSuffix(parts[1], ".swift")
-					return buildMavenPath(groupId, artifactId, version, "-Package@swift-"+swiftVersion+".swift"), nil
+					swiftPart := strings.TrimSuffix(parts[1], ".swift")
+					// Remove "swift-" prefix if present to get just the version
+					swiftVersion := strings.TrimPrefix(swiftPart, "swift-")
+					// Use Maven-compliant format: package-swift-5.7.0
+					// (lowercase, hyphens only - no @ symbol or uppercase per Maven conventions)
+					// Multiple dashes in classifier are valid (e.g., "test-jar", "sources-javadoc")
+					classifier := "package-swift-" + swiftVersion
+					return buildMavenPath(groupId, artifactId, version, classifier, ".swift"), nil
 				}
 			}
-			return buildMavenPath(groupId, artifactId, version, "-Package.swift"), nil
+			return buildMavenPath(groupId, artifactId, version, "package", ".swift"), nil
 		}
 		if strings.HasSuffix(filename, ".json") {
-			return buildMavenPath(groupId, artifactId, version, "-Package.json"), nil
+			return buildMavenPath(groupId, artifactId, version, "package", ".json"), nil
 		}
 	}
 
-	// Main artifact (source-archive.zip)
-	return buildMavenPath(groupId, artifactId, version, ext), nil
+	// Main artifact (source-archive.zip) - no classifier
+	return buildMavenPath(groupId, artifactId, version, "", ext), nil
 }
 
 // checkRangeSupport checks if the Maven repository supports Range requests
