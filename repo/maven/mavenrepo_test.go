@@ -648,22 +648,11 @@ func Test_ExtractManifestFiles_RealZipFile_ExtractsFiles(t *testing.T) {
 	// Test with actual zip file from test data
 	// This zip has: test.TestLib/Package.swift, Package@swift-5.7.0.swift, Package@swift-5.swift
 	// and package-metadata.json (not Package.json)
-	// Try multiple possible paths relative to test execution location
-	var zipData []byte
-	var err error
-	possiblePaths := []string{
-		"files/test/TestLib/1.3.35/test.TestLib-1.3.35.zip",
-		"../../files/test/TestLib/1.3.35/test.TestLib-1.3.35.zip",
-		"../../../files/test/TestLib/1.3.35/test.TestLib-1.3.35.zip",
-	}
-	for _, zipPath := range possiblePaths {
-		zipData, err = os.ReadFile(zipPath)
-		if err == nil {
-			break
-		}
-	}
+	// Use testdata directory (Go convention for test files that can be checked into git)
+	zipPath := "testdata/test/TestLib/1.3.35/test.TestLib-1.3.35.zip"
+	zipData, err := os.ReadFile(zipPath)
 	if err != nil {
-		t.Skipf("test zip file not found (tried: %v): %v", possiblePaths, err)
+		t.Skipf("test zip file not found at %s: %v", zipPath, err)
 	}
 
 	uploadedFiles := make(map[string][]byte)
