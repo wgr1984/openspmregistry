@@ -2,9 +2,11 @@ package maven
 
 import (
 	"OpenSPMRegistry/config"
+	"OpenSPMRegistry/mimetypes"
 	"OpenSPMRegistry/models"
 	"bytes"
 	"context"
+	"crypto/sha256"
 	"fmt"
 	"io"
 	"log/slog"
@@ -15,17 +17,17 @@ import (
 )
 
 type access struct {
-	client        *client
-	config        config.MavenConfig
+	client         *client
+	config         config.MavenConfig
 	supportsRanges *bool
-	rangeCheckMu  sync.Mutex
+	rangeCheckMu   sync.Mutex
 }
 
 // newAccess creates a new Maven access implementation
 func newAccess(client *client, cfg config.MavenConfig) *access {
 	return &access{
-		client:        client,
-		config:        cfg,
+		client:         client,
+		config:         cfg,
 		supportsRanges: nil,
 	}
 }
@@ -174,23 +176,27 @@ func (a *access) GetWriter(ctx context.Context, element *models.UploadElement) (
 		return nil, fmt.Errorf("failed to build Maven path: %w", err)
 	}
 
-	return newMavenWriter(a.client, path, element.MimeType, ctx), nil
+	return newMavenWriter(a.client, a.config, path, element, ctx), nil
 }
 
 // mavenWriter implements io.WriteCloser and uploads data via PUT on Close()
 type mavenWriter struct {
 	client      *client
+	config      config.MavenConfig
 	path        string
+	element     *models.UploadElement
 	contentType string
 	buffer      []byte
 	ctx         context.Context
 }
 
-func newMavenWriter(client *client, path, contentType string, ctx context.Context) *mavenWriter {
+func newMavenWriter(client *client, cfg config.MavenConfig, path string, element *models.UploadElement, ctx context.Context) *mavenWriter {
 	return &mavenWriter{
 		client:      client,
+		config:      cfg,
 		path:        path,
-		contentType: contentType,
+		element:     element,
+		contentType: element.MimeType,
 		buffer:      make([]byte, 0),
 		ctx:         ctx,
 	}
@@ -203,5 +209,40 @@ func (w *mavenWriter) Write(p []byte) (n int, err error) {
 
 func (w *mavenWriter) Close() error {
 	reader := bytes.NewReader(w.buffer)
-	return w.client.PUT(w.ctx, w.path, reader, w.contentType)
+	if err := w.client.PUT(w.ctx, w.path, reader, w.contentType); err != nil {
+		return err
+	}
+
+	// Calculate SHA256 checksum for the uploaded data
+	hash := sha256.New()
+	hash.Write(w.buffer)
+	checksum := fmt.Sprintf("%x", hash.Sum(nil))
+
+	// Upload .sha256 checksum file (Maven convention)
+	checksumPath := w.path + ".sha256"
+	checksumReader := bytes.NewReader([]byte(checksum))
+	if err := w.client.PUT(w.ctx, checksumPath, checksumReader, "text/plain"); err != nil {
+		// Log warning but don't fail the upload if checksum file upload fails
+		if slog.Default().Enabled(context.Background(), slog.LevelDebug) {
+			slog.Debug("Failed to upload .sha256 checksum file", "error", err, "path", checksumPath)
+		}
+	}
+
+	// Update maven-metadata.xml after successful upload of source archives
+	// This ensures the metadata file is created/updated when packages are published
+	// Source archives are identified by: application/zip MIME type
+	if w.element.MimeType == mimetypes.ApplicationZip {
+		groupId := buildGroupId(w.element.Scope, w.config)
+		artifactId := buildArtifactId(w.element.Name)
+		version := buildVersion(w.element.Version)
+		if err := updateMetadata(w.client, w.ctx, groupId, artifactId, version); err != nil {
+			// Log warning but don't fail the upload if metadata update fails
+			// Some repositories might not support PUT for metadata, or it might be auto-generated
+			if slog.Default().Enabled(context.Background(), slog.LevelDebug) {
+				slog.Debug("Failed to update maven-metadata.xml", "error", err, "groupId", groupId, "artifactId", artifactId, "version", version)
+			}
+		}
+	}
+
+	return nil
 }

@@ -14,6 +14,7 @@ import (
 	"encoding/base64"
 	"fmt"
 	"io"
+	"log/slog"
 	"net/http"
 	"os"
 	"strings"
@@ -282,7 +283,65 @@ func TestIntegration_PublishAndGet_RealServer(t *testing.T) {
 		hash.Write(testZipData)
 		expectedChecksum := fmt.Sprintf("%x", hash.Sum(nil))
 
-		// Get checksum from repository
+		// Verify .sha256 file exists (should have been created during upload)
+		// Maven path format: {scope}/{name}/{version}/{name}-{version}.zip
+		// Checksum file: {scope}/{name}/{version}/{name}-{version}.zip.sha256
+		expectedPath := fmt.Sprintf("%s/%s/%s/%s-%s.zip", scope, name, version, name, version)
+		checksumPath := expectedPath + ".sha256"
+		checksumFileExists := false
+		checksumFileContent := ""
+
+		// Construct full URL (baseURL already includes repository name)
+		checksumURL := strings.TrimSuffix(baseURL, "/") + "/" + checksumPath
+		t.Logf("Checking for checksum file at: %s", checksumURL)
+
+		req, err := http.NewRequestWithContext(ctx, "GET", checksumURL, nil)
+		if err != nil {
+			t.Logf("Failed to create request for checksum file: %v", err)
+		} else {
+			// Add authentication (same as helper uses)
+			username := os.Getenv("MAVEN_REPO_USERNAME")
+			if username == "" {
+				username = "admin" // Reposilite default
+			}
+			password := os.Getenv("MAVEN_REPO_PASSWORD")
+			if password == "" {
+				password = "admin123" // Reposilite default
+			}
+			req.SetBasicAuth(username, password)
+
+			resp, err := helper.HTTPClient.Do(req)
+			if err != nil {
+				t.Logf("Failed to fetch checksum file: %v", err)
+			} else {
+				defer resp.Body.Close()
+				t.Logf("Checksum file HTTP status: %d", resp.StatusCode)
+				if resp.StatusCode == http.StatusOK {
+					checksumFileExists = true
+					if data, err := io.ReadAll(resp.Body); err == nil {
+						checksumFileContent = strings.TrimSpace(string(data))
+						t.Logf("Checksum file content: %s (length: %d)", checksumFileContent, len(checksumFileContent))
+					} else {
+						t.Logf("Failed to read checksum file body: %v", err)
+					}
+				} else {
+					body, _ := io.ReadAll(resp.Body)
+					t.Logf("Checksum file request failed with status %d, body: %s", resp.StatusCode, string(body))
+				}
+			}
+		}
+
+		if !checksumFileExists {
+			t.Fatalf(".sha256 checksum file does not exist at %s (checked URL: %s)", checksumPath, checksumURL)
+		}
+
+		if checksumFileContent != expectedChecksum {
+			t.Fatalf("Checksum file content mismatch: got %s, expected %s", checksumFileContent, expectedChecksum)
+		}
+
+		t.Logf(".sha256 file verified: %s", checksumFileContent)
+
+		// Get checksum from repository (should read from .sha256 file)
 		checksum, err := repo.Checksum(ctx, element)
 		if err != nil {
 			t.Fatalf("Failed to get checksum: %v", err)
@@ -292,7 +351,11 @@ func TestIntegration_PublishAndGet_RealServer(t *testing.T) {
 			t.Fatalf("Checksum mismatch: got %s, expected %s", checksum, expectedChecksum)
 		}
 
-		t.Logf("Checksum verification passed: %s", checksum)
+		if checksum != checksumFileContent {
+			t.Fatalf("Checksum from method (%s) does not match checksum file content (%s) - method may not be using .sha256 file", checksum, checksumFileContent)
+		}
+
+		t.Logf("Checksum verification passed (read from .sha256 file): %s", checksum)
 	})
 
 	// Test 5: Verify publish date
@@ -481,11 +544,39 @@ func TestIntegration_PublishAndGet_RealServer(t *testing.T) {
 		variantElement.SetFilenameOverwrite("Package@swift-5.7.0")
 		filesToRemove = append(filesToRemove, variantElement)
 
+		// Remove main files and their .sha256 checksum files
 		for _, file := range filesToRemove {
+			// Remove the main file
 			if err := repo.Remove(ctx, file); err != nil {
 				t.Logf("Warning: Failed to remove %s: %v", file.FileName(), err)
 			}
+
+			// Remove the .sha256 checksum file
+			// Access the internal access implementation to build the path
+			accessImpl := repo.Access.(*access)
+			path, err := accessImpl.buildMavenPathForElement(file)
+			if err == nil {
+				checksumPath := path + ".sha256"
+				if err := repo.client.DELETE(ctx, checksumPath); err != nil {
+					// Log but don't fail - checksum file might not exist
+					if slog.Default().Enabled(context.Background(), slog.LevelDebug) {
+						t.Logf("Warning: Failed to remove checksum file %s: %v", checksumPath, err)
+					}
+				}
+			}
 		}
+
+		// Remove maven-metadata.xml file
+		groupId := buildGroupId(scope, cfg)
+		artifactId := buildArtifactId(name)
+		metadataPath := getMetadataPath(groupId, artifactId)
+		if err := repo.client.DELETE(ctx, metadataPath); err != nil {
+			// Log but don't fail - metadata file might not exist
+			if slog.Default().Enabled(context.Background(), slog.LevelDebug) {
+				t.Logf("Warning: Failed to remove maven-metadata.xml: %v", err)
+			}
+		}
+
 		t.Log("Test files cleaned up")
 	})
 }

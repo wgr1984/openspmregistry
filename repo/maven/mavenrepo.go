@@ -27,8 +27,8 @@ import (
 // MavenRepo implements the repo.Repo interface for Maven repositories
 type MavenRepo struct {
 	repo.Access
-	client      *client
-	config      config.MavenConfig
+	client       *client
+	config       config.MavenConfig
 	timeProvider utils.TimeProvider
 }
 
@@ -220,11 +220,43 @@ func (m *MavenRepo) LoadMetadata(ctx context.Context, scope string, name string,
 }
 
 // Checksum computes SHA256 checksum of the element
+// First tries to read from the .sha256 checksum file (Maven convention)
+// Falls back to calculating the checksum if the file doesn't exist
 func (m *MavenRepo) Checksum(ctx context.Context, element *models.UploadElement) (string, error) {
 	if !m.Exists(ctx, element) {
 		return "", fmt.Errorf("file does not exist: %s", element.FileName())
 	}
 
+	// Try to read from .sha256 checksum file first (more efficient)
+	path, err := m.Access.(*access).buildMavenPathForElement(element)
+	if err != nil {
+		return "", fmt.Errorf("failed to build Maven path: %w", err)
+	}
+
+	checksumPath := path + ".sha256"
+	resp, err := m.client.GET(ctx, checksumPath)
+	if err == nil {
+		defer resp.Body.Close()
+		if resp.StatusCode == http.StatusOK {
+			checksumBytes, err := io.ReadAll(resp.Body)
+			if err == nil {
+				checksum := strings.TrimSpace(string(checksumBytes))
+				// Validate it's a valid hex string (64 chars for SHA256)
+				if len(checksum) == 64 {
+					if slog.Default().Enabled(ctx, slog.LevelDebug) {
+						slog.Debug("Checksum read from .sha256 file", "path", checksumPath, "checksum", checksum)
+					}
+					return checksum, nil
+				}
+			}
+		}
+	}
+
+	if slog.Default().Enabled(ctx, slog.LevelDebug) {
+		slog.Debug("Checksum file not found or invalid, calculating from artifact", "path", checksumPath, "error", err)
+	}
+
+	// Fall back to calculating checksum from artifact
 	reader, err := m.GetReader(ctx, element)
 	if err != nil {
 		return "", err
@@ -244,7 +276,7 @@ func (m *MavenRepo) GetAlternativeManifests(ctx context.Context, element *models
 	// For Maven, we need to check for sidecar files with different names
 	// This is limited - we can only find manifests we've uploaded
 	// In practice, we'd need to list the directory or use a different approach
-	
+
 	// For now, return empty - this would require directory listing which Maven doesn't easily support
 	// A better approach would be to maintain a manifest index
 	return []models.UploadElement{}, nil

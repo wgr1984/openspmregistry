@@ -534,7 +534,8 @@ func Test_mavenWriter_Write_AppendsToBuffer(t *testing.T) {
 	cfg := config.MavenConfig{BaseURL: server.URL}
 	c, _ := newClient(cfg)
 
-	writer := newMavenWriter(c, "test/path", "application/zip", context.Background())
+	element := models.NewUploadElement("testScope", "my-package", "1.0.0", mimetypes.ApplicationZip, models.SourceArchive)
+	writer := newMavenWriter(c, cfg, "test/path", element, context.Background())
 	data := []byte("test data")
 	n, err := writer.Write(data)
 	if err != nil {
@@ -559,7 +560,8 @@ func Test_mavenWriter_Close_UploadsData(t *testing.T) {
 	cfg := config.MavenConfig{BaseURL: server.URL}
 	c, _ := newClient(cfg)
 
-	writer := newMavenWriter(c, "test/path", "application/zip", context.Background())
+	element := models.NewUploadElement("testScope", "my-package", "1.0.0", mimetypes.ApplicationZip, models.SourceArchive)
+	writer := newMavenWriter(c, cfg, "test/path", element, context.Background())
 	testData := []byte("test upload data")
 	writer.Write(testData)
 	err := writer.Close()
