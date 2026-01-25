@@ -103,8 +103,9 @@ func checkHeadersEnforce(r *http.Request, enforceMediaType string) *HeaderError 
 	}
 }
 
-func listElements(w http.ResponseWriter, c *Controller, scope string, packageName string) ([]models.ListElement, error) {
-	elements, err := c.repo.List(scope, packageName)
+func listElements(w http.ResponseWriter, c *Controller, r *http.Request, scope string, packageName string) ([]models.ListElement, error) {
+	ctx := requestContext(r)
+	elements, err := c.repo.List(ctx, scope, packageName)
 	if err != nil {
 		writeError(fmt.Sprintf("error listing package %s.%s", scope, packageName), w)
 		return nil, err
@@ -206,6 +207,19 @@ func writeErrorWithStatusCode(msg string, w http.ResponseWriter, status int) {
 	if err != nil {
 		slog.Error("Error writing response:", "error", err)
 	}
+}
+
+// requestContext creates a context from the HTTP request, adding Authorization header if present
+// This enables passthrough authentication mode for Maven repositories
+func requestContext(r *http.Request) context.Context {
+	ctx := r.Context()
+	
+	// Extract Authorization header and add to context for passthrough mode
+	if authHeader := r.Header.Get("Authorization"); authHeader != "" {
+		ctx = context.WithValue(ctx, "Authorization", authHeader)
+	}
+	
+	return ctx
 }
 
 func printCallInfo(methodName string, r *http.Request) {

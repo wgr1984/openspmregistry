@@ -6,6 +6,7 @@ import (
 	"OpenSPMRegistry/repo"
 	"OpenSPMRegistry/utils"
 	"bufio"
+	"context"
 	"crypto/sha256"
 	"encoding/base64"
 	"encoding/json"
@@ -39,7 +40,7 @@ func NewFileRepo(path string) *FileRepo {
 	}
 }
 
-func (f *FileRepo) ExtractManifestFiles(element *models.UploadElement) error {
+func (f *FileRepo) ExtractManifestFiles(ctx context.Context, element *models.UploadElement) error {
 	pathFolder := filepath.Join(f.path, element.Scope, element.Name, element.Version)
 	_, err := f.osModule.Stat(pathFolder)
 	if errors.Is(err, os.ErrNotExist) {
@@ -61,7 +62,7 @@ func (f *FileRepo) ExtractManifestFiles(element *models.UploadElement) error {
 	return errors.New("unsupported mime type")
 }
 
-func (f *FileRepo) List(scope string, name string) ([]models.ListElement, error) {
+func (f *FileRepo) List(ctx context.Context, scope string, name string) ([]models.ListElement, error) {
 	path := filepath.Join(f.path, scope, name)
 	_, err := f.osModule.Stat(path)
 	if errors.Is(err, os.ErrNotExist) {
@@ -92,12 +93,12 @@ func (f *FileRepo) List(scope string, name string) ([]models.ListElement, error)
 	return elements, err
 }
 
-func (f *FileRepo) EncodeBase64(element *models.UploadElement) (string, error) {
-	if !f.Exists(element) {
+func (f *FileRepo) EncodeBase64(ctx context.Context, element *models.UploadElement) (string, error) {
+	if !f.Exists(ctx, element) {
 		return "", fmt.Errorf("file not exists: %s", element.FileName())
 	}
 
-	reader, err := f.GetReader(element)
+	reader, err := f.GetReader(ctx, element)
 	if err != nil {
 		return "", err
 	}
@@ -116,9 +117,9 @@ func (f *FileRepo) EncodeBase64(element *models.UploadElement) (string, error) {
 	return base64.StdEncoding.EncodeToString(b), nil
 }
 
-func (f *FileRepo) PublishDate(element *models.UploadElement) (time.Time, error) {
+func (f *FileRepo) PublishDate(ctx context.Context, element *models.UploadElement) (time.Time, error) {
 	pathFolder := filepath.Join(f.path, element.Scope, element.Name, element.Version)
-	if !f.Exists(element) {
+	if !f.Exists(ctx, element) {
 		return f.timeProvider.Now(), fmt.Errorf("path does not exists: %s", pathFolder)
 	}
 
@@ -132,7 +133,7 @@ func (f *FileRepo) PublishDate(element *models.UploadElement) (time.Time, error)
 	return stat.ModTime(), nil
 }
 
-func (f *FileRepo) LoadMetadata(scope string, name string, version string) (map[string]any, error) {
+func (f *FileRepo) LoadMetadata(ctx context.Context, scope string, name string, version string) (map[string]any, error) {
 	pathFolder := filepath.Join(f.path, scope, name, version)
 	_, err := f.osModule.Stat(pathFolder)
 	if errors.Is(err, os.ErrNotExist) {
@@ -143,11 +144,11 @@ func (f *FileRepo) LoadMetadata(scope string, name string, version string) (map[
 	}
 
 	metadata := models.NewUploadElement(scope, name, version, mimetypes.ApplicationJson, models.Metadata)
-	if !f.Exists(metadata) {
+	if !f.Exists(ctx, metadata) {
 		return nil, fmt.Errorf("file not exists: %s", metadata.FileName())
 	}
 
-	reader, err := f.GetReader(metadata)
+	reader, err := f.GetReader(ctx, metadata)
 	if err != nil {
 		return nil, err
 	}
@@ -174,8 +175,8 @@ func (f *FileRepo) LoadMetadata(scope string, name string, version string) (map[
 	return metadataResult, nil
 }
 
-func (f *FileRepo) Checksum(element *models.UploadElement) (string, error) {
-	if !f.Exists(element) {
+func (f *FileRepo) Checksum(ctx context.Context, element *models.UploadElement) (string, error) {
+	if !f.Exists(ctx, element) {
 		return "", fmt.Errorf("file not exists: %s", element.FileName())
 	}
 
@@ -197,7 +198,7 @@ func (f *FileRepo) Checksum(element *models.UploadElement) (string, error) {
 	return fmt.Sprintf("%x", hash.Sum(nil)), nil
 }
 
-func (f *FileRepo) GetAlternativeManifests(element *models.UploadElement) ([]models.UploadElement, error) {
+func (f *FileRepo) GetAlternativeManifests(ctx context.Context, element *models.UploadElement) ([]models.UploadElement, error) {
 	pathFolder := filepath.Join(f.path, element.Scope, element.Name, element.Version)
 	_, err := f.osModule.Stat(pathFolder)
 	if errors.Is(err, os.ErrNotExist) {
@@ -236,8 +237,8 @@ func (f *FileRepo) GetAlternativeManifests(element *models.UploadElement) ([]mod
 	return manifests, nil
 }
 
-func (f *FileRepo) GetSwiftToolVersion(manifest *models.UploadElement) (string, error) {
-	if !f.Exists(manifest) {
+func (f *FileRepo) GetSwiftToolVersion(ctx context.Context, manifest *models.UploadElement) (string, error) {
+	if !f.Exists(ctx, manifest) {
 		return "", fmt.Errorf("file not exists: %s", manifest.FileName())
 	}
 
@@ -261,7 +262,7 @@ func (f *FileRepo) GetSwiftToolVersion(manifest *models.UploadElement) (string, 
 	return "", errors.New("swift-tools-version not found")
 }
 
-func (f *FileRepo) Lookup(url string) []string {
+func (f *FileRepo) Lookup(ctx context.Context, url string) []string {
 	var result []string
 
 	err := filepath.WalkDir(f.path, func(path string, d os.DirEntry, err error) error {
@@ -275,7 +276,7 @@ func (f *FileRepo) Lookup(url string) []string {
 		version := filepath.Base(filepath.Dir(path))
 		scope := filepath.Base(filepath.Dir(filepath.Dir(filepath.Dir(path))))
 		packageName := filepath.Base(filepath.Dir(filepath.Dir(path)))
-		metadata, err := f.LoadMetadata(scope, packageName, version)
+		metadata, err := f.LoadMetadata(ctx, scope, packageName, version)
 		if err != nil {
 			return nil
 		}
@@ -301,9 +302,9 @@ func (f *FileRepo) Lookup(url string) []string {
 	return result
 }
 
-func (f *FileRepo) Remove(element *models.UploadElement) error {
+func (f *FileRepo) Remove(ctx context.Context, element *models.UploadElement) error {
 	path := filepath.Join(f.path, element.Scope, element.Name, element.Version, element.FileName())
-	if f.Exists(element) {
+	if f.Exists(ctx, element) {
 		return os.Remove(path)
 	}
 	return fmt.Errorf("file not exists: %s", element.FileName())
@@ -358,7 +359,7 @@ func closeFile(name string, file *os.File) error {
 }
 
 // ListScopes returns all available scopes in the registry
-func (f *FileRepo) ListScopes() ([]string, error) {
+func (f *FileRepo) ListScopes(ctx context.Context) ([]string, error) {
 	var scopes []string
 	entries, err := f.osModule.ReadDir(f.path)
 	if err != nil {
@@ -375,7 +376,7 @@ func (f *FileRepo) ListScopes() ([]string, error) {
 }
 
 // ListInScope returns all packages in a specific scope
-func (f *FileRepo) ListInScope(scope string) ([]models.ListElement, error) {
+func (f *FileRepo) ListInScope(ctx context.Context, scope string) ([]models.ListElement, error) {
 	scopePath := filepath.Join(f.path, scope)
 	_, err := f.osModule.Stat(scopePath)
 	if errors.Is(err, os.ErrNotExist) {
@@ -394,7 +395,7 @@ func (f *FileRepo) ListInScope(scope string) ([]models.ListElement, error) {
 	for _, entry := range entries {
 		if entry.IsDir() {
 			// Get all versions for this package
-			versions, err := f.List(scope, entry.Name())
+			versions, err := f.List(ctx, scope, entry.Name())
 			if err == nil {
 				packages = append(packages, versions...)
 			}
@@ -405,15 +406,15 @@ func (f *FileRepo) ListInScope(scope string) ([]models.ListElement, error) {
 }
 
 // ListAll returns all packages across all scopes
-func (f *FileRepo) ListAll() ([]models.ListElement, error) {
-	scopes, err := f.ListScopes()
+func (f *FileRepo) ListAll(ctx context.Context) ([]models.ListElement, error) {
+	scopes, err := f.ListScopes(ctx)
 	if err != nil {
 		return nil, err
 	}
 
 	var allPackages []models.ListElement
 	for _, scope := range scopes {
-		packages, err := f.ListInScope(scope)
+		packages, err := f.ListInScope(ctx, scope)
 		if err != nil {
 			slog.Warn("Error listing packages in scope", "scope", scope, "error", err)
 			continue
@@ -425,10 +426,10 @@ func (f *FileRepo) ListAll() ([]models.ListElement, error) {
 }
 
 // LoadPackageJson loads the Package.json file for a package version
-func (f *FileRepo) LoadPackageJson(scope string, name string, version string) (map[string]any, error) {
+func (f *FileRepo) LoadPackageJson(ctx context.Context, scope string, name string, version string) (map[string]any, error) {
 	element := models.NewUploadElement(scope, name, version, "application/json", models.PackageManifestJson)
 
-	if !f.Exists(element) {
+	if !f.Exists(ctx, element) {
 		return nil, fmt.Errorf("Package.json not found for %s.%s@%s", scope, name, version)
 	}
 

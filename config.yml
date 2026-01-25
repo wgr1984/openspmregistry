@@ -7,6 +7,13 @@ server:
   repo:
     type: file
     path: ./files/
+    # maven:
+    #   baseURL: https://repo1.maven.org/maven2
+    #   groupIdPrefix: com.example
+    #   authMode: config
+    #   username: user
+    #   password: pass
+    #   timeout: 30  # HTTP client timeout in seconds (default: 30)
   publish:
     maxSize: 204800
   auth:

@@ -492,77 +492,77 @@ type mockRepo struct {
 	getSwiftToolVersionFunc     func(element *models.UploadElement) (string, error)
 }
 
-func (m *mockRepo) GetReader(element *models.UploadElement) (io.ReadSeekCloser, error) {
+func (m *mockRepo) GetReader(ctx context.Context, element *models.UploadElement) (io.ReadSeekCloser, error) {
 	return m.getReaderFunc(element)
 }
 
-func (m *mockRepo) GetWriter(element *models.UploadElement) (io.WriteCloser, error) {
+func (m *mockRepo) GetWriter(ctx context.Context, element *models.UploadElement) (io.WriteCloser, error) {
 	return nil, fmt.Errorf("not implemented")
 }
 
-func (m *mockRepo) Exists(element *models.UploadElement) bool {
+func (m *mockRepo) Exists(ctx context.Context, element *models.UploadElement) bool {
 	return true
 }
 
-func (m *mockRepo) ExtractManifestFiles(element *models.UploadElement) error {
+func (m *mockRepo) ExtractManifestFiles(ctx context.Context, element *models.UploadElement) error {
 	return nil
 }
 
-func (m *mockRepo) List(scope string, name string) ([]models.ListElement, error) {
+func (m *mockRepo) List(ctx context.Context, scope string, name string) ([]models.ListElement, error) {
 	return nil, nil
 }
 
-func (m *mockRepo) EncodeBase64(element *models.UploadElement) (string, error) {
+func (m *mockRepo) EncodeBase64(ctx context.Context, element *models.UploadElement) (string, error) {
 	return "", nil
 }
 
-func (m *mockRepo) GetAlternativeManifests(element *models.UploadElement) ([]models.UploadElement, error) {
+func (m *mockRepo) GetAlternativeManifests(ctx context.Context, element *models.UploadElement) ([]models.UploadElement, error) {
 	if m.getAlternativeManifestsFunc != nil {
 		return m.getAlternativeManifestsFunc(element)
 	}
 	return nil, nil
 }
 
-func (m *mockRepo) PublishDate(element *models.UploadElement) (time.Time, error) {
+func (m *mockRepo) PublishDate(ctx context.Context, element *models.UploadElement) (time.Time, error) {
 	if m.publishDateFunc != nil {
 		return m.publishDateFunc(element)
 	}
 	return time.Time{}, nil
 }
 
-func (m *mockRepo) Checksum(element *models.UploadElement) (string, error) {
+func (m *mockRepo) Checksum(ctx context.Context, element *models.UploadElement) (string, error) {
 	return "", nil
 }
 
-func (m *mockRepo) LoadMetadata(scope string, name string, version string) (map[string]any, error) {
+func (m *mockRepo) LoadMetadata(ctx context.Context, scope string, name string, version string) (map[string]any, error) {
 	return nil, nil
 }
 
-func (m *mockRepo) GetSwiftToolVersion(element *models.UploadElement) (string, error) {
+func (m *mockRepo) GetSwiftToolVersion(ctx context.Context, element *models.UploadElement) (string, error) {
 	return m.getSwiftToolVersionFunc(element)
 }
 
-func (m *mockRepo) Lookup(url string) []string {
+func (m *mockRepo) Lookup(ctx context.Context, url string) []string {
 	return nil
 }
 
-func (m *mockRepo) Remove(element *models.UploadElement) error {
+func (m *mockRepo) Remove(ctx context.Context, element *models.UploadElement) error {
 	return nil
 }
 
-func (m *mockRepo) ListScopes() ([]string, error) {
+func (m *mockRepo) ListScopes(ctx context.Context) ([]string, error) {
 	return nil, nil
 }
 
-func (m *mockRepo) ListInScope(scope string) ([]models.ListElement, error) {
+func (m *mockRepo) ListInScope(ctx context.Context, scope string) ([]models.ListElement, error) {
 	return nil, nil
 }
 
-func (m *mockRepo) ListAll() ([]models.ListElement, error) {
+func (m *mockRepo) ListAll(ctx context.Context) ([]models.ListElement, error) {
 	return nil, nil
 }
 
-func (m *mockRepo) LoadPackageJson(scope string, name string, version string) (map[string]any, error) {
+func (m *mockRepo) LoadPackageJson(ctx context.Context, scope string, name string, version string) (map[string]any, error) {
 	return nil, nil
 }
 

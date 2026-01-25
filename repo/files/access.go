@@ -2,6 +2,7 @@ package files
 
 import (
 	"OpenSPMRegistry/models"
+	"context"
 	"errors"
 	"fmt"
 	"io"
@@ -14,7 +15,7 @@ type access struct {
 	osModule OsAdapter
 }
 
-func (f *access) GetWriter(element *models.UploadElement) (io.WriteCloser, error) {
+func (f *access) GetWriter(ctx context.Context, element *models.UploadElement) (io.WriteCloser, error) {
 	pathFolder := filepath.Join(f.path, element.Scope, element.Name, element.Version)
 	_, err := f.osModule.Stat(pathFolder)
 	if errors.Is(err, os.ErrNotExist) {
@@ -30,8 +31,8 @@ func (f *access) GetWriter(element *models.UploadElement) (io.WriteCloser, error
 	return f.osModule.Create(pathFile)
 }
 
-func (f *access) GetReader(element *models.UploadElement) (io.ReadSeekCloser, error) {
-	if !f.Exists(element) {
+func (f *access) GetReader(ctx context.Context, element *models.UploadElement) (io.ReadSeekCloser, error) {
+	if !f.Exists(ctx, element) {
 		return nil, fmt.Errorf("file not exists: %s", element.FileName())
 	}
 
@@ -44,7 +45,7 @@ func (f *access) GetReader(element *models.UploadElement) (io.ReadSeekCloser, er
 	return file, nil
 }
 
-func (f *access) Exists(element *models.UploadElement) bool {
+func (f *access) Exists(ctx context.Context, element *models.UploadElement) bool {
 	path := filepath.Join(f.path, element.Scope, element.Name, element.Version, element.FileName())
 	if _, err := f.osModule.Stat(path); errors.Is(err, os.ErrNotExist) {
 		return false

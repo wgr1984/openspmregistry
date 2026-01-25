@@ -1,6 +1,7 @@
 package controller
 
 import (
+	"context"
 	"OpenSPMRegistry/config"
 	"OpenSPMRegistry/mimetypes"
 	"OpenSPMRegistry/models"
@@ -354,19 +355,19 @@ type MockDownloadRepo struct {
 	readerErr    error
 }
 
-func (m *MockDownloadRepo) Exists(element *models.UploadElement) bool {
+func (m *MockDownloadRepo) Exists(ctx context.Context, element *models.UploadElement) bool {
 	return m.exists
 }
 
-func (m *MockDownloadRepo) Checksum(element *models.UploadElement) (string, error) {
+func (m *MockDownloadRepo) Checksum(ctx context.Context, element *models.UploadElement) (string, error) {
 	return m.checksum, m.checksumErr
 }
 
-func (m *MockDownloadRepo) EncodeBase64(element *models.UploadElement) (string, error) {
+func (m *MockDownloadRepo) EncodeBase64(ctx context.Context, element *models.UploadElement) (string, error) {
 	return m.signature, m.signatureErr
 }
 
-func (m *MockDownloadRepo) GetReader(element *models.UploadElement) (io.ReadSeekCloser, error) {
+func (m *MockDownloadRepo) GetReader(ctx context.Context, element *models.UploadElement) (io.ReadSeekCloser, error) {
 	if m.readerErr != nil {
 		return nil, m.readerErr
 	}

@@ -3,6 +3,7 @@ package controller
 import (
 	"OpenSPMRegistry/config"
 	"OpenSPMRegistry/models"
+	"context"
 	"encoding/json"
 	"log/slog"
 	"net/http"
@@ -102,6 +103,6 @@ type MockListRepo struct {
 	err      error
 }
 
-func (m *MockListRepo) List(scope string, name string) ([]models.ListElement, error) {
+func (m *MockListRepo) List(ctx context.Context, scope string, name string) ([]models.ListElement, error) {
 	return m.elements, m.err
 }

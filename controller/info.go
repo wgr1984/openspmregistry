@@ -24,9 +24,10 @@ func (c *Controller) InfoAction(w http.ResponseWriter, r *http.Request) {
 	packageName := r.PathValue("package")
 	version := utils.StripExtension(r.PathValue("version"), ".json")
 
+	ctx := requestContext(r)
 	sourceArchive := models.NewUploadElement(scope, packageName, version, mimetypes.ApplicationZip, models.SourceArchive)
 
-	if !c.repo.Exists(sourceArchive) {
+	if !c.repo.Exists(ctx, sourceArchive) {
 		writeErrorWithStatusCode(fmt.Sprintf("source archive %s does not exist", sourceArchive.FileName()), w, http.StatusNotFound)
 		return
 	}
@@ -34,14 +35,14 @@ func (c *Controller) InfoAction(w http.ResponseWriter, r *http.Request) {
 	header := w.Header()
 
 	// add first release as latest
-	elements, err := listElements(w, c, scope, packageName)
+	elements, err := listElements(w, c, r, scope, packageName)
 	if err != nil {
 		return // error already logged
 	}
 
 	addLinkHeaders(elements, version, c, header)
 
-	metadataResult, err := c.repo.LoadMetadata(scope, packageName, version)
+	metadataResult, err := c.repo.LoadMetadata(ctx, scope, packageName, version)
 	if err != nil && slog.Default().Enabled(context.TODO(), slog.LevelDebug) {
 		slog.Debug("Error fetching metadata:", "error", err)
 	}
@@ -51,7 +52,7 @@ func (c *Controller) InfoAction(w http.ResponseWriter, r *http.Request) {
 
 	// encode signature
 	sourceArchiveSig := utils.CopyStruct(sourceArchive)
-	signatureSourceArchive, signatureSourceArchiveErr := c.repo.EncodeBase64(sourceArchiveSig.SetExtOverwrite(".sig"))
+	signatureSourceArchive, signatureSourceArchiveErr := c.repo.EncodeBase64(ctx, sourceArchiveSig.SetExtOverwrite(".sig"))
 	if signatureSourceArchiveErr != nil {
 		slog.Info("Signature not found:")
 	}
@@ -67,7 +68,7 @@ func (c *Controller) InfoAction(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// retrieve publish date from source archive
-	dateTime, dateErr := c.repo.PublishDate(sourceArchive)
+	dateTime, dateErr := c.repo.PublishDate(ctx, sourceArchive)
 	if dateErr != nil {
 		slog.Debug("Publish Date error:", "err", dateErr)
 		dateTime = c.timeProvider.Now()
@@ -75,7 +76,7 @@ func (c *Controller) InfoAction(w http.ResponseWriter, r *http.Request) {
 	dateString := dateTime.Format("2006-01-02T15:04:05Z")
 
 	// retrieve checksum of source archive
-	checksum, err := c.repo.Checksum(sourceArchive)
+	checksum, err := c.repo.Checksum(ctx, sourceArchive)
 	if err != nil {
 		slog.Info("Checksum error:", "err", err)
 		checksum = ""

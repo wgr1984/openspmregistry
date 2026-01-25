@@ -75,12 +75,12 @@ func (c *Controller) PublishAction(w http.ResponseWriter, r *http.Request) {
 		mimeType := part.Header.Get("Content-Type")
 
 		// currently we support only source archive storing
-		element, err := storeElements(w, name, scope, packageName, version, mimeType, c, part)
+		element, err := storeElements(w, r, name, scope, packageName, version, mimeType, c, part)
 		if element != nil {
 			storedElements = append(storedElements, element)
 		}
 		if err != nil {
-			cleanupStoredElements(c, storedElements, scope, packageName, version)
+			cleanupStoredElements(c, r, storedElements, scope, packageName, version)
 			return // error already logged
 		}
 
@@ -96,11 +96,12 @@ func (c *Controller) PublishAction(w http.ResponseWriter, r *http.Request) {
 		// Note: Package.json is extracted from the source archive zip during ExtractManifestFiles
 		// (called in storeElements), so it should exist here if it was in the archive
 		if c.config.PackageCollections.RequirePackageJson {
+			ctx := requestContext(r)
 			packageJsonElement := models.NewUploadElement(scope, packageName, version, mimetypes.ApplicationJson, models.PackageManifestJson)
-			if !c.repo.Exists(packageJsonElement) {
+			if !c.repo.Exists(ctx, packageJsonElement) {
 				writeErrorWithStatusCode("upload failed: Package.json is required but not found in archive", w, http.StatusUnprocessableEntity)
 				// Clean up all stored elements including extracted manifests
-				cleanupStoredElements(c, storedElements, scope, packageName, version)
+				cleanupStoredElements(c, r, storedElements, scope, packageName, version)
 				return
 			}
 		}
@@ -127,24 +128,25 @@ func (c *Controller) PublishAction(w http.ResponseWriter, r *http.Request) {
 
 // storeElements stores the given element in the repository
 // returns the stored element and an error if the element could not be stored
-func storeElements(w http.ResponseWriter, name string, scope string, packageName string, version string, mimeType string, c *Controller, part *multipart.Part) (*models.UploadElement, error) {
+func storeElements(w http.ResponseWriter, r *http.Request, name string, scope string, packageName string, version string, mimeType string, c *Controller, part *multipart.Part) (*models.UploadElement, error) {
 	uploadType, err := validateUploadType(name)
 	if err != nil {
 		writeErrorWithStatusCode(err.Error(), w, http.StatusBadRequest)
 		return nil, err
 	}
 
+	ctx := requestContext(r)
 	element := models.NewUploadElement(scope, packageName, version, mimeType, uploadType)
 
 	// check if file exist in repo
-	if c.repo.Exists(element) {
+	if c.repo.Exists(ctx, element) {
 		msg := fmt.Sprint("upload failed, package exists:", element.FileName())
 		slog.Error("Error", "msg", msg)
 		writeErrorWithStatusCode(msg, w, http.StatusConflict)
 		return nil, fmt.Errorf("package exists: %s", element.FileName())
 	}
 
-	writer, err := c.repo.GetWriter(element)
+	writer, err := c.repo.GetWriter(ctx, element)
 	if err != nil {
 		slog.Error("Error", "msg", err)
 		writeError("upload failed, error storing file", w)
@@ -173,7 +175,7 @@ func storeElements(w http.ResponseWriter, name string, scope string, packageName
 		}
 	}
 
-	if err := c.repo.ExtractManifestFiles(element); err != nil {
+	if err := c.repo.ExtractManifestFiles(ctx, element); err != nil {
 		slog.Error("Error extracting manifest files:", "error", err)
 		// Continue even if extraction fails
 	}
@@ -195,14 +197,17 @@ func validateUploadType(name string) (models.UploadElementType, error) {
 //
 // Parameters:
 //   - c: Controller instance with repository access
+//   - r: HTTP request for context
 //   - storedElements: Slice of elements that were stored during upload
 //   - scope: Package scope
 //   - packageName: Package name
 //   - version: Package version
-func cleanupStoredElements(c *Controller, storedElements []*models.UploadElement, scope, packageName, version string) {
+func cleanupStoredElements(c *Controller, r *http.Request, storedElements []*models.UploadElement, scope, packageName, version string) {
+	ctx := requestContext(r)
+	
 	// Remove all stored elements (metadata, signatures, source archive)
 	for _, element := range storedElements {
-		if err := c.repo.Remove(element); err != nil {
+		if err := c.repo.Remove(ctx, element); err != nil {
 			slog.Warn("Failed to cleanup stored element during rollback", "element", element.FileName(), "error", err)
 		}
 	}
@@ -210,26 +215,26 @@ func cleanupStoredElements(c *Controller, storedElements []*models.UploadElement
 	// Remove extracted Package.swift manifest files
 	// ExtractManifestFiles may have created these from the source archive
 	manifestElement := models.NewUploadElement(scope, packageName, version, mimetypes.TextXSwift, models.Manifest)
-	alternatives, err := c.repo.GetAlternativeManifests(manifestElement)
+	alternatives, err := c.repo.GetAlternativeManifests(ctx, manifestElement)
 	if err == nil {
 		for _, alt := range alternatives {
-			if err := c.repo.Remove(&alt); err != nil {
+			if err := c.repo.Remove(ctx, &alt); err != nil {
 				slog.Warn("Failed to cleanup manifest file during rollback", "manifest", alt.FileName(), "error", err)
 			}
 		}
 	}
 
 	// Also remove the base Package.swift if it exists
-	if c.repo.Exists(manifestElement) {
-		if err := c.repo.Remove(manifestElement); err != nil {
+	if c.repo.Exists(ctx, manifestElement) {
+		if err := c.repo.Remove(ctx, manifestElement); err != nil {
 			slog.Warn("Failed to cleanup base manifest during rollback", "error", err)
 		}
 	}
 
 	// Remove Package.json if it was extracted
 	packageJsonElement := models.NewUploadElement(scope, packageName, version, mimetypes.ApplicationJson, models.PackageManifestJson)
-	if c.repo.Exists(packageJsonElement) {
-		if err := c.repo.Remove(packageJsonElement); err != nil {
+	if c.repo.Exists(ctx, packageJsonElement) {
+		if err := c.repo.Remove(ctx, packageJsonElement); err != nil {
 			slog.Warn("Failed to cleanup Package.json during rollback", "error", err)
 		}
 	}

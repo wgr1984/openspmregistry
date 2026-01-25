@@ -4,6 +4,7 @@ import (
 	"OpenSPMRegistry/config"
 	"OpenSPMRegistry/models"
 	"bytes"
+	"context"
 	"fmt"
 	"io"
 	"log/slog"
@@ -442,12 +443,12 @@ type mockPublishRepo struct {
 	storedFiles map[string][]byte
 }
 
-func (m *mockPublishRepo) Exists(element *models.UploadElement) bool {
+func (m *mockPublishRepo) Exists(ctx context.Context, element *models.UploadElement) bool {
 	_, exists := m.storedFiles[element.FileName()]
 	return exists
 }
 
-func (m *mockPublishRepo) GetReader(element *models.UploadElement) (io.ReadSeekCloser, error) {
+func (m *mockPublishRepo) GetReader(ctx context.Context, element *models.UploadElement) (io.ReadSeekCloser, error) {
 	data, exists := m.storedFiles[element.FileName()]
 	if !exists {
 		return nil, fmt.Errorf("file not found")
@@ -455,7 +456,7 @@ func (m *mockPublishRepo) GetReader(element *models.UploadElement) (io.ReadSeekC
 	return &mockReader{bytes.NewReader(data)}, nil
 }
 
-func (m *mockPublishRepo) GetWriter(element *models.UploadElement) (io.WriteCloser, error) {
+func (m *mockPublishRepo) GetWriter(ctx context.Context, element *models.UploadElement) (io.WriteCloser, error) {
 	if m.storedFiles == nil {
 		m.storedFiles = make(map[string][]byte)
 	}
@@ -463,59 +464,59 @@ func (m *mockPublishRepo) GetWriter(element *models.UploadElement) (io.WriteClos
 	return &mockWriter{buf: &buf, filename: element.FileName(), repo: m}, nil
 }
 
-func (m *mockPublishRepo) ExtractManifestFiles(element *models.UploadElement) error {
+func (m *mockPublishRepo) ExtractManifestFiles(ctx context.Context, element *models.UploadElement) error {
 	return nil
 }
 
-func (m *mockPublishRepo) EncodeBase64(element *models.UploadElement) (string, error) {
+func (m *mockPublishRepo) EncodeBase64(ctx context.Context, element *models.UploadElement) (string, error) {
 	return "", nil
 }
 
-func (m *mockPublishRepo) PublishDate(element *models.UploadElement) (time.Time, error) {
+func (m *mockPublishRepo) PublishDate(ctx context.Context, element *models.UploadElement) (time.Time, error) {
 	return time.Now(), nil
 }
 
-func (m *mockPublishRepo) Checksum(element *models.UploadElement) (string, error) {
+func (m *mockPublishRepo) Checksum(ctx context.Context, element *models.UploadElement) (string, error) {
 	return "", nil
 }
 
-func (m *mockPublishRepo) LoadMetadata(scope string, name string, version string) (map[string]any, error) {
+func (m *mockPublishRepo) LoadMetadata(ctx context.Context, scope string, name string, version string) (map[string]any, error) {
 	return nil, nil
 }
 
-func (m *mockPublishRepo) GetAlternativeManifests(element *models.UploadElement) ([]models.UploadElement, error) {
+func (m *mockPublishRepo) GetAlternativeManifests(ctx context.Context, element *models.UploadElement) ([]models.UploadElement, error) {
 	return nil, nil
 }
 
-func (m *mockPublishRepo) GetSwiftToolVersion(manifest *models.UploadElement) (string, error) {
+func (m *mockPublishRepo) GetSwiftToolVersion(ctx context.Context, manifest *models.UploadElement) (string, error) {
 	return "", nil
 }
 
-func (m *mockPublishRepo) Lookup(url string) []string {
+func (m *mockPublishRepo) Lookup(ctx context.Context, url string) []string {
 	return nil
 }
 
-func (m *mockPublishRepo) Remove(element *models.UploadElement) error {
+func (m *mockPublishRepo) Remove(ctx context.Context, element *models.UploadElement) error {
 	return nil
 }
 
-func (m *mockPublishRepo) ListScopes() ([]string, error) {
+func (m *mockPublishRepo) ListScopes(ctx context.Context) ([]string, error) {
 	return nil, nil
 }
 
-func (m *mockPublishRepo) ListInScope(scope string) ([]models.ListElement, error) {
+func (m *mockPublishRepo) ListInScope(ctx context.Context, scope string) ([]models.ListElement, error) {
 	return nil, nil
 }
 
-func (m *mockPublishRepo) ListAll() ([]models.ListElement, error) {
+func (m *mockPublishRepo) ListAll(ctx context.Context) ([]models.ListElement, error) {
 	return nil, nil
 }
 
-func (m *mockPublishRepo) LoadPackageJson(scope string, name string, version string) (map[string]any, error) {
+func (m *mockPublishRepo) LoadPackageJson(ctx context.Context, scope string, name string, version string) (map[string]any, error) {
 	return nil, nil
 }
 
-func (m *mockPublishRepo) List(scope, packageName string) ([]models.ListElement, error) {
+func (m *mockPublishRepo) List(ctx context.Context, scope, packageName string) ([]models.ListElement, error) {
 	return nil, nil
 }
 
@@ -561,7 +562,7 @@ type publishWriteErrorRepo struct {
 	mockPublishRepo
 }
 
-func (r *publishWriteErrorRepo) GetWriter(element *models.UploadElement) (io.WriteCloser, error) {
+func (r *publishWriteErrorRepo) GetWriter(ctx context.Context, element *models.UploadElement) (io.WriteCloser, error) {
 	return &publishErrorWriter{shouldFail: true}, nil
 }
 
@@ -570,7 +571,7 @@ type urlErrorRepo struct {
 	element *models.UploadElement
 }
 
-func (r *urlErrorRepo) Exists(element *models.UploadElement) bool {
+func (r *urlErrorRepo) Exists(ctx context.Context, element *models.UploadElement) bool {
 	r.element = element
 	return false
 }
@@ -580,7 +581,7 @@ type extractErrorRepo struct {
 	shouldFailGetWriter bool
 }
 
-func (r *extractErrorRepo) GetWriter(element *models.UploadElement) (io.WriteCloser, error) {
+func (r *extractErrorRepo) GetWriter(ctx context.Context, element *models.UploadElement) (io.WriteCloser, error) {
 	if r.shouldFailGetWriter {
 		return nil, fmt.Errorf("get writer error")
 	}
@@ -591,7 +592,7 @@ type writeErrorRepo struct {
 	mockPublishRepo
 }
 
-func (r *writeErrorRepo) GetWriter(element *models.UploadElement) (io.WriteCloser, error) {
+func (r *writeErrorRepo) GetWriter(ctx context.Context, element *models.UploadElement) (io.WriteCloser, error) {
 	return &publishWriteFailWriter{shouldFail: true}, nil
 }
 
@@ -716,7 +717,7 @@ type mockPublishRepoWithCleanupTracking struct {
 	existsPackageJson bool
 }
 
-func (m *mockPublishRepoWithCleanupTracking) Exists(element *models.UploadElement) bool {
+func (m *mockPublishRepoWithCleanupTracking) Exists(ctx context.Context, element *models.UploadElement) bool {
 	// Special handling for Package.json
 	if element.FileName() == "Package.json" {
 		return m.existsPackageJson
@@ -725,7 +726,7 @@ func (m *mockPublishRepoWithCleanupTracking) Exists(element *models.UploadElemen
 	return exists
 }
 
-func (m *mockPublishRepoWithCleanupTracking) GetWriter(element *models.UploadElement) (io.WriteCloser, error) {
+func (m *mockPublishRepoWithCleanupTracking) GetWriter(ctx context.Context, element *models.UploadElement) (io.WriteCloser, error) {
 	if m.storedFiles == nil {
 		m.storedFiles = make(map[string][]byte)
 	}
@@ -733,7 +734,7 @@ func (m *mockPublishRepoWithCleanupTracking) GetWriter(element *models.UploadEle
 	return &mockWriterWithCleanupTracking{buf: &buf, filename: element.FileName(), repo: m}, nil
 }
 
-func (m *mockPublishRepoWithCleanupTracking) Remove(element *models.UploadElement) error {
+func (m *mockPublishRepoWithCleanupTracking) Remove(ctx context.Context, element *models.UploadElement) error {
 	m.removedFiles = append(m.removedFiles, element.FileName())
 	delete(m.storedFiles, element.FileName())
 	return nil
@@ -743,59 +744,59 @@ func (m *mockPublishRepoWithCleanupTracking) Write(filename string, data []byte)
 	m.storedFiles[filename] = data
 }
 
-func (m *mockPublishRepoWithCleanupTracking) ExtractManifestFiles(element *models.UploadElement) error {
+func (m *mockPublishRepoWithCleanupTracking) ExtractManifestFiles(ctx context.Context, element *models.UploadElement) error {
 	return nil
 }
 
-func (m *mockPublishRepoWithCleanupTracking) GetAlternativeManifests(element *models.UploadElement) ([]models.UploadElement, error) {
+func (m *mockPublishRepoWithCleanupTracking) GetAlternativeManifests(ctx context.Context, element *models.UploadElement) ([]models.UploadElement, error) {
 	return []models.UploadElement{}, nil
 }
 
-func (m *mockPublishRepoWithCleanupTracking) GetReader(element *models.UploadElement) (io.ReadSeekCloser, error) {
+func (m *mockPublishRepoWithCleanupTracking) GetReader(ctx context.Context, element *models.UploadElement) (io.ReadSeekCloser, error) {
 	return nil, nil
 }
 
-func (m *mockPublishRepoWithCleanupTracking) EncodeBase64(element *models.UploadElement) (string, error) {
+func (m *mockPublishRepoWithCleanupTracking) EncodeBase64(ctx context.Context, element *models.UploadElement) (string, error) {
 	return "", nil
 }
 
-func (m *mockPublishRepoWithCleanupTracking) PublishDate(element *models.UploadElement) (time.Time, error) {
+func (m *mockPublishRepoWithCleanupTracking) PublishDate(ctx context.Context, element *models.UploadElement) (time.Time, error) {
 	return time.Now(), nil
 }
 
-func (m *mockPublishRepoWithCleanupTracking) Checksum(element *models.UploadElement) (string, error) {
+func (m *mockPublishRepoWithCleanupTracking) Checksum(ctx context.Context, element *models.UploadElement) (string, error) {
 	return "", nil
 }
 
-func (m *mockPublishRepoWithCleanupTracking) LoadMetadata(scope string, name string, version string) (map[string]any, error) {
+func (m *mockPublishRepoWithCleanupTracking) LoadMetadata(ctx context.Context, scope string, name string, version string) (map[string]any, error) {
 	return nil, nil
 }
 
-func (m *mockPublishRepoWithCleanupTracking) GetSwiftToolVersion(manifest *models.UploadElement) (string, error) {
+func (m *mockPublishRepoWithCleanupTracking) GetSwiftToolVersion(ctx context.Context, manifest *models.UploadElement) (string, error) {
 	return "", nil
 }
 
-func (m *mockPublishRepoWithCleanupTracking) Lookup(url string) []string {
+func (m *mockPublishRepoWithCleanupTracking) Lookup(ctx context.Context, url string) []string {
 	return nil
 }
 
-func (m *mockPublishRepoWithCleanupTracking) ListScopes() ([]string, error) {
+func (m *mockPublishRepoWithCleanupTracking) ListScopes(ctx context.Context) ([]string, error) {
 	return nil, nil
 }
 
-func (m *mockPublishRepoWithCleanupTracking) ListInScope(scope string) ([]models.ListElement, error) {
+func (m *mockPublishRepoWithCleanupTracking) ListInScope(ctx context.Context, scope string) ([]models.ListElement, error) {
 	return nil, nil
 }
 
-func (m *mockPublishRepoWithCleanupTracking) ListAll() ([]models.ListElement, error) {
+func (m *mockPublishRepoWithCleanupTracking) ListAll(ctx context.Context) ([]models.ListElement, error) {
 	return nil, nil
 }
 
-func (m *mockPublishRepoWithCleanupTracking) LoadPackageJson(scope string, name string, version string) (map[string]any, error) {
+func (m *mockPublishRepoWithCleanupTracking) LoadPackageJson(ctx context.Context, scope string, name string, version string) (map[string]any, error) {
 	return nil, nil
 }
 
-func (m *mockPublishRepoWithCleanupTracking) List(scope, packageName string) ([]models.ListElement, error) {
+func (m *mockPublishRepoWithCleanupTracking) List(ctx context.Context, scope, packageName string) ([]models.ListElement, error) {
 	return nil, nil
 }
 

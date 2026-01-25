@@ -13,13 +13,14 @@ func (c *Controller) LookupAction(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	ctx := requestContext(r)
 	url := r.URL.Query().Get("url")
 	if url == "" {
 		writeErrorWithStatusCode("url is required", w, http.StatusBadRequest)
 		return
 	}
 
-	identifiers := c.repo.Lookup(url)
+	identifiers := c.repo.Lookup(ctx, url)
 
 	if identifiers == nil {
 		writeErrorWithStatusCode(fmt.Sprintf("%s not found", url), w, http.StatusNotFound)

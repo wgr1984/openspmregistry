@@ -4,6 +4,7 @@ import (
 	"OpenSPMRegistry/config"
 	"OpenSPMRegistry/models"
 	"OpenSPMRegistry/responses"
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -178,7 +179,7 @@ func Test_CheckHeadersEnforce_MissingAcceptHeader_ReturnsError(t *testing.T) {
 func Test_ListElements_RepoError_ReturnsEmptyList(t *testing.T) {
 	w := httptest.NewRecorder()
 	c := &Controller{repo: &MockRepo{shouldError: true}}
-	elements, _ := listElements(w, c, "testScope", "testPackage")
+	elements, _ := listElements(w, c, httptest.NewRequest("GET", "/", nil), "testScope", "testPackage")
 
 	if len(elements) != 0 {
 		t.Errorf("expected empty list, got %d elements", len(elements))
@@ -188,7 +189,7 @@ func Test_ListElements_RepoError_ReturnsEmptyList(t *testing.T) {
 func Test_ListElements_RepoError_WritesError(t *testing.T) {
 	w := httptest.NewRecorder()
 	c := &Controller{repo: &MockRepo{shouldError: true}}
-	_, err := listElements(w, c, "testScope", "testPackage")
+	_, err := listElements(w, c, httptest.NewRequest("GET", "/", nil), "testScope", "testPackage")
 
 	if err == nil || w.Code != http.StatusInternalServerError {
 		t.Errorf("expected status %d, got %d", http.StatusInternalServerError, w.Code)
@@ -204,7 +205,7 @@ func Test_ListElements_RepoError_WritesError(t *testing.T) {
 func Test_ListElements_NilElements_ReturnsEmptyList(t *testing.T) {
 	w := httptest.NewRecorder()
 	c := &Controller{repo: &MockListElementsRepo{}}
-	elements, _ := listElements(w, c, "testScope", "testPackage")
+	elements, _ := listElements(w, c, httptest.NewRequest("GET", "/", nil), "testScope", "testPackage")
 
 	if len(elements) != 0 {
 		t.Errorf("expected empty list, got %d elements", len(elements))
@@ -214,7 +215,7 @@ func Test_ListElements_NilElements_ReturnsEmptyList(t *testing.T) {
 func Test_ListElements_EmptyList_ReturnsEmptyList(t *testing.T) {
 	w := httptest.NewRecorder()
 	c := &Controller{repo: &MockRepo{}}
-	elements, _ := listElements(w, c, "testScope", "testPackage")
+	elements, _ := listElements(w, c, httptest.NewRequest("GET", "/", nil), "testScope", "testPackage")
 
 	if len(elements) != 0 {
 		t.Errorf("expected empty list, got %d elements", len(elements))
@@ -229,7 +230,7 @@ func Test_ListElements_MultipleElements_ReturnsElements(t *testing.T) {
 			{Scope: "testScope", PackageName: "testPackage", Version: "2.0.0"},
 		},
 	}}
-	elements, _ := listElements(w, c, "testScope", "testPackage")
+	elements, _ := listElements(w, c, httptest.NewRequest("GET", "/", nil), "testScope", "testPackage")
 
 	if len(elements) != 2 {
 		t.Errorf("expected empty list, got %d elements", len(elements))
@@ -442,74 +443,74 @@ type MockRepo struct {
 	shouldError bool
 }
 
-func (m *MockRepo) Exists(element *models.UploadElement) bool {
+func (m *MockRepo) Exists(ctx context.Context, element *models.UploadElement) bool {
 	return false
 }
 
-func (m *MockRepo) GetReader(element *models.UploadElement) (io.ReadSeekCloser, error) {
+func (m *MockRepo) GetReader(ctx context.Context, element *models.UploadElement) (io.ReadSeekCloser, error) {
 	return nil, nil
 }
 
-func (m *MockRepo) GetWriter(element *models.UploadElement) (io.WriteCloser, error) {
+func (m *MockRepo) GetWriter(ctx context.Context, element *models.UploadElement) (io.WriteCloser, error) {
 	return nil, nil
 }
 
-func (m *MockRepo) ExtractManifestFiles(element *models.UploadElement) error {
+func (m *MockRepo) ExtractManifestFiles(ctx context.Context, element *models.UploadElement) error {
 	return nil
 }
 
-func (m *MockRepo) EncodeBase64(element *models.UploadElement) (string, error) {
+func (m *MockRepo) EncodeBase64(ctx context.Context, element *models.UploadElement) (string, error) {
 	return "", nil
 }
 
-func (m *MockRepo) PublishDate(element *models.UploadElement) (time.Time, error) {
+func (m *MockRepo) PublishDate(ctx context.Context, element *models.UploadElement) (time.Time, error) {
 	return time.Time{}, nil
 }
 
-func (m *MockRepo) Checksum(element *models.UploadElement) (string, error) {
+func (m *MockRepo) Checksum(ctx context.Context, element *models.UploadElement) (string, error) {
 	return "", nil
 }
 
-func (m *MockRepo) LoadMetadata(scope string, name string, version string) (map[string]any, error) {
+func (m *MockRepo) LoadMetadata(ctx context.Context, scope string, name string, version string) (map[string]any, error) {
 	return nil, nil
 }
 
-func (m *MockRepo) GetAlternativeManifests(element *models.UploadElement) ([]models.UploadElement, error) {
+func (m *MockRepo) GetAlternativeManifests(ctx context.Context, element *models.UploadElement) ([]models.UploadElement, error) {
 	return nil, nil
 }
 
-func (m *MockRepo) GetSwiftToolVersion(manifest *models.UploadElement) (string, error) {
+func (m *MockRepo) GetSwiftToolVersion(ctx context.Context, manifest *models.UploadElement) (string, error) {
 	return "", nil
 }
 
-func (m *MockRepo) Lookup(url string) []string {
+func (m *MockRepo) Lookup(ctx context.Context, url string) []string {
 	return nil
 }
 
-func (m *MockRepo) Remove(element *models.UploadElement) error {
+func (m *MockRepo) Remove(ctx context.Context, element *models.UploadElement) error {
 	return nil
 }
 
-func (m *MockRepo) List(scope, packageName string) ([]models.ListElement, error) {
+func (m *MockRepo) List(ctx context.Context, scope, packageName string) ([]models.ListElement, error) {
 	if m.shouldError {
 		return nil, fmt.Errorf("simulated error")
 	}
 	return nil, nil
 }
 
-func (m *MockRepo) ListScopes() ([]string, error) {
+func (m *MockRepo) ListScopes(ctx context.Context) ([]string, error) {
 	return nil, nil
 }
 
-func (m *MockRepo) ListInScope(scope string) ([]models.ListElement, error) {
+func (m *MockRepo) ListInScope(ctx context.Context, scope string) ([]models.ListElement, error) {
 	return nil, nil
 }
 
-func (m *MockRepo) ListAll() ([]models.ListElement, error) {
+func (m *MockRepo) ListAll(ctx context.Context) ([]models.ListElement, error) {
 	return nil, nil
 }
 
-func (m *MockRepo) LoadPackageJson(scope string, name string, version string) (map[string]any, error) {
+func (m *MockRepo) LoadPackageJson(ctx context.Context, scope string, name string, version string) (map[string]any, error) {
 	return nil, nil
 }
 
@@ -518,73 +519,73 @@ type MockListElementsRepo struct {
 	elements    []models.ListElement
 }
 
-func (m MockListElementsRepo) Exists(element *models.UploadElement) bool {
+func (m MockListElementsRepo) Exists(ctx context.Context, element *models.UploadElement) bool {
 	return false
 }
 
-func (m MockListElementsRepo) GetReader(element *models.UploadElement) (io.ReadSeekCloser, error) {
+func (m MockListElementsRepo) GetReader(ctx context.Context, element *models.UploadElement) (io.ReadSeekCloser, error) {
 	return nil, nil
 }
 
-func (m MockListElementsRepo) GetWriter(element *models.UploadElement) (io.WriteCloser, error) {
+func (m MockListElementsRepo) GetWriter(ctx context.Context, element *models.UploadElement) (io.WriteCloser, error) {
 	return nil, nil
 }
 
-func (m MockListElementsRepo) ExtractManifestFiles(element *models.UploadElement) error {
+func (m MockListElementsRepo) ExtractManifestFiles(ctx context.Context, element *models.UploadElement) error {
 	return nil
 }
 
-func (m MockListElementsRepo) List(scope string, name string) ([]models.ListElement, error) {
+func (m MockListElementsRepo) List(ctx context.Context, scope string, name string) ([]models.ListElement, error) {
 	if m.shouldError {
 		return nil, fmt.Errorf("simulated error")
 	}
 	return m.elements, nil
 }
 
-func (m MockListElementsRepo) EncodeBase64(element *models.UploadElement) (string, error) {
+func (m MockListElementsRepo) EncodeBase64(ctx context.Context, element *models.UploadElement) (string, error) {
 	return "", nil
 }
 
-func (m MockListElementsRepo) PublishDate(element *models.UploadElement) (time.Time, error) {
+func (m MockListElementsRepo) PublishDate(ctx context.Context, element *models.UploadElement) (time.Time, error) {
 	return time.Time{}, nil
 }
 
-func (m MockListElementsRepo) Checksum(element *models.UploadElement) (string, error) {
+func (m MockListElementsRepo) Checksum(ctx context.Context, element *models.UploadElement) (string, error) {
 	return "", nil
 }
 
-func (m MockListElementsRepo) LoadMetadata(scope string, name string, version string) (map[string]any, error) {
+func (m MockListElementsRepo) LoadMetadata(ctx context.Context, scope string, name string, version string) (map[string]any, error) {
 	return nil, nil
 }
 
-func (m MockListElementsRepo) GetAlternativeManifests(element *models.UploadElement) ([]models.UploadElement, error) {
+func (m MockListElementsRepo) GetAlternativeManifests(ctx context.Context, element *models.UploadElement) ([]models.UploadElement, error) {
 	return nil, nil
 }
 
-func (m MockListElementsRepo) GetSwiftToolVersion(manifest *models.UploadElement) (string, error) {
+func (m MockListElementsRepo) GetSwiftToolVersion(ctx context.Context, manifest *models.UploadElement) (string, error) {
 	return "", nil
 }
 
-func (m MockListElementsRepo) Lookup(url string) []string {
+func (m MockListElementsRepo) Lookup(ctx context.Context, url string) []string {
 	return nil
 }
 
-func (m MockListElementsRepo) Remove(element *models.UploadElement) error {
+func (m MockListElementsRepo) Remove(ctx context.Context, element *models.UploadElement) error {
 	return nil
 }
 
-func (m MockListElementsRepo) ListScopes() ([]string, error) {
+func (m MockListElementsRepo) ListScopes(ctx context.Context) ([]string, error) {
 	return nil, nil
 }
 
-func (m MockListElementsRepo) ListInScope(scope string) ([]models.ListElement, error) {
+func (m MockListElementsRepo) ListInScope(ctx context.Context, scope string) ([]models.ListElement, error) {
 	return nil, nil
 }
 
-func (m MockListElementsRepo) ListAll() ([]models.ListElement, error) {
+func (m MockListElementsRepo) ListAll(ctx context.Context) ([]models.ListElement, error) {
 	return nil, nil
 }
 
-func (m MockListElementsRepo) LoadPackageJson(scope string, name string, version string) (map[string]any, error) {
+func (m MockListElementsRepo) LoadPackageJson(ctx context.Context, scope string, name string, version string) (map[string]any, error) {
 	return nil, nil
 }

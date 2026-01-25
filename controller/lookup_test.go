@@ -1,6 +1,7 @@
 package controller
 
 import (
+	"context"
 	"OpenSPMRegistry/config"
 	"encoding/json"
 	"log/slog"
@@ -311,7 +312,7 @@ type MockErrorRepo struct {
 	MockRepo
 }
 
-func (m *MockErrorRepo) Lookup(url string) []string {
+func (m *MockErrorRepo) Lookup(ctx context.Context, url string) []string {
 	return []string{strings.Repeat("a", 1<<32)} // Create a string that's too large to encode
 }
 
@@ -320,6 +321,6 @@ type MockLookupRepo struct {
 	identifiers []string
 }
 
-func (m *MockLookupRepo) Lookup(url string) []string {
+func (m *MockLookupRepo) Lookup(ctx context.Context, url string) []string {
 	return m.identifiers
 }

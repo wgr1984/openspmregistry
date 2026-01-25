@@ -4,6 +4,7 @@ import (
 	"OpenSPMRegistry/mimetypes"
 	"OpenSPMRegistry/models"
 	"archive/zip"
+	"context"
 	"encoding/base64"
 	"errors"
 	"io"
@@ -38,15 +39,15 @@ type access_error struct {
 	access
 }
 
-func (a *access_error) Exists(element *models.UploadElement) bool {
+func (a *access_error) Exists(ctx context.Context, element *models.UploadElement) bool {
 	return true
 }
 
-func (a *access_error) GetReader(element *models.UploadElement) (io.ReadSeekCloser, error) {
+func (a *access_error) GetReader(ctx context.Context, element *models.UploadElement) (io.ReadSeekCloser, error) {
 	return nil, fakeError
 }
 
-func (a *access_error) GetWriter(element *models.UploadElement) (io.WriteCloser, error) {
+func (a *access_error) GetWriter(ctx context.Context, element *models.UploadElement) (io.WriteCloser, error) {
 	return nil, fakeError
 }
 
@@ -102,8 +103,8 @@ type reader_error_close struct {
 	access
 }
 
-func (r *reader_error_close) GetReader(element *models.UploadElement) (io.ReadSeekCloser, error) {
-	inner, _ := r.access.GetReader(element)
+func (r *reader_error_close) GetReader(ctx context.Context, element *models.UploadElement) (io.ReadSeekCloser, error) {
+	inner, _ := r.access.GetReader(ctx, element)
 	return &ErrReaderSeekCloser_CloseErr{
 		inner: inner,
 	}, nil
@@ -113,8 +114,8 @@ type reader_error_reading struct {
 	access
 }
 
-func (r *reader_error_reading) GetReader(element *models.UploadElement) (io.ReadSeekCloser, error) {
-	inner, _ := r.access.GetReader(element)
+func (r *reader_error_reading) GetReader(ctx context.Context, element *models.UploadElement) (io.ReadSeekCloser, error) {
+	inner, _ := r.access.GetReader(ctx, element)
 	return &ErrReaderSeekCloser_ReadErr{
 		inner: inner,
 	}, nil
@@ -204,7 +205,7 @@ let package = Package(
 	}
 	file.Close()
 
-	err = fileRepo.ExtractManifestFiles(element)
+	err = fileRepo.ExtractManifestFiles(context.Background(), element)
 	if err != nil {
 		t.Errorf("unexpected error: %v", err)
 	}
@@ -238,7 +239,7 @@ func Test_ExtractManifestFiles_UnsupportedMimeType_ReturnsError(t *testing.T) {
 		t.Fatalf("failed to create directory: %v", err)
 	}
 
-	err = fileRepo.ExtractManifestFiles(element)
+	err = fileRepo.ExtractManifestFiles(context.Background(), element)
 	if err == nil && !errors.Is(err, errors.New("unsupported mime type")) {
 		t.Errorf("expected error, got nil")
 	}
@@ -269,7 +270,7 @@ func Test_ExtractManifestFiles_NonExistentPath_CreatesPathAndExtractsFiles(t *te
 	}
 	file.Close()
 
-	err = fileRepo.ExtractManifestFiles(element)
+	err = fileRepo.ExtractManifestFiles(context.Background(), element)
 	if err == nil {
 		t.Errorf("unexpected error: %v", err)
 	}
@@ -295,7 +296,7 @@ func Test_ExtractManifestFiles_MkDirAllCreateError_ReturnsError(t *testing.T) {
 		MimeType: mimetypes.ApplicationZip,
 	}
 
-	err := fileRepo.ExtractManifestFiles(element)
+	err := fileRepo.ExtractManifestFiles(context.Background(), element)
 	if err == nil || !errors.Is(err, fakeError) {
 		t.Errorf("expected error, got nil")
 	}
@@ -318,7 +319,7 @@ func Test_List_DirectoryExists_ReturnsListOfElements(t *testing.T) {
 		t.Fatalf("failed to create file: %v", err)
 	}
 
-	elements, err := fileRepo.List(scope, name)
+	elements, err := fileRepo.List(context.Background(), scope, name)
 	if err != nil {
 		t.Errorf("unexpected error: %v", err)
 	}
@@ -342,7 +343,7 @@ func Test_List_DirectoryExistButEmpty_ReturnsEmptyList(t *testing.T) {
 	path := filepath.Join("/tmp/openspmsreg_tests", scope, name)
 	os.MkdirAll(path, os.ModePerm)
 
-	elements, err := fileRepo.List(scope, name)
+	elements, err := fileRepo.List(context.Background(), scope, name)
 	if err != nil {
 		t.Errorf("unexpected error: %v", err)
 	}
@@ -359,7 +360,7 @@ func Test_List_ErrorReadingDirectory_ReturnsError(t *testing.T) {
 	scope := "testScope"
 	name := "testName"
 
-	_, err := fileRepo.List(scope, name)
+	_, err := fileRepo.List(context.Background(), scope, name)
 	if err == nil || !errors.Is(err, os.ErrNotExist) {
 		t.Errorf("expected error, got nil")
 	}
@@ -375,7 +376,7 @@ func Test_List_ErrorStatFile_ReturnsError(t *testing.T) {
 	scope := "testScope"
 	name := "testName"
 
-	_, err := fileRepo.List(scope, name)
+	_, err := fileRepo.List(context.Background(), scope, name)
 	if err == nil || !errors.Is(err, fakeError) {
 		t.Errorf("expected error, got nil")
 	}
@@ -398,7 +399,7 @@ func Test_List_ErrorWalkingDirectory_ReturnsError(t *testing.T) {
 		t.Fatalf("failed to create directory: %v", err)
 	}
 
-	_, err = fileRepo.List(scope, name)
+	_, err = fileRepo.List(context.Background(), scope, name)
 	if err == nil || !errors.Is(err, fakeError) {
 		t.Errorf("expected error, got nil")
 	}
@@ -425,7 +426,7 @@ func Test_EncodeBase64_FileExists_ReturnsBase64String(t *testing.T) {
 	file.WriteString("test data")
 	file.Close()
 
-	base64String, err := fileRepo.EncodeBase64(element)
+	base64String, err := fileRepo.EncodeBase64(context.Background(), element)
 	if err != nil {
 		t.Errorf("unexpected error: %v", err)
 	}
@@ -447,7 +448,7 @@ func Test_EncodeBase64_FileDoesNotExist_ReturnsError(t *testing.T) {
 		models.Manifest,
 	)
 
-	_, err := fileRepo.EncodeBase64(element)
+	_, err := fileRepo.EncodeBase64(context.Background(), element)
 	if err == nil {
 		t.Errorf("expected error, got nil")
 	}
@@ -476,7 +477,7 @@ func Test_EncodeBase64_ReadError_ReturnsError(t *testing.T) {
 	// Simulate read error by removing the file
 	os.Remove(path)
 
-	_, err = fileRepo.EncodeBase64(element)
+	_, err = fileRepo.EncodeBase64(context.Background(), element)
 	if err == nil {
 		t.Errorf("expected error, got nil")
 	}
@@ -509,7 +510,7 @@ func Test_EncodeBase64_GetReaderError_ReturnsError(t *testing.T) {
 	}
 	file.Close()
 
-	_, err = fileRepo.EncodeBase64(element)
+	_, err = fileRepo.EncodeBase64(context.Background(), element)
 	if err == nil || !errors.Is(err, fakeError) {
 		t.Errorf("expected error, got nil")
 	}
@@ -549,7 +550,7 @@ func Test_EncodeBase64_Reading_ReturnsError(t *testing.T) {
 	}
 	file.Close()
 
-	_, err = fileRepo.EncodeBase64(element)
+	_, err = fileRepo.EncodeBase64(context.Background(), element)
 	if err == nil || !errors.Is(err, fakeError) {
 		t.Errorf("expected error, got nil")
 	}
@@ -594,7 +595,7 @@ func Test_EncodeBase64_ReaderCloseError_ReturnsError(t *testing.T) {
 	}
 	file.Close()
 
-	_, err = fileRepo.EncodeBase64(element)
+	_, err = fileRepo.EncodeBase64(context.Background(), element)
 	if err != nil {
 		t.Errorf("unexpected error: %v", err)
 	}
@@ -623,7 +624,7 @@ func Test_PublishDate_ValidFile_ReturnsModTime(t *testing.T) {
 	modTime := time.Now().Add(-time.Hour)
 	os.Chtimes(filepath.Join(path, element.FileName()), modTime, modTime)
 
-	result, err := fileRepo.PublishDate(element)
+	result, err := fileRepo.PublishDate(context.Background(), element)
 	if err != nil {
 		t.Errorf("unexpected error: %v", err)
 	}
@@ -644,7 +645,7 @@ func Test_PublishDate_PathDoesNotExist_ReturnsError(t *testing.T) {
 		models.Manifest,
 	)
 
-	_, err := fileRepo.PublishDate(element)
+	_, err := fileRepo.PublishDate(context.Background(), element)
 	if err == nil {
 		t.Errorf("expected error, got nil")
 	}
@@ -665,7 +666,7 @@ func Test_PublishDate_FileDoesNotExist_ReturnsError(t *testing.T) {
 	path := filepath.Join("/tmp/openspmsreg_tests", element.Scope, element.Name, element.Version)
 	os.MkdirAll(path, os.ModePerm)
 
-	_, err := fileRepo.PublishDate(element)
+	_, err := fileRepo.PublishDate(context.Background(), element)
 	if err == nil {
 		t.Errorf("expected error, got nil")
 	}
@@ -681,7 +682,7 @@ func Test_Checksum_FileDoesNotExist_ReturnsError(t *testing.T) {
 		Version: "1.0.0",
 	}
 
-	_, err := fileRepo.Checksum(element)
+	_, err := fileRepo.Checksum(context.Background(), element)
 	if err == nil {
 		t.Errorf("expected error, got nil")
 	}
@@ -706,7 +707,7 @@ func Test_Checksum_FileExists_ReturnsChecksum(t *testing.T) {
 	file.WriteString("test data")
 	file.Close()
 
-	checksum, err := fileRepo.Checksum(element)
+	checksum, err := fileRepo.Checksum(context.Background(), element)
 	if err != nil {
 		t.Errorf("unexpected error: %v", err)
 	}
@@ -747,7 +748,7 @@ func Test_Checksum_FileReadError_ReturnsError(t *testing.T) {
 	// Simulate read error by removing the file
 	os.Remove(path)
 
-	_, err = fileRepo.Checksum(element)
+	_, err = fileRepo.Checksum(context.Background(), element)
 	if err == nil {
 		t.Errorf("expected error, got nil")
 	}
@@ -772,7 +773,7 @@ func Test_GetAlternativeManifests_ValidPath_ReturnsManifests(t *testing.T) {
 		t.Fatalf("failed to create file: %v", err)
 	}
 
-	manifests, err := fileRepo.GetAlternativeManifests(element)
+	manifests, err := fileRepo.GetAlternativeManifests(context.Background(), element)
 	if err != nil {
 		t.Errorf("unexpected error: %v", err)
 	}
@@ -796,7 +797,7 @@ func Test_GetAlternativeManifests_PathDoesNotExist_ReturnsError(t *testing.T) {
 		Version: "1.0.0",
 	}
 
-	manifests, err := fileRepo.GetAlternativeManifests(element)
+	manifests, err := fileRepo.GetAlternativeManifests(context.Background(), element)
 	if err == nil {
 		t.Errorf("expected error, got nil")
 	}
@@ -825,7 +826,7 @@ func Test_GetAlternativeManifests_NoAlternativeManifests_ReturnsEmptyList(t *tes
 		t.Fatalf("failed to create file: %v", err)
 	}
 
-	manifests, err := fileRepo.GetAlternativeManifests(element)
+	manifests, err := fileRepo.GetAlternativeManifests(context.Background(), element)
 	if err != nil {
 		t.Errorf("unexpected error: %v", err)
 	}
@@ -861,7 +862,7 @@ func Test_GetSwiftToolVersion_ValidManifest_ReturnsVersion(t *testing.T) {
 	}
 	file.Close()
 
-	version, err := fileRepo.GetSwiftToolVersion(element)
+	version, err := fileRepo.GetSwiftToolVersion(context.Background(), element)
 	if err != nil {
 		t.Errorf("unexpected error: %v", err)
 	}
@@ -882,7 +883,7 @@ func Test_GetSwiftToolVersion_FileDoesNotExist_ReturnsError(t *testing.T) {
 		models.Manifest,
 	)
 
-	_, err := fileRepo.GetSwiftToolVersion(element)
+	_, err := fileRepo.GetSwiftToolVersion(context.Background(), element)
 	if err == nil {
 		t.Errorf("expected error, got nil")
 	}
@@ -914,7 +915,7 @@ func Test_GetSwiftToolVersion_NoSwiftVersion_ReturnsError(t *testing.T) {
 	}
 	file.Close()
 
-	_, err = fileRepo.GetSwiftToolVersion(element)
+	_, err = fileRepo.GetSwiftToolVersion(context.Background(), element)
 	if err == nil {
 		t.Errorf("expected error, got nil")
 	}
@@ -975,7 +976,7 @@ func Test_Lookup_ValidURL_ReturnsMatchingIDs(t *testing.T) {
 	]
 	)`), os.ModePerm)
 
-	result := fileRepo.Lookup("https://example.com/repo")
+	result := fileRepo.Lookup(context.Background(), "https://example.com/repo")
 	if len(result) != 1 {
 		t.Errorf("expected 1 result, got %d", len(result))
 	}
@@ -1011,7 +1012,7 @@ func Test_Lookup_InvalidURL_ReturnsEmptyList(t *testing.T) {
 	}
 	file.Close()
 
-	result := fileRepo.Lookup("https://invalid.com/repo")
+	result := fileRepo.Lookup(context.Background(), "https://invalid.com/repo")
 	if len(result) != 0 {
 		t.Errorf("expected 0 results, got %d", len(result))
 	}
@@ -1024,7 +1025,7 @@ func Test_Lookup_NoMetadataFiles_ReturnsEmptyList(t *testing.T) {
 	os.MkdirAll("/tmp/openspmsreg_tests/testScope/testName/1.0.0", os.ModePerm)
 	defer os.RemoveAll("/tmp/openspmsreg_tests/testScope")
 
-	result := fileRepo.Lookup("https://example.com/repo")
+	result := fileRepo.Lookup(context.Background(), "https://example.com/repo")
 	if len(result) != 0 {
 		t.Errorf("expected 0 results, got %d", len(result))
 	}
@@ -1035,7 +1036,7 @@ func Test_Lookup_ErrorWalkingDirectories_ReturnsEmptyList(t *testing.T) {
 
 	fileRepo := NewFileRepo("/tmp/openspmsreg_tests/invalid_path")
 
-	result := fileRepo.Lookup("https://example.com/repo")
+	result := fileRepo.Lookup(context.Background(), "https://example.com/repo")
 	if len(result) != 0 {
 		t.Errorf("expected 0 results, got %d", len(result))
 	}
@@ -1061,7 +1062,7 @@ func Test_Remove_FileExists_RemovesFile(t *testing.T) {
 	}
 	file.Close()
 
-	err = fileRepo.Remove(element)
+	err = fileRepo.Remove(context.Background(), element)
 	if err != nil {
 		t.Errorf("unexpected error: %v", err)
 	}
@@ -1081,7 +1082,7 @@ func Test_Remove_FileDoesNotExist_ReturnsError(t *testing.T) {
 		Version: "1.0.0",
 	}
 
-	err := fileRepo.Remove(element)
+	err := fileRepo.Remove(context.Background(), element)
 	if err == nil {
 		t.Errorf("expected error, got nil")
 	}

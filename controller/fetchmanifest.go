@@ -34,10 +34,11 @@ func (c *Controller) FetchManifestAction(w http.ResponseWriter, r *http.Request)
 		element.SetFilenameOverwrite(fmt.Sprintf("Package@swift-%s", swiftVersion))
 	}
 
+	ctx := requestContext(r)
 	filename := element.FileName()
 
 	// load manifest Package.swift file
-	reader, err := c.repo.GetReader(element)
+	reader, err := c.repo.GetReader(ctx, element)
 	if err != nil {
 		writeErrorWithStatusCode(fmt.Sprintf("%s not found", filename), w, http.StatusNotFound)
 		return // error already logged
@@ -56,12 +57,12 @@ func (c *Controller) FetchManifestAction(w http.ResponseWriter, r *http.Request)
 
 	if len(swiftVersion) == 0 {
 		// check if alternative versions of Package.swift are present
-		manifests, err := c.repo.GetAlternativeManifests(element)
+		manifests, err := c.repo.GetAlternativeManifests(ctx, element)
 		if err != nil {
 			slog.Info("Alternative manifests not found:", "error", err)
 		} else {
 			// add alternative versions to header
-			header.Set("Link", c.manifestsToString(manifests))
+			header.Set("Link", c.manifestsToString(r, manifests))
 		}
 	}
 
@@ -71,7 +72,7 @@ func (c *Controller) FetchManifestAction(w http.ResponseWriter, r *http.Request)
 	header.Set("Cache-Control", "public, immutable")
 
 	modDate := c.timeProvider.Now()
-	if rawDate, err := c.repo.PublishDate(element); err == nil {
+	if rawDate, err := c.repo.PublishDate(ctx, element); err == nil {
 		modDate = rawDate
 	} else {
 		slog.Error("Error getting publish date:", "error", err)
@@ -93,7 +94,8 @@ func (c *Controller) FetchManifestAction(w http.ResponseWriter, r *http.Request)
 	http.ServeContent(w, r, filename, modDate, reader)
 }
 
-func (c *Controller) manifestsToString(manifests []models.UploadElement) string {
+func (c *Controller) manifestsToString(r *http.Request, manifests []models.UploadElement) string {
+	ctx := requestContext(r)
 	var result string
 	for i, manifest := range manifests {
 		manifestFileName := manifest.FileName()
@@ -116,7 +118,7 @@ func (c *Controller) manifestsToString(manifests []models.UploadElement) string 
 			}
 			result += fmt.Sprintf("<%s>; rel=\"alternative\"; filename=\"%s\"", location, manifestFileName)
 
-			swiftToolVersion, err2 := c.repo.GetSwiftToolVersion(&manifest)
+			swiftToolVersion, err2 := c.repo.GetSwiftToolVersion(ctx, &manifest)
 			if err2 != nil {
 				slog.Info("Swift tool version not found:", "error", err2)
 			} else {

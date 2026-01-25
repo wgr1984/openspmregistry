@@ -25,8 +25,18 @@ type PublishConfig struct {
 }
 
 type Repo struct {
-	Path string `yaml:"path"`
-	Type string `yaml:"type"`
+	Path  string      `yaml:"path"`
+	Type  string      `yaml:"type"`
+	Maven MavenConfig `yaml:"maven"`
+}
+
+type MavenConfig struct {
+	BaseURL      string `yaml:"baseURL"`
+	GroupIdPrefix string `yaml:"groupIdPrefix"`
+	AuthMode     string `yaml:"authMode"`
+	Username     string `yaml:"username"`
+	Password     string `yaml:"password"`
+	Timeout      int    `yaml:"timeout"`
 }
 
 type AuthConfig struct {

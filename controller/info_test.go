@@ -1,6 +1,7 @@
 package controller
 
 import (
+	"context"
 	"OpenSPMRegistry/config"
 	"OpenSPMRegistry/mimetypes"
 	"OpenSPMRegistry/models"
@@ -399,27 +400,27 @@ type MockInfoRepo struct {
 	checksumErr    error
 }
 
-func (m *MockInfoRepo) Exists(element *models.UploadElement) bool {
+func (m *MockInfoRepo) Exists(ctx context.Context, element *models.UploadElement) bool {
 	return m.exists
 }
 
-func (m *MockInfoRepo) LoadMetadata(scope, packageName, version string) (map[string]any, error) {
+func (m *MockInfoRepo) LoadMetadata(ctx context.Context, scope, packageName, version string) (map[string]any, error) {
 	return m.metadata, m.metadataErr
 }
 
-func (m *MockInfoRepo) EncodeBase64(element *models.UploadElement) (string, error) {
+func (m *MockInfoRepo) EncodeBase64(ctx context.Context, element *models.UploadElement) (string, error) {
 	return m.signature, m.signatureErr
 }
 
-func (m *MockInfoRepo) PublishDate(element *models.UploadElement) (time.Time, error) {
+func (m *MockInfoRepo) PublishDate(ctx context.Context, element *models.UploadElement) (time.Time, error) {
 	return m.publishDate, m.publishDateErr
 }
 
-func (m *MockInfoRepo) Checksum(element *models.UploadElement) (string, error) {
+func (m *MockInfoRepo) Checksum(ctx context.Context, element *models.UploadElement) (string, error) {
 	return m.checksum, m.checksumErr
 }
 
-func (m *MockInfoRepo) List(scope, packageName string) ([]models.ListElement, error) {
+func (m *MockInfoRepo) List(ctx context.Context, scope, packageName string) ([]models.ListElement, error) {
 	if m.exists {
 		return []models.ListElement{
 			{Scope: scope, PackageName: packageName, Version: "1.0.0"},

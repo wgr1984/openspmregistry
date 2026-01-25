@@ -5,7 +5,9 @@ import (
 	"OpenSPMRegistry/config"
 	"OpenSPMRegistry/controller"
 	"OpenSPMRegistry/middleware"
+	"OpenSPMRegistry/repo"
 	"OpenSPMRegistry/repo/files"
+	"OpenSPMRegistry/repo/maven"
 	"flag"
 	"fmt"
 	"gopkg.in/yaml.v3"
@@ -63,11 +65,19 @@ func main() {
 
 	repoConfig := serverConfig.Server.Repo
 
-	if repoConfig.Type != "file" {
-		log.Fatal("Only filesystem is supported as repo so far")
+	var r repo.Repo
+	switch repoConfig.Type {
+	case "file":
+		r = files.NewFileRepo(repoConfig.Path)
+	case "maven":
+		mavenRepo, err := maven.NewMavenRepo(repoConfig.Maven)
+		if err != nil {
+			log.Fatal(fmt.Sprintf("Failed to create Maven repository: %v", err))
+		}
+		r = mavenRepo
+	default:
+		log.Fatal(fmt.Sprintf("Unsupported repo type: %s", repoConfig.Type))
 	}
-
-	r := files.NewFileRepo(repoConfig.Path)
 	a := middleware.NewAuthentication(authenticator.CreateAuthenticator(serverConfig.Server), router)
 	c := controller.NewController(serverConfig.Server, r)
 
