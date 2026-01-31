@@ -22,8 +22,6 @@ import (
 	"time"
 )
 
-// TODO: metadata.json, metadata.sig, Package.json not tested yet!
-
 // IntegrationTestHelper provides utilities for integration tests with a real Maven repository server
 type IntegrationTestHelper struct {
 	BaseURL    string
@@ -518,6 +516,157 @@ func TestIntegration_PublishAndGet_RealServer(t *testing.T) {
 		t.Logf("Package@swift-5.7.0.swift verified, Swift version: %s", swiftVersion)
 	})
 
+	// Test 9: Publish and verify metadata.json
+	t.Run("PublishMetadataJson", func(t *testing.T) {
+		metadataElement := models.NewUploadElement(scope, name, version, mimetypes.ApplicationJson, models.Metadata)
+		metadataContent := []byte(`{"description":"Integration test metadata"}`)
+
+		writer, err := repo.GetWriter(ctx, metadataElement)
+		if err != nil {
+			t.Fatalf("Failed to get writer for metadata.json: %v", err)
+		}
+
+		n, err := writer.Write(metadataContent)
+		if err != nil {
+			writer.Close()
+			t.Fatalf("Failed to write metadata.json: %v", err)
+		}
+
+		if err := writer.Close(); err != nil {
+			t.Fatalf("Failed to close writer (metadata.json upload): %v", err)
+		}
+
+		t.Logf("Successfully published metadata.json (%d bytes)", n)
+
+		if !repo.Exists(ctx, metadataElement) {
+			t.Fatalf("Published metadata.json does not exist")
+		}
+
+		reader, err := repo.GetReader(ctx, metadataElement)
+		if err != nil {
+			t.Fatalf("Failed to get reader for metadata.json: %v", err)
+		}
+		defer reader.Close()
+
+		retrievedData, err := io.ReadAll(reader)
+		if err != nil {
+			t.Fatalf("Failed to read metadata.json: %v", err)
+		}
+
+		if !bytes.Equal(retrievedData, metadataContent) {
+			t.Fatalf("Retrieved metadata.json does not match original")
+		}
+
+		loaded, err := repo.LoadMetadata(ctx, scope, name, version)
+		if err != nil {
+			t.Fatalf("Failed to load metadata: %v", err)
+		}
+		if desc, _ := loaded["description"].(string); desc != "Integration test metadata" {
+			t.Fatalf("LoadMetadata: expected description %q, got %v", "Integration test metadata", loaded["description"])
+		}
+
+		t.Logf("metadata.json verified via LoadMetadata")
+	})
+
+	// Test 10: Publish and verify metadata.sig
+	t.Run("PublishMetadataSig", func(t *testing.T) {
+		metadataSigElement := models.NewUploadElement(scope, name, version, "application/octet-stream", models.MetadataSignature)
+		sigContent := []byte("dummy-signature-content")
+
+		writer, err := repo.GetWriter(ctx, metadataSigElement)
+		if err != nil {
+			t.Fatalf("Failed to get writer for metadata.sig: %v", err)
+		}
+
+		n, err := writer.Write(sigContent)
+		if err != nil {
+			writer.Close()
+			t.Fatalf("Failed to write metadata.sig: %v", err)
+		}
+
+		if err := writer.Close(); err != nil {
+			t.Fatalf("Failed to close writer (metadata.sig upload): %v", err)
+		}
+
+		t.Logf("Successfully published metadata.sig (%d bytes)", n)
+
+		if !repo.Exists(ctx, metadataSigElement) {
+			t.Fatalf("Published metadata.sig does not exist")
+		}
+
+		reader, err := repo.GetReader(ctx, metadataSigElement)
+		if err != nil {
+			t.Fatalf("Failed to get reader for metadata.sig: %v", err)
+		}
+		defer reader.Close()
+
+		retrievedData, err := io.ReadAll(reader)
+		if err != nil {
+			t.Fatalf("Failed to read metadata.sig: %v", err)
+		}
+
+		if !bytes.Equal(retrievedData, sigContent) {
+			t.Fatalf("Retrieved metadata.sig does not match original")
+		}
+
+		t.Logf("metadata.sig verified")
+	})
+
+	// Test 11: Publish and verify Package.json
+	t.Run("PublishPackageJson", func(t *testing.T) {
+		packageJsonElement := models.NewUploadElement(scope, name, version, mimetypes.ApplicationJson, models.PackageManifestJson)
+		packageJsonContent := []byte(`{"name":"TestPackage","version":"1.0.0"}`)
+
+		writer, err := repo.GetWriter(ctx, packageJsonElement)
+		if err != nil {
+			t.Fatalf("Failed to get writer for Package.json: %v", err)
+		}
+
+		n, err := writer.Write(packageJsonContent)
+		if err != nil {
+			writer.Close()
+			t.Fatalf("Failed to write Package.json: %v", err)
+		}
+
+		if err := writer.Close(); err != nil {
+			t.Fatalf("Failed to close writer (Package.json upload): %v", err)
+		}
+
+		t.Logf("Successfully published Package.json (%d bytes)", n)
+
+		if !repo.Exists(ctx, packageJsonElement) {
+			t.Fatalf("Published Package.json does not exist")
+		}
+
+		reader, err := repo.GetReader(ctx, packageJsonElement)
+		if err != nil {
+			t.Fatalf("Failed to get reader for Package.json: %v", err)
+		}
+		defer reader.Close()
+
+		retrievedData, err := io.ReadAll(reader)
+		if err != nil {
+			t.Fatalf("Failed to read Package.json: %v", err)
+		}
+
+		if !bytes.Equal(retrievedData, packageJsonContent) {
+			t.Fatalf("Retrieved Package.json does not match original")
+		}
+
+		loaded, err := repo.LoadPackageJson(ctx, scope, name, version)
+		if err != nil {
+			t.Fatalf("Failed to load Package.json: %v", err)
+		}
+		if pkgName, _ := loaded["name"].(string); pkgName != "TestPackage" {
+			t.Fatalf("LoadPackageJson: expected name %q, got %v", "TestPackage", loaded["name"])
+		}
+		if pkgVersion, _ := loaded["version"].(string); pkgVersion != "1.0.0" {
+			t.Fatalf("LoadPackageJson: expected version %q, got %v", "1.0.0", loaded["version"])
+		}
+
+		t.Logf("Package.json verified via LoadPackageJson")
+	})
+
 	// Cleanup: Remove the test files (unless KEEP_TEST_DATA is set)
 	t.Run("Cleanup", func(t *testing.T) {
 		if os.Getenv("KEEP_TEST_DATA") != "" {
@@ -545,6 +694,15 @@ func TestIntegration_PublishAndGet_RealServer(t *testing.T) {
 		variantElement := models.NewUploadElement(scope, name, version, mimetypes.TextXSwift, models.Manifest)
 		variantElement.SetFilenameOverwrite("Package@swift-5.7.0")
 		filesToRemove = append(filesToRemove, variantElement)
+
+		metadataElement := models.NewUploadElement(scope, name, version, mimetypes.ApplicationJson, models.Metadata)
+		filesToRemove = append(filesToRemove, metadataElement)
+
+		metadataSigElement := models.NewUploadElement(scope, name, version, "application/octet-stream", models.MetadataSignature)
+		filesToRemove = append(filesToRemove, metadataSigElement)
+
+		packageJsonElement := models.NewUploadElement(scope, name, version, mimetypes.ApplicationJson, models.PackageManifestJson)
+		filesToRemove = append(filesToRemove, packageJsonElement)
 
 		// Remove main files and their .sha256 checksum files
 		for _, file := range filesToRemove {
