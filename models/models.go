@@ -134,6 +134,31 @@ func (e *UploadElement) FileName() string {
 	return fmt.Sprintf("%s.%s-%s%s", e.Scope, e.Name, e.Version, extensions[0])
 }
 
+// Extension returns the file extension without a leading dot (e.g. "zip", "swift").
+func (e *UploadElement) Extension() string {
+	var ext string
+	if e.extOverwrite != "" {
+		ext = e.extOverwrite
+	} else {
+		extensions, err := mime.ExtensionsByType(e.MimeType)
+		if err != nil || len(extensions) == 0 || extensions[0] == "" {
+			return "zip"
+		}
+		ext = extensions[0]
+	}
+	if ext != "" && ext[0] == '.' {
+		return ext[1:]
+	}
+	return ext
+}
+
+func (e *UploadElement) FilenameWithoutExtension() string {
+	if len(e.filenameOverwrite) > 0 {
+		return e.filenameOverwrite
+	}
+	return fmt.Sprintf("%s.%s-%s", e.Scope, e.Name, e.Version)
+}
+
 type Release struct {
 	Url string `json:"url"`
 }

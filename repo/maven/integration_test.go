@@ -22,6 +22,8 @@ import (
 	"time"
 )
 
+// TODO: metadata.json, metadata.sig, Package.json not tested yet!
+
 // IntegrationTestHelper provides utilities for integration tests with a real Maven repository server
 type IntegrationTestHelper struct {
 	BaseURL    string
@@ -554,14 +556,12 @@ func TestIntegration_PublishAndGet_RealServer(t *testing.T) {
 			// Remove the .sha256 checksum file
 			// Access the internal access implementation to build the path
 			accessImpl := repo.Access.(*access)
-			path, err := accessImpl.buildMavenPathForElement(file)
-			if err == nil {
-				checksumPath := path + ".sha256"
-				if err := repo.client.DELETE(ctx, checksumPath); err != nil {
-					// Log but don't fail - checksum file might not exist
-					if slog.Default().Enabled(context.Background(), slog.LevelDebug) {
-						t.Logf("Warning: Failed to remove checksum file %s: %v", checksumPath, err)
-					}
+			path := accessImpl.buildMavenPathForElement(file)
+			checksumPath := path + ".sha256"
+			if err := repo.client.DELETE(ctx, checksumPath); err != nil {
+				// Log but don't fail - checksum file might not exist
+				if slog.Default().Enabled(context.Background(), slog.LevelDebug) {
+					t.Logf("Warning: Failed to remove checksum file %s: %v", checksumPath, err)
 				}
 			}
 		}

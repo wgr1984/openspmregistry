@@ -162,10 +162,7 @@ func (m *MavenRepo) EncodeBase64(ctx context.Context, element *models.UploadElem
 
 // PublishDate returns the publish date from Last-Modified header
 func (m *MavenRepo) PublishDate(ctx context.Context, element *models.UploadElement) (time.Time, error) {
-	path, err := m.Access.(*access).buildMavenPathForElement(element)
-	if err != nil {
-		return m.timeProvider.Now(), err
-	}
+	path := m.Access.(*access).buildMavenPathForElement(element)
 
 	resp, err := m.client.HEAD(ctx, path)
 	if err != nil {
@@ -228,10 +225,7 @@ func (m *MavenRepo) Checksum(ctx context.Context, element *models.UploadElement)
 	}
 
 	// Try to read from .sha256 checksum file first (more efficient)
-	path, err := m.Access.(*access).buildMavenPathForElement(element)
-	if err != nil {
-		return "", fmt.Errorf("failed to build Maven path: %w", err)
-	}
+	path := m.Access.(*access).buildMavenPathForElement(element)
 
 	checksumPath := path + ".sha256"
 	resp, err := m.client.GET(ctx, checksumPath)
@@ -320,10 +314,7 @@ func (m *MavenRepo) Lookup(ctx context.Context, url string) []string {
 
 // Remove deletes an element from the Maven repository
 func (m *MavenRepo) Remove(ctx context.Context, element *models.UploadElement) error {
-	path, err := m.Access.(*access).buildMavenPathForElement(element)
-	if err != nil {
-		return err
-	}
+	path := m.Access.(*access).buildMavenPathForElement(element)
 
 	return m.client.DELETE(ctx, path)
 }

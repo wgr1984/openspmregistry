@@ -17,10 +17,7 @@ func Test_buildMavenPathForElement_SourceArchive_ReturnsCorrectPath(t *testing.T
 	a := newAccess(c, cfg)
 
 	element := models.NewUploadElement("testScope", "my-package", "1.0.0", mimetypes.ApplicationZip, models.SourceArchive)
-	path, err := a.buildMavenPathForElement(element)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
+	path := a.buildMavenPathForElement(element)
 	expected := "testScope/my-package/1.0.0/my-package-1.0.0.zip"
 	if path != expected {
 		t.Errorf("expected '%s', got '%s'", expected, path)
@@ -33,10 +30,7 @@ func Test_buildMavenPathForElement_Metadata_ReturnsCorrectPath(t *testing.T) {
 	a := newAccess(c, cfg)
 
 	element := models.NewUploadElement("testScope", "my-package", "1.0.0", mimetypes.ApplicationJson, models.Metadata)
-	path, err := a.buildMavenPathForElement(element)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
+	path := a.buildMavenPathForElement(element)
 	expected := "testScope/my-package/1.0.0/my-package-1.0.0-metadata.json"
 	if path != expected {
 		t.Errorf("expected '%s', got '%s'", expected, path)
@@ -49,10 +43,7 @@ func Test_buildMavenPathForElement_PackageSwift_ReturnsCorrectPath(t *testing.T)
 	a := newAccess(c, cfg)
 
 	element := models.NewUploadElement("testScope", "my-package", "1.0.0", mimetypes.TextXSwift, models.Manifest)
-	path, err := a.buildMavenPathForElement(element)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
+	path := a.buildMavenPathForElement(element)
 	// Maven-compliant: lowercase classifier
 	expected := "testScope/my-package/1.0.0/my-package-1.0.0-package.swift"
 	if path != expected {
@@ -66,10 +57,7 @@ func Test_buildMavenPathForElement_PackageJson_ReturnsCorrectPath(t *testing.T) 
 	a := newAccess(c, cfg)
 
 	element := models.NewUploadElement("testScope", "my-package", "1.0.0", mimetypes.ApplicationJson, models.PackageManifestJson)
-	path, err := a.buildMavenPathForElement(element)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
+	path := a.buildMavenPathForElement(element)
 	// Maven-compliant: lowercase classifier
 	expected := "testScope/my-package/1.0.0/my-package-1.0.0-package.json"
 	if path != expected {
@@ -84,10 +72,7 @@ func Test_buildMavenPathForElement_AlternativeManifest_ReturnsCorrectPath(t *tes
 
 	element := models.NewUploadElement("testScope", "my-package", "1.0.0", mimetypes.TextXSwift, models.Manifest)
 	element.SetFilenameOverwrite("Package@swift-5.0")
-	path, err := a.buildMavenPathForElement(element)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
+	path := a.buildMavenPathForElement(element)
 	// Format: package-swift-5.0 (Maven-compliant: lowercase, hyphens only, no @ symbol)
 	expected := "testScope/my-package/1.0.0/my-package-1.0.0-package-swift-5.0.swift"
 	if path != expected {
@@ -101,10 +86,7 @@ func Test_buildMavenPathForElement_WithGroupIdPrefix_ReturnsCorrectPath(t *testi
 	a := newAccess(c, cfg)
 
 	element := models.NewUploadElement("testScope", "my-package", "1.0.0", mimetypes.ApplicationZip, models.SourceArchive)
-	path, err := a.buildMavenPathForElement(element)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
+	path := a.buildMavenPathForElement(element)
 	expected := "com/example/testScope/my-package/1.0.0/my-package-1.0.0.zip"
 	if path != expected {
 		t.Errorf("expected '%s', got '%s'", expected, path)
@@ -117,10 +99,7 @@ func Test_buildMavenPathForElement_MetadataSignature_ReturnsCorrectPath(t *testi
 	a := newAccess(c, cfg)
 
 	element := models.NewUploadElement("testScope", "my-package", "1.0.0", "application/octet-stream", models.MetadataSignature)
-	path, err := a.buildMavenPathForElement(element)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
+	path := a.buildMavenPathForElement(element)
 	expected := "testScope/my-package/1.0.0/my-package-1.0.0-metadata.sig"
 	if path != expected {
 		t.Errorf("expected '%s', got '%s'", expected, path)
@@ -135,10 +114,7 @@ func Test_buildMavenPathForElement_AlternativeManifestWithSwiftPrefix_ReturnsCor
 	// Test with Package@swift-5.7.0 (already has "swift-" prefix)
 	element := models.NewUploadElement("testScope", "my-package", "1.0.0", mimetypes.TextXSwift, models.Manifest)
 	element.SetFilenameOverwrite("Package@swift-5.7.0")
-	path, err := a.buildMavenPathForElement(element)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
+	path := a.buildMavenPathForElement(element)
 	// Should extract "5.7.0" (removing "swift-" prefix)
 	// Maven-compliant: lowercase, hyphens only
 	expected := "testScope/my-package/1.0.0/my-package-1.0.0-package-swift-5.7.0.swift"
@@ -155,10 +131,7 @@ func Test_buildMavenPathForElement_AlternativeManifestWithoutSwiftPrefix_Returns
 	// Test with Package@5.7.0 (no "swift-" prefix)
 	element := models.NewUploadElement("testScope", "my-package", "1.0.0", mimetypes.TextXSwift, models.Manifest)
 	element.SetFilenameOverwrite("Package@5.7.0")
-	path, err := a.buildMavenPathForElement(element)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
+	path := a.buildMavenPathForElement(element)
 	// Should use "5.7.0" as-is
 	// Maven-compliant: lowercase, hyphens only
 	expected := "testScope/my-package/1.0.0/my-package-1.0.0-package-swift-5.7.0.swift"
@@ -175,10 +148,7 @@ func Test_buildMavenPathForElement_FileWithoutExtension_UsesMimeType(t *testing.
 	// Create element with filename that has no extension
 	element := models.NewUploadElement("testScope", "my-package", "1.0.0", mimetypes.ApplicationZip, models.SourceArchive)
 	element.SetFilenameOverwrite("archive") // No extension
-	path, err := a.buildMavenPathForElement(element)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
+	path := a.buildMavenPathForElement(element)
 	// Should use .zip extension from MIME type
 	expected := "testScope/my-package/1.0.0/my-package-1.0.0.zip"
 	if path != expected {
@@ -194,10 +164,7 @@ func Test_buildMavenPathForElement_UnknownMimeType_DefaultsToZip(t *testing.T) {
 	// Create element with unknown MIME type and no extension
 	element := models.NewUploadElement("testScope", "my-package", "1.0.0", "unknown/mime-type", models.SourceArchive)
 	element.SetFilenameOverwrite("file") // No extension
-	path, err := a.buildMavenPathForElement(element)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
+	path := a.buildMavenPathForElement(element)
 	// Should default to .zip
 	expected := "testScope/my-package/1.0.0/my-package-1.0.0.zip"
 	if path != expected {
@@ -547,11 +514,11 @@ func Test_mavenWriter_Write_AppendsToBuffer(t *testing.T) {
 }
 
 func Test_mavenWriter_Close_UploadsData(t *testing.T) {
-	uploadedData := []byte{}
+	uploadedByPath := make(map[string][]byte)
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Method == "PUT" {
 			data, _ := io.ReadAll(r.Body)
-			uploadedData = data
+			uploadedByPath[r.URL.Path] = data
 			w.WriteHeader(http.StatusOK)
 		}
 	}))
@@ -559,9 +526,11 @@ func Test_mavenWriter_Close_UploadsData(t *testing.T) {
 
 	cfg := config.MavenConfig{BaseURL: server.URL}
 	c, _ := newClient(cfg)
+	a := newAccess(c, cfg)
 
 	element := models.NewUploadElement("testScope", "my-package", "1.0.0", mimetypes.ApplicationZip, models.SourceArchive)
-	writer := newMavenWriter(c, cfg, "test/path", element, context.Background())
+	path := a.buildMavenPathForElement(element)
+	writer := newMavenWriter(c, cfg, path, element, context.Background())
 	testData := []byte("test upload data")
 	writer.Write(testData)
 	err := writer.Close()
@@ -569,6 +538,9 @@ func Test_mavenWriter_Close_UploadsData(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
+	// Close() does multiple PUTs (main artifact, .sha256, maven-metadata.xml); assert on main artifact path only
+	mainPath := "/" + path
+	uploadedData := uploadedByPath[mainPath]
 	if string(uploadedData) != string(testData) {
 		t.Errorf("expected uploaded data '%s', got '%s'", string(testData), string(uploadedData))
 	}
