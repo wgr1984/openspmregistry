@@ -41,7 +41,7 @@ func newClient(cfg config.MavenConfig) (*client, error) {
 // or builds it from configured credentials (config mode)
 func (c *client) getAuthHeader(ctx context.Context) string {
 	// Check context first (passthrough mode)
-	if ctxAuth := ctx.Value("Authorization"); ctxAuth != nil {
+	if ctxAuth := ctx.Value(config.AuthHeaderContextKey); ctxAuth != nil {
 		if authHeader, ok := ctxAuth.(string); ok && authHeader != "" {
 			return authHeader
 		}

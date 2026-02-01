@@ -6,6 +6,7 @@ import (
 	"encoding/xml"
 	"fmt"
 	"io"
+	"slices"
 	"sort"
 	"strings"
 	"time"
@@ -83,17 +84,8 @@ func updateMetadata(client *client, ctx context.Context, groupId, artifactId, ve
 		metadata.Versioning.Latest = version
 		metadata.Versioning.Release = version
 	} else {
-		// Check if version already exists
-		versionExists := false
-		for _, v := range metadata.Versioning.Versions.Version {
-			if v == version {
-				versionExists = true
-				break
-			}
-		}
-
 		// Add version if it doesn't exist
-		if !versionExists {
+		if !slices.Contains(metadata.Versioning.Versions.Version, version) {
 			metadata.Versioning.Versions.Version = append(metadata.Versioning.Versions.Version, version)
 		}
 

@@ -39,6 +39,7 @@ func Test_NewOIDCAuthenticatorPassword_CreatesValidAuthenticator(t *testing.T) {
 
 	if auth == nil {
 		t.Error("expected non-nil authenticator")
+		return
 	}
 	if auth.OidcAuthenticatorImpl == nil {
 		t.Error("expected non-nil base authenticator")

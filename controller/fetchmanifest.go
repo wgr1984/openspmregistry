@@ -100,7 +100,7 @@ func (c *Controller) manifestsToString(r *http.Request, manifests []models.Uploa
 	for i, manifest := range manifests {
 		manifestFileName := manifest.FileName()
 		// leave only the version number
-		version := strings.Trim(manifestFileName, "Package@-.swift")
+		version := strings.Trim(manifestFileName, "Packge@-.swift")
 		// create the location URL the alternative Manifest can be downloaded from
 		location, err := url.JoinPath(
 			utils.BaseUrl(c.config),

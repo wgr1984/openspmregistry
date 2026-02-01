@@ -430,7 +430,7 @@ func (f *FileRepo) LoadPackageJson(ctx context.Context, scope string, name strin
 	element := models.NewUploadElement(scope, name, version, "application/json", models.PackageManifestJson)
 
 	if !f.Exists(ctx, element) {
-		return nil, fmt.Errorf("Package.json not found for %s.%s@%s", scope, name, version)
+		return nil, fmt.Errorf("package.json not found for %s.%s@%s", scope, name, version)
 	}
 
 	pathFile := filepath.Join(f.path, scope, name, version, element.FileName())

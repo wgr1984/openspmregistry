@@ -22,6 +22,7 @@ func Test_newClient_ValidConfig_ReturnsClient(t *testing.T) {
 	}
 	if c == nil {
 		t.Errorf("expected client, got nil")
+		return
 	}
 	if c.baseURL != "https://repo.example.com" {
 		t.Errorf("expected baseURL 'https://repo.example.com', got '%s'", c.baseURL)
@@ -69,7 +70,7 @@ func Test_buildBasicAuth_ValidCredentials_ReturnsAuthHeader(t *testing.T) {
 func Test_getAuthHeader_ContextAuth_ReturnsContextAuth(t *testing.T) {
 	cfg := config.MavenConfig{}
 	c, _ := newClient(cfg)
-	ctx := context.WithValue(context.Background(), "Authorization", "Bearer token123")
+	ctx := context.WithValue(context.Background(), config.AuthHeaderContextKey, "Bearer token123")
 	result := c.getAuthHeader(ctx)
 	if result != "Bearer token123" {
 		t.Errorf("expected 'Bearer token123', got '%s'", result)

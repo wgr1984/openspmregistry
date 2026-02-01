@@ -42,6 +42,7 @@ func Test_newRangeReadSeekCloser_ValidResponse_ReturnsReader(t *testing.T) {
 
 	if reader == nil {
 		t.Errorf("expected reader, got nil")
+		return
 	}
 	if reader.size != int64(dataLen) {
 		t.Errorf("expected size %d, got %d", dataLen, reader.size)

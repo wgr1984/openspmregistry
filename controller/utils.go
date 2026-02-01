@@ -1,6 +1,7 @@
 package controller
 
 import (
+	"OpenSPMRegistry/config"
 	"OpenSPMRegistry/models"
 	"OpenSPMRegistry/responses"
 	"OpenSPMRegistry/utils"
@@ -216,7 +217,7 @@ func requestContext(r *http.Request) context.Context {
 	
 	// Extract Authorization header and add to context for passthrough mode
 	if authHeader := r.Header.Get("Authorization"); authHeader != "" {
-		ctx = context.WithValue(ctx, "Authorization", authHeader)
+		ctx = context.WithValue(ctx, config.AuthHeaderContextKey, authHeader)
 	}
 	
 	return ctx

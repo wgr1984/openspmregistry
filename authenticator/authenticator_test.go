@@ -130,9 +130,7 @@ func (m MockTemplateParser) ParseFiles(filenames ...string) (*template.Template,
 	return &m.template, nil
 }
 
-type MockTemplateParserError struct {
-	template template.Template
-}
+type MockTemplateParserError struct{}
 
 func (m MockTemplateParserError) ParseFiles(filenames ...string) (*template.Template, error) {
 	return nil, errors.New("Error parsing template")

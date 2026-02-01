@@ -344,7 +344,7 @@ func (m *MavenRepo) ListAll(ctx context.Context) ([]models.ListElement, error) {
 func (m *MavenRepo) LoadPackageJson(ctx context.Context, scope string, name string, version string) (map[string]any, error) {
 	element := models.NewUploadElement(scope, name, version, mimetypes.ApplicationJson, models.PackageManifestJson)
 	if !m.Exists(ctx, element) {
-		return nil, fmt.Errorf("Package.json not found")
+		return nil, fmt.Errorf("package.json not found")
 	}
 
 	reader, err := m.GetReader(ctx, element)

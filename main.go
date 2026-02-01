@@ -8,6 +8,7 @@ import (
 	"OpenSPMRegistry/repo"
 	"OpenSPMRegistry/repo/files"
 	"OpenSPMRegistry/repo/maven"
+	"context"
 	"flag"
 	"fmt"
 	"gopkg.in/yaml.v3"
@@ -72,11 +73,11 @@ func main() {
 	case "maven":
 		mavenRepo, err := maven.NewMavenRepo(repoConfig.Maven)
 		if err != nil {
-			log.Fatal(fmt.Sprintf("Failed to create Maven repository: %v", err))
+			log.Fatalf("Failed to create Maven repository: %v", err)
 		}
 		r = mavenRepo
 	default:
-		log.Fatal(fmt.Sprintf("Unsupported repo type: %s", repoConfig.Type))
+		log.Fatalf("Unsupported repo type: %s", repoConfig.Type)
 	}
 	a := middleware.NewAuthentication(authenticator.CreateAuthenticator(serverConfig.Server), router)
 	c := controller.NewController(serverConfig.Server, r)
@@ -118,7 +119,7 @@ func main() {
 	go func() {
 		<-sigChannel
 		slog.Info("Shutting down server...")
-		if err := srv.Shutdown(nil); err != nil {
+		if err := srv.Shutdown(context.TODO()); err != nil {
 			slog.Error("Error shutting down server", "error", err)
 		}
 		os.Exit(1)

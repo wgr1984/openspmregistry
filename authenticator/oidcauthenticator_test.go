@@ -74,7 +74,7 @@ func Test_OIDC_Authenticate_InvalidBearerToken_ReturnsError(t *testing.T) {
 	aud := "client-id"
 	exp := time.Now().Add(-1 * time.Hour)
 
-	base64Token, err := createJWT(iss, sub, aud, exp)
+	base64Token, _ := createJWT(iss, sub, aud, exp)
 
 	req := httptest.NewRequest("GET", "/", nil)
 	req.Header.Set("Authorization", "Bearer "+base64Token)
@@ -320,7 +320,7 @@ func createJWT(iss string, sub string, aud string, exp time.Time) (string, error
 		Audience: jwt.Audience{aud},
 	}
 
-	privateKey, err := rsa.GenerateKey(rand.Reader, 2048)
+	privateKey, _ := rsa.GenerateKey(rand.Reader, 2048)
 	signingKey := jose.SigningKey{Algorithm: jose.RS256, Key: privateKey}
 	signer, err := jose.NewSigner(signingKey, nil)
 	if err != nil {
@@ -328,6 +328,8 @@ func createJWT(iss string, sub string, aud string, exp time.Time) (string, error
 	}
 
 	token, err := jwt.Signed(signer).Claims(claims).Serialize()
-
+	if err != nil {
+		return "", err
+	}
 	return token, nil
 }

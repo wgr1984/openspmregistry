@@ -129,7 +129,6 @@ func (a *OidcAuthenticatorCodeImpl) Login(w http.ResponseWriter, r *http.Request
 	setCallbackCookie(w, r, "nonce", nonce)
 
 	http.Redirect(w, r, a.config.AuthCodeURL(state, oidc.Nonce(nonce)), http.StatusFound)
-	return
 }
 
 // setCallbackCookie sets a cookie with the provided name and value

@@ -1,5 +1,13 @@
 package config
 
+// ContextKey is a custom type for context keys to avoid collisions (SA1029).
+type ContextKey string
+
+const (
+	// AuthHeaderContextKey is the context key for the Authorization header (passthrough auth).
+	AuthHeaderContextKey ContextKey = "Authorization"
+)
+
 type ServerRoot struct {
 	Server ServerConfig `yaml:"server"`
 }

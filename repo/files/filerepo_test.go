@@ -22,7 +22,7 @@ type fakeOsModule_statError struct {
 }
 
 func (m *fakeOsModule_statError) Stat(name string) (os.FileInfo, error) {
-	return nil, fakeError
+	return nil, errFake
 }
 
 type fakeOsModule_walkDirError struct {
@@ -31,24 +31,22 @@ type fakeOsModule_walkDirError struct {
 
 func (m *fakeOsModule_walkDirError) WalkDir(root string, fn fs.WalkDirFunc) error {
 	return filepath.WalkDir(root, func(path string, d fs.DirEntry, err error) error {
-		return fn(path, d, fakeError)
+		return fn(path, d, errFake)
 	})
 }
 
-type access_error struct {
-	access
-}
+type access_error struct{}
 
 func (a *access_error) Exists(ctx context.Context, element *models.UploadElement) bool {
 	return true
 }
 
 func (a *access_error) GetReader(ctx context.Context, element *models.UploadElement) (io.ReadSeekCloser, error) {
-	return nil, fakeError
+	return nil, errFake
 }
 
 func (a *access_error) GetWriter(ctx context.Context, element *models.UploadElement) (io.WriteCloser, error) {
-	return nil, fakeError
+	return nil, errFake
 }
 
 type ErrReaderSeekCloser_ReadErr struct {
@@ -56,7 +54,7 @@ type ErrReaderSeekCloser_ReadErr struct {
 }
 
 func (r *ErrReaderSeekCloser_ReadErr) Read(p []byte) (n int, err error) {
-	return 0, fakeError
+	return 0, errFake
 }
 
 func (r *ErrReaderSeekCloser_ReadErr) Seek(offset int64, whence int) (int64, error) {
@@ -76,7 +74,7 @@ func (r *ErrReaderSeekCloser_SeekErr) Read(p []byte) (n int, err error) {
 }
 
 func (r *ErrReaderSeekCloser_SeekErr) Seek(offset int64, whence int) (int64, error) {
-	return 0, fakeError
+	return 0, errFake
 }
 
 func (r *ErrReaderSeekCloser_SeekErr) Close() error {
@@ -96,7 +94,7 @@ func (r *ErrReaderSeekCloser_CloseErr) Seek(offset int64, whence int) (int64, er
 }
 
 func (r *ErrReaderSeekCloser_CloseErr) Close() error {
-	return fakeError
+	return errFake
 }
 
 type reader_error_close struct {
@@ -297,7 +295,7 @@ func Test_ExtractManifestFiles_MkDirAllCreateError_ReturnsError(t *testing.T) {
 	}
 
 	err := fileRepo.ExtractManifestFiles(context.Background(), element)
-	if err == nil || !errors.Is(err, fakeError) {
+	if err == nil || !errors.Is(err, errFake) {
 		t.Errorf("expected error, got nil")
 	}
 }
@@ -377,7 +375,7 @@ func Test_List_ErrorStatFile_ReturnsError(t *testing.T) {
 	name := "testName"
 
 	_, err := fileRepo.List(context.Background(), scope, name)
-	if err == nil || !errors.Is(err, fakeError) {
+	if err == nil || !errors.Is(err, errFake) {
 		t.Errorf("expected error, got nil")
 	}
 }
@@ -400,7 +398,7 @@ func Test_List_ErrorWalkingDirectory_ReturnsError(t *testing.T) {
 	}
 
 	_, err = fileRepo.List(context.Background(), scope, name)
-	if err == nil || !errors.Is(err, fakeError) {
+	if err == nil || !errors.Is(err, errFake) {
 		t.Errorf("expected error, got nil")
 	}
 }
@@ -511,7 +509,7 @@ func Test_EncodeBase64_GetReaderError_ReturnsError(t *testing.T) {
 	file.Close()
 
 	_, err = fileRepo.EncodeBase64(context.Background(), element)
-	if err == nil || !errors.Is(err, fakeError) {
+	if err == nil || !errors.Is(err, errFake) {
 		t.Errorf("expected error, got nil")
 	}
 }
@@ -551,7 +549,7 @@ func Test_EncodeBase64_Reading_ReturnsError(t *testing.T) {
 	file.Close()
 
 	_, err = fileRepo.EncodeBase64(context.Background(), element)
-	if err == nil || !errors.Is(err, fakeError) {
+	if err == nil || !errors.Is(err, errFake) {
 		t.Errorf("expected error, got nil")
 	}
 }
@@ -975,6 +973,9 @@ func Test_Lookup_ValidURL_ReturnsMatchingIDs(t *testing.T) {
 	dependencies: ["SamplePackage"]),
 	]
 	)`), os.ModePerm)
+	if err != nil {
+		t.Fatalf("failed to write Package.swift: %v", err)
+	}
 
 	result := fileRepo.Lookup(context.Background(), "https://example.com/repo")
 	if len(result) != 1 {

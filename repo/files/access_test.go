@@ -10,14 +10,14 @@ import (
 	"testing"
 )
 
-var fakeError = errors.New("fake_error")
+var errFake = errors.New("fake_error")
 
 type fakeOsModule_mkDirAllError struct {
 	osAdapterDefault
 }
 
 func (m *fakeOsModule_mkDirAllError) MkdirAll(path string, perm os.FileMode) error {
-	return fakeError
+	return errFake
 }
 
 type fakeOsModule_openError struct {
@@ -25,7 +25,7 @@ type fakeOsModule_openError struct {
 }
 
 func (m *fakeOsModule_openError) Open(name string) (*os.File, error) {
-	return nil, fakeError
+	return nil, errFake
 }
 
 func teardown(t *testing.T) {
@@ -257,7 +257,7 @@ func Test_GetWriter_GetWriterError_ReturnsError(t *testing.T) {
 	}
 
 	_, err = fileRepo.GetWriter(context.Background(), element)
-	if err == nil || !errors.Is(err, fakeError) {
+	if err == nil || !errors.Is(err, errFake) {
 		t.Errorf("expected error, got nil")
 	}
 }
@@ -326,7 +326,7 @@ func Test_GetReader_OpenError_ReturnsError(t *testing.T) {
 	if err == nil {
 		t.Errorf("expected error, got nil")
 	}
-	if !errors.Is(err, fakeError) {
+	if !errors.Is(err, errFake) {
 		t.Errorf("expected error, got %v", err)
 	}
 }
