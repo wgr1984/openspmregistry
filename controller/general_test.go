@@ -56,7 +56,7 @@ func Test_StaticAction_ServesFiles(t *testing.T) {
 	if err != nil {
 		t.Fatalf("failed to create temp dir: %v", err)
 	}
-	defer os.RemoveAll(tmpDir)
+	defer func() { _ = os.RemoveAll(tmpDir) }()
 
 	// Create a test static file
 	testContent := "test static content"
@@ -76,7 +76,7 @@ func Test_StaticAction_ServesFiles(t *testing.T) {
 	if err := os.MkdirAll("static", 0755); err != nil {
 		t.Fatalf("failed to create static directory: %v", err)
 	}
-	defer os.RemoveAll("static")
+	defer func() { _ = os.RemoveAll("static") }()
 
 	if err := os.Symlink(testFilePath, "static/test.txt"); err != nil {
 		t.Fatalf("failed to create symlink: %v", err)

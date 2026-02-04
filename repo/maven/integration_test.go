@@ -224,11 +224,11 @@ func TestIntegration_PublishAndGet_RealServer(t *testing.T) {
 
 		n, err := writer.Write(testZipData)
 		if err != nil {
-			writer.Close()
+			_ = writer.Close()
 			t.Fatalf("Failed to write data: %v", err)
 		}
 		if n != len(testZipData) {
-			writer.Close()
+			_ = writer.Close()
 			t.Fatalf("Wrote %d bytes, expected %d", n, len(testZipData))
 		}
 
@@ -258,7 +258,7 @@ func TestIntegration_PublishAndGet_RealServer(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Failed to get reader: %v", err)
 		}
-		defer reader.Close()
+		defer func() { _ = reader.Close() }()
 
 		downloadedData, err := io.ReadAll(reader)
 		if err != nil {
@@ -314,7 +314,7 @@ func TestIntegration_PublishAndGet_RealServer(t *testing.T) {
 			if err != nil {
 				t.Logf("Failed to fetch checksum file: %v", err)
 			} else {
-				defer resp.Body.Close()
+				defer func() { _ = resp.Body.Close() }()
 				t.Logf("Checksum file HTTP status: %d", resp.StatusCode)
 				if resp.StatusCode == http.StatusOK {
 					checksumFileExists = true
@@ -415,7 +415,7 @@ func TestIntegration_PublishAndGet_RealServer(t *testing.T) {
 
 		n, err := writer.Write(packageSwiftContent)
 		if err != nil {
-			writer.Close()
+			_ = writer.Close()
 			t.Fatalf("Failed to write Package.swift: %v", err)
 		}
 
@@ -435,7 +435,7 @@ func TestIntegration_PublishAndGet_RealServer(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Failed to get reader for Package.swift: %v", err)
 		}
-		defer reader.Close()
+		defer func() { _ = reader.Close() }()
 
 		retrievedData, err := io.ReadAll(reader)
 		if err != nil {
@@ -473,7 +473,7 @@ func TestIntegration_PublishAndGet_RealServer(t *testing.T) {
 
 		n, err := writer.Write(variantContent)
 		if err != nil {
-			writer.Close()
+			_ = writer.Close()
 			t.Fatalf("Failed to write Package@swift-5.7.0.swift: %v", err)
 		}
 
@@ -493,7 +493,7 @@ func TestIntegration_PublishAndGet_RealServer(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Failed to get reader for Package@swift-5.7.0.swift: %v", err)
 		}
-		defer reader.Close()
+		defer func() { _ = reader.Close() }()
 
 		retrievedData, err := io.ReadAll(reader)
 		if err != nil {
@@ -528,7 +528,7 @@ func TestIntegration_PublishAndGet_RealServer(t *testing.T) {
 
 		n, err := writer.Write(metadataContent)
 		if err != nil {
-			writer.Close()
+			_ = writer.Close()
 			t.Fatalf("Failed to write metadata.json: %v", err)
 		}
 
@@ -546,7 +546,7 @@ func TestIntegration_PublishAndGet_RealServer(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Failed to get reader for metadata.json: %v", err)
 		}
-		defer reader.Close()
+		defer func() { _ = reader.Close() }()
 
 		retrievedData, err := io.ReadAll(reader)
 		if err != nil {
@@ -580,7 +580,7 @@ func TestIntegration_PublishAndGet_RealServer(t *testing.T) {
 
 		n, err := writer.Write(sigContent)
 		if err != nil {
-			writer.Close()
+			_ = writer.Close()
 			t.Fatalf("Failed to write metadata.sig: %v", err)
 		}
 
@@ -598,7 +598,7 @@ func TestIntegration_PublishAndGet_RealServer(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Failed to get reader for metadata.sig: %v", err)
 		}
-		defer reader.Close()
+		defer func() { _ = reader.Close() }()
 
 		retrievedData, err := io.ReadAll(reader)
 		if err != nil {
@@ -624,7 +624,7 @@ func TestIntegration_PublishAndGet_RealServer(t *testing.T) {
 
 		n, err := writer.Write(packageJsonContent)
 		if err != nil {
-			writer.Close()
+			_ = writer.Close()
 			t.Fatalf("Failed to write Package.json: %v", err)
 		}
 
@@ -642,7 +642,7 @@ func TestIntegration_PublishAndGet_RealServer(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Failed to get reader for Package.json: %v", err)
 		}
-		defer reader.Close()
+		defer func() { _ = reader.Close() }()
 
 		retrievedData, err := io.ReadAll(reader)
 		if err != nil {

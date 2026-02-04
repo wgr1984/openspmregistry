@@ -29,7 +29,7 @@ func newRangeReadSeekCloser(client *client, url string, ctx context.Context) (*r
 	if err != nil {
 		return nil, fmt.Errorf("failed to get size: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	size := resp.ContentLength
 	if size < 0 {
@@ -63,7 +63,7 @@ func (r *rangeReadSeekCloser) fetchRange(start int64, end int64) error {
 
 	// Close existing body if any
 	if r.body != nil {
-		r.body.Close()
+		_ = r.body.Close()
 		r.body = nil
 	}
 
@@ -85,7 +85,7 @@ func (r *rangeReadSeekCloser) fetchRange(start int64, end int64) error {
 	}
 
 	if resp.StatusCode != http.StatusPartialContent && resp.StatusCode != http.StatusOK {
-		resp.Body.Close()
+		_ = resp.Body.Close()
 		return fmt.Errorf("unexpected status code: %d", resp.StatusCode)
 	}
 
@@ -115,7 +115,7 @@ func (r *rangeReadSeekCloser) Read(p []byte) (n int, err error) {
 	// If we hit EOF, try to fetch more if we haven't reached the end
 	if err == io.EOF && r.pos < r.size {
 		// Close current body and fetch next range
-		r.body.Close()
+		_ = r.body.Close()
 		r.body = nil
 		// Try to read more
 		if err2 := r.fetchRange(r.pos, -1); err2 == nil {
@@ -162,7 +162,7 @@ func (r *rangeReadSeekCloser) Seek(offset int64, whence int) (int64, error) {
 
 	// Close current body and fetch new range
 	if r.body != nil {
-		r.body.Close()
+		_ = r.body.Close()
 		r.body = nil
 	}
 
@@ -202,7 +202,7 @@ func newBufferedReadSeekCloser(client *client, url string, ctx context.Context) 
 	if err != nil {
 		return nil, err
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	data, err := io.ReadAll(resp.Body)
 	if err != nil {

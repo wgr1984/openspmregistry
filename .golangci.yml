@@ -1,0 +1,4 @@
+# errcheck: we do not use check-blank so explicit _ discards (e.g. _, _ = w.Write())
+# are not reported. Unchecked defer x.Close() is still caught by `make errcheck`.
+linters-settings:
+  errcheck: {}

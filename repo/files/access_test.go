@@ -69,7 +69,7 @@ func Test_Exists_FileExists_ReturnsTrue(t *testing.T) {
 	if err != nil {
 		t.Fatalf("failed to create file: %v", err)
 	}
-	file.Close()
+	_ = file.Close()
 
 	exists := fileRepo.Exists(context.Background(), element)
 	if !exists {
@@ -102,7 +102,7 @@ func Test_GetReader_FileExists_ReturnsReader(t *testing.T) {
 	if err != nil {
 		t.Fatalf("failed to create file: %v", err)
 	}
-	file.Close()
+	_ = file.Close()
 
 	reader, err := fileRepo.GetReader(context.Background(), element)
 	if err != nil {
@@ -111,7 +111,7 @@ func Test_GetReader_FileExists_ReturnsReader(t *testing.T) {
 	if reader == nil {
 		t.Errorf("expected reader, got nil")
 	}
-	reader.Close()
+	_ = reader.Close()
 }
 
 func Test_GetReader_FileDoesNotExist_ReturnsError(t *testing.T) {
@@ -175,10 +175,10 @@ func Test_GetReader_FileReadError_ReturnsError(t *testing.T) {
 	if err != nil {
 		t.Fatalf("failed to create file: %v", err)
 	}
-	file.Close()
+	_ = file.Close()
 
 	// Simulate read error by removing the file
-	os.Remove(path)
+	_ = os.Remove(path)
 
 	_, err = fileRepo.GetReader(context.Background(), element)
 	if err == nil {
@@ -203,7 +203,7 @@ func Test_GetWriter_ValidElement_ReturnsWriter(t *testing.T) {
 	if writer == nil {
 		t.Errorf("expected writer, got nil")
 	}
-	writer.Close()
+	_ = writer.Close()
 
 	// delete the file
 	if err := fileRepo.Remove(context.Background(), element); err != nil {

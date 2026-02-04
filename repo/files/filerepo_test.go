@@ -203,7 +203,7 @@ let package = Package(
 	if err := zipWriter.Close(); err != nil {
 		t.Fatalf("failed to close zip writer: %v", err)
 	}
-	file.Close()
+	_ = file.Close()
 
 	err = fileRepo.ExtractManifestFiles(context.Background(), element)
 	if err != nil {
@@ -270,7 +270,7 @@ func Test_ExtractManifestFiles_NonExistentPath_CreatesPathAndExtractsFiles(t *te
 	if err := zipWriter.Close(); err != nil {
 		t.Fatalf("failed to close zip writer: %v", err)
 	}
-	file.Close()
+	_ = file.Close()
 
 	err = fileRepo.ExtractManifestFiles(context.Background(), element)
 	if err == nil {
@@ -316,7 +316,7 @@ func Test_List_DirectoryExists_ReturnsListOfElements(t *testing.T) {
 	if err := os.MkdirAll(path, os.ModePerm); err != nil {
 		t.Fatalf("failed to create dir: %v", err)
 	}
-	defer os.RemoveAll(filepath.Join("/tmp/openspmsreg_tests", scope))
+	defer func() { _ = os.RemoveAll(filepath.Join("/tmp/openspmsreg_tests", scope)) }()
 
 	_, err := os.Create(filepath.Join(path, "dummyFile"))
 	if err != nil {
@@ -434,7 +434,7 @@ func Test_EncodeBase64_FileExists_ReturnsBase64String(t *testing.T) {
 	if _, err := file.WriteString("test data"); err != nil {
 		t.Fatalf("failed to write: %v", err)
 	}
-	file.Close()
+	_ = file.Close()
 
 	base64String, err := fileRepo.EncodeBase64(context.Background(), element)
 	if err != nil {
@@ -484,10 +484,10 @@ func Test_EncodeBase64_ReadError_ReturnsError(t *testing.T) {
 	if err != nil {
 		t.Fatalf("failed to create file: %v", err)
 	}
-	file.Close()
+	_ = file.Close()
 
 	// Simulate read error by removing the file
-	os.Remove(path)
+	_ = os.Remove(path)
 
 	_, err = fileRepo.EncodeBase64(context.Background(), element)
 	if err == nil {
@@ -520,7 +520,7 @@ func Test_EncodeBase64_GetReaderError_ReturnsError(t *testing.T) {
 	if err != nil {
 		t.Fatalf("failed to create file: %v", err)
 	}
-	file.Close()
+	_ = file.Close()
 
 	_, err = fileRepo.EncodeBase64(context.Background(), element)
 	if err == nil || !errors.Is(err, errFake) {
@@ -560,7 +560,7 @@ func Test_EncodeBase64_Reading_ReturnsError(t *testing.T) {
 	if err != nil {
 		t.Fatalf("failed to create file: %v", err)
 	}
-	file.Close()
+	_ = file.Close()
 
 	_, err = fileRepo.EncodeBase64(context.Background(), element)
 	if err == nil || !errors.Is(err, errFake) {
@@ -605,7 +605,7 @@ func Test_EncodeBase64_ReaderCloseError_ReturnsError(t *testing.T) {
 	if err != nil {
 		t.Fatalf("failed to write to file: %v", err)
 	}
-	file.Close()
+	_ = file.Close()
 
 	_, err = fileRepo.EncodeBase64(context.Background(), element)
 	if err != nil {
@@ -633,7 +633,7 @@ func Test_PublishDate_ValidFile_ReturnsModTime(t *testing.T) {
 	if err != nil {
 		t.Fatalf("failed to create file: %v", err)
 	}
-	file.Close()
+	_ = file.Close()
 
 	modTime := time.Now().Add(-time.Hour)
 	if err := os.Chtimes(filepath.Join(path, element.FileName()), modTime, modTime); err != nil {
@@ -727,7 +727,7 @@ func Test_Checksum_FileExists_ReturnsChecksum(t *testing.T) {
 	if _, err := file.WriteString("test data"); err != nil {
 		t.Fatalf("failed to write: %v", err)
 	}
-	file.Close()
+	_ = file.Close()
 
 	checksum, err := fileRepo.Checksum(context.Background(), element)
 	if err != nil {
@@ -767,10 +767,10 @@ func Test_Checksum_FileReadError_ReturnsError(t *testing.T) {
 	if err != nil {
 		t.Fatalf("failed to create file: %v", err)
 	}
-	file.Close()
+	_ = file.Close()
 
 	// Simulate read error by removing the file
-	os.Remove(path)
+	_ = os.Remove(path)
 
 	_, err = fileRepo.Checksum(context.Background(), element)
 	if err == nil {
@@ -792,7 +792,7 @@ func Test_GetAlternativeManifests_ValidPath_ReturnsManifests(t *testing.T) {
 	if err := os.MkdirAll(path, os.ModePerm); err != nil {
 		t.Fatalf("failed to create dir: %v", err)
 	}
-	defer os.RemoveAll(filepath.Join("/tmp/openspmsreg_tests", element.Scope))
+	defer func() { _ = os.RemoveAll(filepath.Join("/tmp/openspmsreg_tests", element.Scope)) }()
 
 	_, err := os.Create(filepath.Join(path, "Package@swift-7.16.swift"))
 	if err != nil {
@@ -847,7 +847,7 @@ func Test_GetAlternativeManifests_NoAlternativeManifests_ReturnsEmptyList(t *tes
 	if err := os.MkdirAll(path, os.ModePerm); err != nil {
 		t.Fatalf("failed to create dir: %v", err)
 	}
-	defer os.RemoveAll(filepath.Join("/tmp/openspmsreg_tests", element.Scope))
+	defer func() { _ = os.RemoveAll(filepath.Join("/tmp/openspmsreg_tests", element.Scope)) }()
 
 	_, err := os.Create(filepath.Join(path, "Package.swift"))
 	if err != nil {
@@ -880,7 +880,7 @@ func Test_GetSwiftToolVersion_ValidManifest_ReturnsVersion(t *testing.T) {
 	if err := os.MkdirAll(path, os.ModePerm); err != nil {
 		t.Fatalf("failed to create dir: %v", err)
 	}
-	defer os.RemoveAll(filepath.Join("/tmp/openspmsreg_tests", element.Scope))
+	defer func() { _ = os.RemoveAll(filepath.Join("/tmp/openspmsreg_tests", element.Scope)) }()
 
 	file, err := os.Create(filepath.Join(path, element.FileName()))
 	if err != nil {
@@ -890,7 +890,7 @@ func Test_GetSwiftToolVersion_ValidManifest_ReturnsVersion(t *testing.T) {
 	if err != nil {
 		t.Fatalf("failed to write to file: %v", err)
 	}
-	file.Close()
+	_ = file.Close()
 
 	version, err := fileRepo.GetSwiftToolVersion(context.Background(), element)
 	if err != nil {
@@ -935,7 +935,7 @@ func Test_GetSwiftToolVersion_NoSwiftVersion_ReturnsError(t *testing.T) {
 	if err := os.MkdirAll(path, os.ModePerm); err != nil {
 		t.Fatalf("failed to create dir: %v", err)
 	}
-	defer os.RemoveAll(filepath.Join("/tmp/openspmsreg_tests", element.Scope))
+	defer func() { _ = os.RemoveAll(filepath.Join("/tmp/openspmsreg_tests", element.Scope)) }()
 
 	file, err := os.Create(filepath.Join(path, element.FileName()))
 	if err != nil {
@@ -945,7 +945,7 @@ func Test_GetSwiftToolVersion_NoSwiftVersion_ReturnsError(t *testing.T) {
 	if err != nil {
 		t.Fatalf("failed to write to file: %v", err)
 	}
-	file.Close()
+	_ = file.Close()
 
 	_, err = fileRepo.GetSwiftToolVersion(context.Background(), element)
 	if err == nil {
@@ -969,7 +969,7 @@ func Test_Lookup_ValidURL_ReturnsMatchingIDs(t *testing.T) {
 	if err := os.MkdirAll(path, os.ModePerm); err != nil {
 		t.Fatalf("failed to create dir: %v", err)
 	}
-	defer os.RemoveAll(filepath.Join("/tmp/openspmsreg_tests/testRepo", element.Scope))
+	defer func() { _ = os.RemoveAll(filepath.Join("/tmp/openspmsreg_tests/testRepo", element.Scope)) }()
 
 	metadataPath := filepath.Join(path, "metadata.json")
 	file, err := os.Create(metadataPath)
@@ -980,7 +980,7 @@ func Test_Lookup_ValidURL_ReturnsMatchingIDs(t *testing.T) {
 	if err != nil {
 		t.Fatalf("failed to write to metadata file: %v", err)
 	}
-	file.Close()
+	_ = file.Close()
 
 	packagePath := filepath.Join(path, "Package.swift")
 	err = os.WriteFile(packagePath, []byte(`// swift-tools-version:5.3
@@ -1038,7 +1038,7 @@ func Test_Lookup_InvalidURL_ReturnsEmptyList(t *testing.T) {
 	if err := os.MkdirAll(path, os.ModePerm); err != nil {
 		t.Fatalf("failed to create dir: %v", err)
 	}
-	defer os.RemoveAll(filepath.Join("/tmp/openspmsreg_tests", element.Scope))
+	defer func() { _ = os.RemoveAll(filepath.Join("/tmp/openspmsreg_tests", element.Scope)) }()
 
 	metadataPath := filepath.Join(path, "metadata.json")
 	file, err := os.Create(metadataPath)
@@ -1049,7 +1049,7 @@ func Test_Lookup_InvalidURL_ReturnsEmptyList(t *testing.T) {
 	if err != nil {
 		t.Fatalf("failed to write to metadata file: %v", err)
 	}
-	file.Close()
+	_ = file.Close()
 
 	result := fileRepo.Lookup(context.Background(), "https://invalid.com/repo")
 	if len(result) != 0 {
@@ -1064,7 +1064,7 @@ func Test_Lookup_NoMetadataFiles_ReturnsEmptyList(t *testing.T) {
 	if err := os.MkdirAll("/tmp/openspmsreg_tests/testScope/testName/1.0.0", os.ModePerm); err != nil {
 		t.Fatalf("failed to create dir: %v", err)
 	}
-	defer os.RemoveAll("/tmp/openspmsreg_tests/testScope")
+	defer func() { _ = os.RemoveAll("/tmp/openspmsreg_tests/testScope") }()
 
 	result := fileRepo.Lookup(context.Background(), "https://example.com/repo")
 	if len(result) != 0 {
@@ -1103,7 +1103,7 @@ func Test_Remove_FileExists_RemovesFile(t *testing.T) {
 	if err != nil {
 		t.Fatalf("failed to create file: %v", err)
 	}
-	file.Close()
+	_ = file.Close()
 
 	err = fileRepo.Remove(context.Background(), element)
 	if err != nil {

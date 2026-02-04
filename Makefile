@@ -2,7 +2,7 @@ TAILWIND = npx tailwindcss -i ./static/input.css -o ./static/output.css
 VERSION ?= 0.0.0
 RELEASE_TYPE ?= patch
 
-.PHONY: help build clean build-docker run tailwind tailwind-watch lint staticcheck golangci-lint release changelog-unreleased test-integration test-integration-up test-integration-down
+.PHONY: help build clean build-docker run tailwind tailwind-watch lint staticcheck golangci-lint errcheck release changelog-unreleased test-integration test-integration-up test-integration-down
 
 # Default target when no arguments are given to make
 help:
@@ -12,9 +12,10 @@ help:
 	@echo "Available targets:"
 	@echo "  help          - Show this help message"
 	@echo "  build         - Build the project (includes lint, tests and dependencies)"
-	@echo "  lint         - Run staticcheck and golangci-lint"
+	@echo "  lint         - Run staticcheck, golangci-lint and errcheck"
 	@echo "  staticcheck   - Run staticcheck linter"
 	@echo "  golangci-lint - Run golangci-lint"
+	@echo "  errcheck     - Run errcheck with -blank (includes unchecked defer Close)"
 	@echo "  clean         - Clean Go build cache"
 	@echo "  build-docker  - Build Docker image"
 	@echo "  run           - Run the server locally"
@@ -34,13 +35,17 @@ help:
 build: tailwind lint
 	go mod tidy && go mod verify && go mod download && go test ./... && go build -o openspmregistry main.go
 
-lint: staticcheck golangci-lint
+lint: staticcheck golangci-lint errcheck
 
 staticcheck:
 	go run honnef.co/go/tools/cmd/staticcheck@latest ./...
 
 golangci-lint:
 	go run github.com/golangci/golangci-lint/cmd/golangci-lint@latest run ./...
+
+# Catches unchecked errors including defer x.Close() (no -blank: explicit _ discards not reported).
+errcheck:
+	go run github.com/kisielk/errcheck@latest ./...
 
 clean:
 	go clean -cache

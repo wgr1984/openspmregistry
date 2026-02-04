@@ -61,7 +61,7 @@ func (m *MavenRepo) ExtractManifestFiles(ctx context.Context, element *models.Up
 	if err != nil {
 		return fmt.Errorf("failed to get source archive: %w", err)
 	}
-	defer reader.Close()
+	defer func() { _ = reader.Close() }()
 
 	// Read source archive into memory (SPM packages are typically small)
 	data, err := io.ReadAll(reader)
@@ -76,7 +76,7 @@ func (m *MavenRepo) ExtractManifestFiles(ctx context.Context, element *models.Up
 
 	// Use shared extraction logic with Maven-specific upload handler
 	fileExtractor := func(name string, r io.ReadCloser) error {
-		defer r.Close()
+		defer func() { _ = r.Close() }()
 
 		data, err := io.ReadAll(r)
 		if err != nil {
@@ -106,7 +106,7 @@ func (m *MavenRepo) ExtractManifestFiles(ctx context.Context, element *models.Up
 		}
 
 		if _, err := writer.Write(data); err != nil {
-			writer.Close()
+			_ = writer.Close()
 			slog.Warn("Failed to write manifest", "manifest", name, "error", err)
 			return nil
 		}
@@ -151,7 +151,7 @@ func (m *MavenRepo) EncodeBase64(ctx context.Context, element *models.UploadElem
 	if err != nil {
 		return "", err
 	}
-	defer reader.Close()
+	defer func() { _ = reader.Close() }()
 
 	data, err := io.ReadAll(reader)
 	if err != nil {
@@ -169,7 +169,7 @@ func (m *MavenRepo) PublishDate(ctx context.Context, element *models.UploadEleme
 	if err != nil {
 		return m.timeProvider.Now(), err
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != http.StatusOK {
 		return m.timeProvider.Now(), fmt.Errorf("element not found")
@@ -202,7 +202,7 @@ func (m *MavenRepo) LoadMetadata(ctx context.Context, scope string, name string,
 	if err != nil {
 		return nil, err
 	}
-	defer reader.Close()
+	defer func() { _ = reader.Close() }()
 
 	data, err := io.ReadAll(reader)
 	if err != nil {
@@ -231,7 +231,7 @@ func (m *MavenRepo) Checksum(ctx context.Context, element *models.UploadElement)
 	checksumPath := path + ".sha256"
 	resp, err := m.client.GET(ctx, checksumPath)
 	if err == nil {
-		defer resp.Body.Close()
+		defer func() { _ = resp.Body.Close() }()
 		if resp.StatusCode == http.StatusOK {
 			checksumBytes, err := io.ReadAll(resp.Body)
 			if err == nil {
@@ -256,7 +256,7 @@ func (m *MavenRepo) Checksum(ctx context.Context, element *models.UploadElement)
 	if err != nil {
 		return "", err
 	}
-	defer reader.Close()
+	defer func() { _ = reader.Close() }()
 
 	hash := sha256.New()
 	if _, err := io.Copy(hash, reader); err != nil {
@@ -295,7 +295,7 @@ func (m *MavenRepo) GetSwiftToolVersion(ctx context.Context, manifest *models.Up
 	if err != nil {
 		return "", err
 	}
-	defer reader.Close()
+	defer func() { _ = reader.Close() }()
 
 	const swiftVersionPrefix = "// swift-tools-version:"
 	scanner := bufio.NewScanner(reader)
@@ -403,7 +403,7 @@ func (m *MavenRepo) LoadPackageJson(ctx context.Context, scope string, name stri
 	if err != nil {
 		return nil, err
 	}
-	defer reader.Close()
+	defer func() { _ = reader.Close() }()
 
 	var packageJson map[string]any
 	decoder := json.NewDecoder(reader)

@@ -1,11 +1,11 @@
 package controller
 
 import (
-	"context"
 	"OpenSPMRegistry/config"
 	"OpenSPMRegistry/mimetypes"
 	"OpenSPMRegistry/models"
 	"OpenSPMRegistry/utils"
+	"context"
 	"encoding/json"
 	"fmt"
 	"log/slog"
@@ -357,7 +357,7 @@ func Test_InfoAction_PublishDateError_UsesCurrentTime(t *testing.T) {
 
 	// Check response
 	resp := w.Result()
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != http.StatusOK {
 		t.Errorf("expected status code %d, got %d", http.StatusOK, resp.StatusCode)

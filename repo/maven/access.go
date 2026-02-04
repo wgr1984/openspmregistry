@@ -57,13 +57,16 @@ func (a *access) checkRangeSupport(ctx context.Context, testPath string) (bool, 
 		a.supportsRanges = &supports
 		return false, nil
 	}
-	defer resp.Body.Close()
 
 	supports := resp.Header.Get("Accept-Ranges") == "bytes"
 	a.supportsRanges = &supports
 
 	if slog.Default().Enabled(context.Background(), slog.LevelDebug) {
 		slog.Debug("Range support check", "supports", supports, "path", testPath)
+	}
+
+	if err := resp.Body.Close(); err != nil {
+		return false, err
 	}
 
 	return supports, nil
@@ -77,7 +80,7 @@ func (a *access) Exists(ctx context.Context, element *models.UploadElement) bool
 	if err != nil {
 		return false
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	return resp.StatusCode == http.StatusOK
 }

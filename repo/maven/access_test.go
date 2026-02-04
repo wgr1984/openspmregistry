@@ -371,7 +371,7 @@ func Test_GetReader_WithRangeSupport_ReturnsRangeReader(t *testing.T) {
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	defer reader.Close()
+	defer func() { _ = reader.Close() }()
 
 	if reader == nil {
 		t.Errorf("expected reader, got nil")
@@ -398,7 +398,7 @@ func Test_GetReader_WithoutRangeSupport_ReturnsBufferedReader(t *testing.T) {
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	defer reader.Close()
+	defer func() { _ = reader.Close() }()
 
 	if reader == nil {
 		t.Errorf("expected reader, got nil")
@@ -443,7 +443,7 @@ func Test_GetReader_RangeReaderFails_FallsBackToBuffered(t *testing.T) {
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	defer reader.Close()
+	defer func() { _ = reader.Close() }()
 
 	if reader == nil {
 		t.Errorf("expected reader, got nil")
@@ -575,5 +575,5 @@ func Test_GetWriter_ErrorBuildingPath_ReturnsError(t *testing.T) {
 	if writer == nil {
 		t.Errorf("expected writer, got nil")
 	}
-	writer.Close()
+	_ = writer.Close()
 }

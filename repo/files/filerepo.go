@@ -438,12 +438,16 @@ func (f *FileRepo) LoadPackageJson(ctx context.Context, scope string, name strin
 	if err != nil {
 		return nil, err
 	}
-	defer file.Close()
 
 	var packageJson map[string]any
 	decoder := json.NewDecoder(file)
 	if err := decoder.Decode(&packageJson); err != nil {
+		_ = file.Close()
 		return nil, fmt.Errorf("failed to parse Package.json: %w", err)
+	}
+
+	if err := file.Close(); err != nil {
+		return nil, err
 	}
 
 	return packageJson, nil

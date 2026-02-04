@@ -94,12 +94,15 @@ func (c *client) doRequest(ctx context.Context, method, path string, body io.Rea
 		return nil, fmt.Errorf("request failed: %w", err)
 	}
 
+	defer func() {
+		err = resp.Body.Close()
+	}()
+
 	if resp.StatusCode >= http.StatusBadRequest {
-		resp.Body.Close()
 		return nil, fmt.Errorf("request failed with status %d: %s", resp.StatusCode, resp.Status)
 	}
 
-	return resp, nil
+	return resp, err
 }
 
 // HEAD performs a HEAD request to check existence and get metadata
@@ -183,10 +186,10 @@ func (c *client) PUT(ctx context.Context, path string, body io.Reader, contentTy
 	if err != nil {
 		return fmt.Errorf("PUT request failed: %w", err)
 	}
-	defer resp.Body.Close()
 
 	if resp.StatusCode >= http.StatusBadRequest {
 		bodyBytes, _ := io.ReadAll(resp.Body)
+		_ = resp.Body.Close()
 		return fmt.Errorf("PUT request failed with status %d: %s, body: %s", resp.StatusCode, resp.Status, string(bodyBytes))
 	}
 
@@ -194,7 +197,7 @@ func (c *client) PUT(ctx context.Context, path string, body io.Reader, contentTy
 		slog.Debug("PUT request successful", "path", path, "status", resp.StatusCode)
 	}
 
-	return nil
+	return resp.Body.Close()
 }
 
 // DELETE performs a DELETE request to remove artifacts
@@ -208,11 +211,13 @@ func (c *client) DELETE(ctx context.Context, path string) error {
 	if err != nil {
 		return fmt.Errorf("DELETE request failed: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() {
+		err = resp.Body.Close()
+	}()
 
 	if resp.StatusCode >= http.StatusBadRequest && resp.StatusCode != http.StatusNotFound {
 		return fmt.Errorf("DELETE request failed with status %d: %s", resp.StatusCode, resp.Status)
 	}
 
-	return nil
+	return err
 }

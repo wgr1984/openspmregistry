@@ -38,7 +38,7 @@ func Test_newRangeReadSeekCloser_ValidResponse_ReturnsReader(t *testing.T) {
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	defer reader.Close()
+	defer func() { _ = reader.Close() }()
 
 	if reader == nil {
 		t.Errorf("expected reader, got nil")
@@ -93,7 +93,7 @@ func Test_rangeReadSeekCloser_Read_ReadsData(t *testing.T) {
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	defer reader.Close()
+	defer func() { _ = reader.Close() }()
 
 	buf := make([]byte, len(testData))
 	n, err := reader.Read(buf)
@@ -139,7 +139,7 @@ func Test_rangeReadSeekCloser_Seek_SeeksToPosition(t *testing.T) {
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	defer reader.Close()
+	defer func() { _ = reader.Close() }()
 
 	// Seek to position 10
 	pos, err := reader.Seek(10, io.SeekStart)
@@ -184,7 +184,7 @@ func Test_rangeReadSeekCloser_Seek_SeekStart(t *testing.T) {
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	defer reader.Close()
+	defer func() { _ = reader.Close() }()
 
 	pos, err := reader.Seek(5, io.SeekStart)
 	if err != nil {
@@ -217,7 +217,7 @@ func Test_rangeReadSeekCloser_Seek_SeekCurrent(t *testing.T) {
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	defer reader.Close()
+	defer func() { _ = reader.Close() }()
 
 	// Read some data first
 	buf := make([]byte, 3)
@@ -257,7 +257,7 @@ func Test_rangeReadSeekCloser_Seek_SeekEnd(t *testing.T) {
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	defer reader.Close()
+	defer func() { _ = reader.Close() }()
 
 	pos, err := reader.Seek(-3, io.SeekEnd)
 	if err != nil {
@@ -291,7 +291,7 @@ func Test_rangeReadSeekCloser_Seek_NegativePosition_ReturnsError(t *testing.T) {
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	defer reader.Close()
+	defer func() { _ = reader.Close() }()
 
 	_, err = reader.Seek(-1, io.SeekStart)
 	if err == nil {
@@ -321,7 +321,7 @@ func Test_rangeReadSeekCloser_Seek_BeyondSize_ClampsToSize(t *testing.T) {
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	defer reader.Close()
+	defer func() { _ = reader.Close() }()
 
 	pos, err := reader.Seek(100, io.SeekStart)
 	if err != nil {
@@ -384,7 +384,7 @@ func Test_newBufferedReadSeekCloser_ValidResponse_ReturnsReader(t *testing.T) {
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	defer reader.Close()
+	defer func() { _ = reader.Close() }()
 
 	data, err := io.ReadAll(reader)
 	if err != nil {
@@ -412,7 +412,7 @@ func Test_bufferedReadSeekCloser_Seek_SeeksToPosition(t *testing.T) {
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	defer reader.Close()
+	defer func() { _ = reader.Close() }()
 
 	// Seek to position 5
 	pos, err := reader.Seek(5, io.SeekStart)
@@ -482,7 +482,7 @@ func Test_bufferedReadSeekCloser_ReadAll_ReadsAllData(t *testing.T) {
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	defer reader.Close()
+	defer func() { _ = reader.Close() }()
 
 	data, err := io.ReadAll(reader)
 	if err != nil {

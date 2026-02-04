@@ -742,7 +742,7 @@ func Test_ExtractManifestFiles_ValidZip_ExtractsFiles(t *testing.T) {
 	packageJson, _ := zipWriter.Create("testScope.my-package/Package.json")
 	_, _ = packageJson.Write([]byte(`{"name": "test", "version": "1.0.0"}`))
 
-	zipWriter.Close()
+	_ = zipWriter.Close()
 	zipData := zipBuf.Bytes()
 
 	uploadedFiles := make(map[string][]byte)

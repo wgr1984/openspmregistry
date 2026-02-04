@@ -85,9 +85,14 @@ func ExtractPackageSwiftFiles(element *models.UploadElement, fileLocation string
 		if err != nil {
 			return err
 		}
-		defer r.Close()
+		defer func() {
+			if err == nil {
+				err = r.Close()
+			}
+		}()
 
-		return ExtractManifestFilesFromZipReader(element, &r.Reader, fileExtractor)
+		err = ExtractManifestFilesFromZipReader(element, &r.Reader, fileExtractor)
+		return err
 	}
 	return nil
 }
