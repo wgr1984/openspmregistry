@@ -94,15 +94,13 @@ func (c *client) doRequest(ctx context.Context, method, path string, body io.Rea
 		return nil, fmt.Errorf("request failed: %w", err)
 	}
 
-	defer func() {
-		err = resp.Body.Close()
-	}()
-
+	// Caller must close resp.Body; do not close here so GET callers can read the body.
 	if resp.StatusCode >= http.StatusBadRequest {
+		_ = resp.Body.Close()
 		return nil, fmt.Errorf("request failed with status %d: %s", resp.StatusCode, resp.Status)
 	}
 
-	return resp, err
+	return resp, nil
 }
 
 // HEAD performs a HEAD request to check existence and get metadata
