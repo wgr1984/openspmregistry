@@ -20,6 +20,7 @@ import (
 	"log/slog"
 	"net/http"
 	"path/filepath"
+	"sort"
 	"strings"
 	"time"
 )
@@ -265,15 +266,23 @@ func (m *MavenRepo) Checksum(ctx context.Context, element *models.UploadElement)
 	return fmt.Sprintf("%x", hash.Sum(nil)), nil
 }
 
-// GetAlternativeManifests returns alternative Package.swift versions
+// GetAlternativeManifests returns alternative Package.swift versions from maven-metadata.xml.
 func (m *MavenRepo) GetAlternativeManifests(ctx context.Context, element *models.UploadElement) ([]models.UploadElement, error) {
-	// For Maven, we need to check for sidecar files with different names
-	// This is limited - we can only find manifests we've uploaded
-	// In practice, we'd need to list the directory or use a different approach
-
-	// For now, return empty - this would require directory listing which Maven doesn't easily support
-	// A better approach would be to maintain a manifest index
-	return []models.UploadElement{}, nil
+	groupId := buildGroupId(element.Scope, m.config)
+	artifactId := buildArtifactId(element.Name)
+	metadata, err := loadMetadata(m.client, ctx, groupId, artifactId)
+	if err != nil {
+		return []models.UploadElement{}, nil
+	}
+	var out []models.UploadElement
+	for _, v := range metadata.Versioning.Versions.Version {
+		if v == element.Version {
+			continue
+		}
+		manifest := models.NewUploadElement(element.Scope, element.Name, v, mimetypes.TextXSwift, models.Manifest).SetFilenameOverwrite("Package")
+		out = append(out, *manifest)
+	}
+	return out, nil
 }
 
 // GetSwiftToolVersion extracts swift-tools-version from Package.swift
@@ -319,25 +328,68 @@ func (m *MavenRepo) Remove(ctx context.Context, element *models.UploadElement) e
 	return m.client.DELETE(ctx, path)
 }
 
-// ListScopes returns all available scopes (limited by Maven structure)
+// ListScopes returns all available scopes (D1 = scope). Lists base path; direct children are scopes.
 func (m *MavenRepo) ListScopes(ctx context.Context) ([]string, error) {
-	// Maven doesn't easily support listing all groupIds
-	// This would require directory listing which may not be available
-	// Return empty for now - this is a limitation of Maven repositories
-	return []string{}, nil
+	names, err := m.client.listDirectory(ctx, "")
+	if err != nil {
+		return nil, err
+	}
+	if len(names) == 0 {
+		return []string{}, nil
+	}
+	scopeSet := make(map[string]struct{})
+	for _, name := range names {
+		scope := groupIdToScope(name, m.config)
+		scopeSet[scope] = struct{}{}
+	}
+	scopes := make([]string, 0, len(scopeSet))
+	for s := range scopeSet {
+		scopes = append(scopes, s)
+	}
+	sort.Strings(scopes)
+	return scopes, nil
 }
 
-// ListInScope returns all packages in a scope
+// ListInScope returns all packages in a scope. D2 = artifact; maven-metadata.xml at D1/D2 contains versions.
 func (m *MavenRepo) ListInScope(ctx context.Context, scope string) ([]models.ListElement, error) {
-	// Similar limitation - would need to list groupId directory
-	// Return empty for now
-	return []models.ListElement{}, nil
+	groupId := buildGroupId(scope, m.config)
+	scopePath := strings.ReplaceAll(groupId, ".", "/")
+	artifactIds, err := m.client.listDirectory(ctx, scopePath)
+	if err != nil {
+		return nil, err
+	}
+	if len(artifactIds) == 0 {
+		return []models.ListElement{}, nil
+	}
+	var out []models.ListElement
+	for _, artifactId := range artifactIds {
+		metadata, err := loadMetadata(m.client, ctx, groupId, artifactId)
+		if err != nil {
+			continue
+		}
+		for _, v := range metadata.Versioning.Versions.Version {
+			out = append(out, *models.NewListElement(scope, artifactId, v))
+		}
+	}
+	return out, nil
 }
 
-// ListAll returns all packages (very limited for Maven)
+// ListAll returns all packages across all scopes.
 func (m *MavenRepo) ListAll(ctx context.Context) ([]models.ListElement, error) {
-	// This is not practical for Maven repositories without directory listing
-	return []models.ListElement{}, nil
+	scopes, err := m.ListScopes(ctx)
+	if err != nil {
+		return nil, err
+	}
+	var all []models.ListElement
+	for _, scope := range scopes {
+		packages, err := m.ListInScope(ctx, scope)
+		if err != nil {
+			slog.Warn("Error listing packages in scope", "scope", scope, "error", err)
+			continue
+		}
+		all = append(all, packages...)
+	}
+	return all, nil
 }
 
 // LoadPackageJson loads Package.json sidecar

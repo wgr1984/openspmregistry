@@ -62,7 +62,9 @@ func Test_Exists_FileExists_ReturnsTrue(t *testing.T) {
 	}
 
 	path := filepath.Join("/tmp/openspmsreg_tests", element.Scope, element.Name, element.Version, element.FileName())
-	os.MkdirAll(filepath.Dir(path), os.ModePerm)
+	if err := os.MkdirAll(filepath.Dir(path), os.ModePerm); err != nil {
+		t.Fatalf("failed to create dir: %v", err)
+	}
 	file, err := os.Create(path)
 	if err != nil {
 		t.Fatalf("failed to create file: %v", err)
@@ -93,7 +95,9 @@ func Test_GetReader_FileExists_ReturnsReader(t *testing.T) {
 	)
 
 	path := filepath.Join("/tmp/openspmsreg_tests", element.Scope, element.Name, element.Version, element.FileName())
-	os.MkdirAll(filepath.Dir(path), os.ModePerm)
+	if err := os.MkdirAll(filepath.Dir(path), os.ModePerm); err != nil {
+		t.Fatalf("failed to create dir: %v", err)
+	}
 	file, err := os.Create(path)
 	if err != nil {
 		t.Fatalf("failed to create file: %v", err)
@@ -164,7 +168,9 @@ func Test_GetReader_FileReadError_ReturnsError(t *testing.T) {
 	)
 
 	path := filepath.Join("/tmp/openspmsreg_tests", element.Scope, element.Name, element.Version, element.FileName())
-	os.MkdirAll(filepath.Dir(path), os.ModePerm)
+	if err := os.MkdirAll(filepath.Dir(path), os.ModePerm); err != nil {
+		t.Fatalf("failed to create dir: %v", err)
+	}
 	file, err := os.Create(path)
 	if err != nil {
 		t.Fatalf("failed to create file: %v", err)
@@ -200,7 +206,9 @@ func Test_GetWriter_ValidElement_ReturnsWriter(t *testing.T) {
 	writer.Close()
 
 	// delete the file
-	fileRepo.Remove(context.Background(), element)
+	if err := fileRepo.Remove(context.Background(), element); err != nil {
+		t.Fatalf("failed to remove: %v", err)
+	}
 }
 
 func Test_GetWriter_InvalidPath_ReturnsError(t *testing.T) {

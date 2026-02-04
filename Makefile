@@ -2,7 +2,7 @@ TAILWIND = npx tailwindcss -i ./static/input.css -o ./static/output.css
 VERSION ?= 0.0.0
 RELEASE_TYPE ?= patch
 
-.PHONY: help build clean build-docker run tailwind tailwind-watch staticcheck release changelog-unreleased test-integration test-integration-up test-integration-down
+.PHONY: help build clean build-docker run tailwind tailwind-watch lint staticcheck golangci-lint release changelog-unreleased test-integration test-integration-up test-integration-down
 
 # Default target when no arguments are given to make
 help:
@@ -11,8 +11,10 @@ help:
 	@echo ""
 	@echo "Available targets:"
 	@echo "  help          - Show this help message"
-	@echo "  build         - Build the project (includes staticcheck, tests and dependencies)"
+	@echo "  build         - Build the project (includes lint, tests and dependencies)"
+	@echo "  lint         - Run staticcheck and golangci-lint"
 	@echo "  staticcheck   - Run staticcheck linter"
+	@echo "  golangci-lint - Run golangci-lint"
 	@echo "  clean         - Clean Go build cache"
 	@echo "  build-docker  - Build Docker image"
 	@echo "  run           - Run the server locally"
@@ -29,11 +31,16 @@ help:
 	@echo "  make run               - Run the server locally"
 	@echo "  make release VERSION=1.2.3 - Create release version 1.2.3"
 
-build: tailwind staticcheck
+build: tailwind lint
 	go mod tidy && go mod verify && go mod download && go test ./... && go build -o openspmregistry main.go
+
+lint: staticcheck golangci-lint
 
 staticcheck:
 	go run honnef.co/go/tools/cmd/staticcheck@latest ./...
+
+golangci-lint:
+	go run github.com/golangci/golangci-lint/cmd/golangci-lint@latest run ./...
 
 clean:
 	go clean -cache

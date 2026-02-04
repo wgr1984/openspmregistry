@@ -14,18 +14,18 @@ import (
 
 // MavenMetadata represents a Maven metadata.xml structure
 type MavenMetadata struct {
-	XMLName    xml.Name `xml:"metadata"`
-	GroupId    string   `xml:"groupId"`
-	ArtifactId string   `xml:"artifactId"`
+	XMLName    xml.Name   `xml:"metadata"`
+	GroupId    string     `xml:"groupId"`
+	ArtifactId string     `xml:"artifactId"`
 	Versioning Versioning `xml:"versioning"`
 }
 
 // Versioning contains version information
 type Versioning struct {
-	Latest     string   `xml:"latest"`
-	Release    string   `xml:"release"`
-	Versions   Versions `xml:"versions"`
-	LastUpdated string  `xml:"lastUpdated"`
+	Latest      string   `xml:"latest"`
+	Release     string   `xml:"release"`
+	Versions    Versions `xml:"versions"`
+	LastUpdated string   `xml:"lastUpdated"`
 }
 
 // Versions contains a list of version strings

@@ -139,7 +139,9 @@ func Test_ExtractManifestFiles_ValidZipFile_ExtractsFiles(t *testing.T) {
 	}
 
 	path := filepath.Join("/tmp/openspmsreg_tests", element.Scope, element.Name, element.Version, element.FileName())
-	os.MkdirAll(filepath.Dir(path), os.ModePerm)
+	if err := os.MkdirAll(filepath.Dir(path), os.ModePerm); err != nil {
+		t.Fatalf("failed to create dir: %v", err)
+	}
 
 	file, err := os.Create(path)
 	if err != nil {
@@ -256,7 +258,9 @@ func Test_ExtractManifestFiles_NonExistentPath_CreatesPathAndExtractsFiles(t *te
 	element.SetFilenameOverwrite("Package")
 
 	path := filepath.Join("/tmp/openspmsreg_tests/non/existent", element.Scope, element.Name, element.Version, element.FileName())
-	os.MkdirAll(filepath.Dir(path), os.ModePerm)
+	if err := os.MkdirAll(filepath.Dir(path), os.ModePerm); err != nil {
+		t.Fatalf("failed to create dir: %v", err)
+	}
 
 	file, err := os.Create(path)
 	if err != nil {
@@ -309,7 +313,9 @@ func Test_List_DirectoryExists_ReturnsListOfElements(t *testing.T) {
 	version := "1.0.0"
 
 	path := filepath.Join("/tmp/openspmsreg_tests", scope, name, version)
-	os.MkdirAll(path, os.ModePerm)
+	if err := os.MkdirAll(path, os.ModePerm); err != nil {
+		t.Fatalf("failed to create dir: %v", err)
+	}
 	defer os.RemoveAll(filepath.Join("/tmp/openspmsreg_tests", scope))
 
 	_, err := os.Create(filepath.Join(path, "dummyFile"))
@@ -339,7 +345,9 @@ func Test_List_DirectoryExistButEmpty_ReturnsEmptyList(t *testing.T) {
 	name := "empty"
 
 	path := filepath.Join("/tmp/openspmsreg_tests", scope, name)
-	os.MkdirAll(path, os.ModePerm)
+	if err := os.MkdirAll(path, os.ModePerm); err != nil {
+		t.Fatalf("failed to create dir: %v", err)
+	}
 
 	elements, err := fileRepo.List(context.Background(), scope, name)
 	if err != nil {
@@ -416,12 +424,16 @@ func Test_EncodeBase64_FileExists_ReturnsBase64String(t *testing.T) {
 	)
 
 	path := filepath.Join("/tmp/openspmsreg_tests", element.Scope, element.Name, element.Version, element.FileName())
-	os.MkdirAll(filepath.Dir(path), os.ModePerm)
+	if err := os.MkdirAll(filepath.Dir(path), os.ModePerm); err != nil {
+		t.Fatalf("failed to create dir: %v", err)
+	}
 	file, err := os.Create(path)
 	if err != nil {
 		t.Fatalf("failed to create file: %v", err)
 	}
-	file.WriteString("test data")
+	if _, err := file.WriteString("test data"); err != nil {
+		t.Fatalf("failed to write: %v", err)
+	}
 	file.Close()
 
 	base64String, err := fileRepo.EncodeBase64(context.Background(), element)
@@ -465,7 +477,9 @@ func Test_EncodeBase64_ReadError_ReturnsError(t *testing.T) {
 	)
 
 	path := filepath.Join("/tmp/openspmsreg_tests", element.Scope, element.Name, element.Version, element.FileName())
-	os.MkdirAll(filepath.Dir(path), os.ModePerm)
+	if err := os.MkdirAll(filepath.Dir(path), os.ModePerm); err != nil {
+		t.Fatalf("failed to create dir: %v", err)
+	}
 	file, err := os.Create(path)
 	if err != nil {
 		t.Fatalf("failed to create file: %v", err)
@@ -612,7 +626,9 @@ func Test_PublishDate_ValidFile_ReturnsModTime(t *testing.T) {
 	)
 
 	path := filepath.Join("/tmp/openspmsreg_tests", element.Scope, element.Name, element.Version)
-	os.MkdirAll(path, os.ModePerm)
+	if err := os.MkdirAll(path, os.ModePerm); err != nil {
+		t.Fatalf("failed to create dir: %v", err)
+	}
 	file, err := os.Create(filepath.Join(path, element.FileName()))
 	if err != nil {
 		t.Fatalf("failed to create file: %v", err)
@@ -620,7 +636,9 @@ func Test_PublishDate_ValidFile_ReturnsModTime(t *testing.T) {
 	file.Close()
 
 	modTime := time.Now().Add(-time.Hour)
-	os.Chtimes(filepath.Join(path, element.FileName()), modTime, modTime)
+	if err := os.Chtimes(filepath.Join(path, element.FileName()), modTime, modTime); err != nil {
+		t.Fatalf("failed to set modtime: %v", err)
+	}
 
 	result, err := fileRepo.PublishDate(context.Background(), element)
 	if err != nil {
@@ -662,7 +680,9 @@ func Test_PublishDate_FileDoesNotExist_ReturnsError(t *testing.T) {
 	)
 
 	path := filepath.Join("/tmp/openspmsreg_tests", element.Scope, element.Name, element.Version)
-	os.MkdirAll(path, os.ModePerm)
+	if err := os.MkdirAll(path, os.ModePerm); err != nil {
+		t.Fatalf("failed to create dir: %v", err)
+	}
 
 	_, err := fileRepo.PublishDate(context.Background(), element)
 	if err == nil {
@@ -697,12 +717,16 @@ func Test_Checksum_FileExists_ReturnsChecksum(t *testing.T) {
 	}
 
 	path := filepath.Join("/tmp/openspmsreg_tests", element.Scope, element.Name, element.Version, element.FileName())
-	os.MkdirAll(filepath.Dir(path), os.ModePerm)
+	if err := os.MkdirAll(filepath.Dir(path), os.ModePerm); err != nil {
+		t.Fatalf("failed to create dir: %v", err)
+	}
 	file, err := os.OpenFile(path, os.O_WRONLY|os.O_CREATE|os.O_TRUNC|os.O_SYNC, 0600)
 	if err != nil {
 		t.Fatalf("failed to create file: %v", err)
 	}
-	file.WriteString("test data")
+	if _, err := file.WriteString("test data"); err != nil {
+		t.Fatalf("failed to write: %v", err)
+	}
 	file.Close()
 
 	checksum, err := fileRepo.Checksum(context.Background(), element)
@@ -736,7 +760,9 @@ func Test_Checksum_FileReadError_ReturnsError(t *testing.T) {
 	}
 
 	path := filepath.Join("/tmp/openspmsreg_tests", element.Scope, element.Name, element.Version, element.FileName())
-	os.MkdirAll(filepath.Dir(path), os.ModePerm)
+	if err := os.MkdirAll(filepath.Dir(path), os.ModePerm); err != nil {
+		t.Fatalf("failed to create dir: %v", err)
+	}
 	file, err := os.Create(path)
 	if err != nil {
 		t.Fatalf("failed to create file: %v", err)
@@ -763,7 +789,9 @@ func Test_GetAlternativeManifests_ValidPath_ReturnsManifests(t *testing.T) {
 	}
 
 	path := filepath.Join("/tmp/openspmsreg_tests", element.Scope, element.Name, element.Version)
-	os.MkdirAll(path, os.ModePerm)
+	if err := os.MkdirAll(path, os.ModePerm); err != nil {
+		t.Fatalf("failed to create dir: %v", err)
+	}
 	defer os.RemoveAll(filepath.Join("/tmp/openspmsreg_tests", element.Scope))
 
 	_, err := os.Create(filepath.Join(path, "Package@swift-7.16.swift"))
@@ -816,7 +844,9 @@ func Test_GetAlternativeManifests_NoAlternativeManifests_ReturnsEmptyList(t *tes
 	}
 
 	path := filepath.Join("/tmp/openspmsreg_tests", element.Scope, element.Name, element.Version)
-	os.MkdirAll(path, os.ModePerm)
+	if err := os.MkdirAll(path, os.ModePerm); err != nil {
+		t.Fatalf("failed to create dir: %v", err)
+	}
 	defer os.RemoveAll(filepath.Join("/tmp/openspmsreg_tests", element.Scope))
 
 	_, err := os.Create(filepath.Join(path, "Package.swift"))
@@ -847,7 +877,9 @@ func Test_GetSwiftToolVersion_ValidManifest_ReturnsVersion(t *testing.T) {
 	)
 
 	path := filepath.Join("/tmp/openspmsreg_tests", element.Scope, element.Name, element.Version)
-	os.MkdirAll(path, os.ModePerm)
+	if err := os.MkdirAll(path, os.ModePerm); err != nil {
+		t.Fatalf("failed to create dir: %v", err)
+	}
 	defer os.RemoveAll(filepath.Join("/tmp/openspmsreg_tests", element.Scope))
 
 	file, err := os.Create(filepath.Join(path, element.FileName()))
@@ -900,7 +932,9 @@ func Test_GetSwiftToolVersion_NoSwiftVersion_ReturnsError(t *testing.T) {
 	)
 
 	path := filepath.Join("/tmp/openspmsreg_tests", element.Scope, element.Name, element.Version)
-	os.MkdirAll(path, os.ModePerm)
+	if err := os.MkdirAll(path, os.ModePerm); err != nil {
+		t.Fatalf("failed to create dir: %v", err)
+	}
 	defer os.RemoveAll(filepath.Join("/tmp/openspmsreg_tests", element.Scope))
 
 	file, err := os.Create(filepath.Join(path, element.FileName()))
@@ -932,7 +966,9 @@ func Test_Lookup_ValidURL_ReturnsMatchingIDs(t *testing.T) {
 	)
 
 	path := filepath.Join("/tmp/openspmsreg_tests/testRepo", element.Scope, element.Name, element.Version)
-	os.MkdirAll(path, os.ModePerm)
+	if err := os.MkdirAll(path, os.ModePerm); err != nil {
+		t.Fatalf("failed to create dir: %v", err)
+	}
 	defer os.RemoveAll(filepath.Join("/tmp/openspmsreg_tests/testRepo", element.Scope))
 
 	metadataPath := filepath.Join(path, "metadata.json")
@@ -999,7 +1035,9 @@ func Test_Lookup_InvalidURL_ReturnsEmptyList(t *testing.T) {
 	)
 
 	path := filepath.Join("/tmp/openspmsreg_tests", element.Scope, element.Name, element.Version)
-	os.MkdirAll(path, os.ModePerm)
+	if err := os.MkdirAll(path, os.ModePerm); err != nil {
+		t.Fatalf("failed to create dir: %v", err)
+	}
 	defer os.RemoveAll(filepath.Join("/tmp/openspmsreg_tests", element.Scope))
 
 	metadataPath := filepath.Join(path, "metadata.json")
@@ -1023,7 +1061,9 @@ func Test_Lookup_NoMetadataFiles_ReturnsEmptyList(t *testing.T) {
 	defer teardown(t)
 
 	fileRepo := NewFileRepo("/tmp/openspmsreg_tests")
-	os.MkdirAll("/tmp/openspmsreg_tests/testScope/testName/1.0.0", os.ModePerm)
+	if err := os.MkdirAll("/tmp/openspmsreg_tests/testScope/testName/1.0.0", os.ModePerm); err != nil {
+		t.Fatalf("failed to create dir: %v", err)
+	}
 	defer os.RemoveAll("/tmp/openspmsreg_tests/testScope")
 
 	result := fileRepo.Lookup(context.Background(), "https://example.com/repo")
@@ -1056,7 +1096,9 @@ func Test_Remove_FileExists_RemovesFile(t *testing.T) {
 	)
 
 	path := filepath.Join("/tmp/openspmsreg_tests", element.Scope, element.Name, element.Version, element.FileName())
-	os.MkdirAll(filepath.Dir(path), os.ModePerm)
+	if err := os.MkdirAll(filepath.Dir(path), os.ModePerm); err != nil {
+		t.Fatalf("failed to create dir: %v", err)
+	}
 	file, err := os.Create(path)
 	if err != nil {
 		t.Fatalf("failed to create file: %v", err)

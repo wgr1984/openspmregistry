@@ -148,7 +148,7 @@ func Test_GET_Success_ReturnsResponse(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Method == "GET" {
 			w.WriteHeader(http.StatusOK)
-			w.Write([]byte("test data"))
+			_, _ = w.Write([]byte("test data"))
 		} else {
 			w.WriteHeader(http.StatusMethodNotAllowed)
 		}
@@ -216,7 +216,7 @@ func Test_PUT_Success_ReturnsNoError(t *testing.T) {
 func Test_PUT_ErrorStatus_ReturnsError(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusForbidden)
-		w.Write([]byte("forbidden"))
+		_, _ = w.Write([]byte("forbidden"))
 	}))
 	defer server.Close()
 
@@ -324,5 +324,92 @@ func Test_makeRequest_WithAuth_IncludesAuthHeader(t *testing.T) {
 	}
 	if !strings.HasPrefix(auth, "Basic ") {
 		t.Errorf("expected Basic auth, got '%s'", auth)
+	}
+}
+
+func Test_listDirectory_HTMLListing_ReturnsDirNames(t *testing.T) {
+	html := `<!DOCTYPE html><html><body>
+<a href="test/">test/</a>
+<a href="other/">other/</a>
+<a href="../">../</a>
+</body></html>`
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "text/html")
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(html))
+	}))
+	defer server.Close()
+
+	cfg := config.MavenConfig{BaseURL: server.URL}
+	c, err := newClient(cfg)
+	if err != nil {
+		t.Fatalf("failed to create client: %v", err)
+	}
+
+	names, err := c.listDirectory(context.Background(), "")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(names) != 2 {
+		t.Errorf("expected 2 names, got %d: %v", len(names), names)
+	}
+	if names[0] != "other" || names[1] != "test" {
+		// regex order may vary
+		hasTest, hasOther := false, false
+		for _, n := range names {
+			if n == "test" {
+				hasTest = true
+			}
+			if n == "other" {
+				hasOther = true
+			}
+		}
+		if !hasTest || !hasOther {
+			t.Errorf("expected names [test, other], got %v", names)
+		}
+	}
+}
+
+func Test_listDirectory_NonHTML_ReturnsEmpty(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte("{}"))
+	}))
+	defer server.Close()
+
+	cfg := config.MavenConfig{BaseURL: server.URL}
+	c, err := newClient(cfg)
+	if err != nil {
+		t.Fatalf("failed to create client: %v", err)
+	}
+
+	names, err := c.listDirectory(context.Background(), "")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(names) != 0 {
+		t.Errorf("expected 0 names for non-HTML, got %d", len(names))
+	}
+}
+
+func Test_listDirectory_NotFound_ReturnsEmpty(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusNotFound)
+	}))
+	defer server.Close()
+
+	cfg := config.MavenConfig{BaseURL: server.URL}
+	c, err := newClient(cfg)
+	if err != nil {
+		t.Fatalf("failed to create client: %v", err)
+	}
+
+	names, err := c.listDirectory(context.Background(), "missing")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(names) != 0 {
+		t.Errorf("expected 0 names for 404, got %d", len(names))
 	}
 }

@@ -2,6 +2,7 @@ package maven
 
 import (
 	"OpenSPMRegistry/config"
+	"strings"
 	"testing"
 )
 
@@ -13,12 +14,43 @@ func Test_buildGroupId_NoPrefix_ReturnsScope(t *testing.T) {
 	}
 }
 
+// groupId = prefix + "." + scope; single-segment prefix so groupId has exactly one dot.
 func Test_buildGroupId_WithPrefix_ReturnsPrefixedScope(t *testing.T) {
-	cfg := config.MavenConfig{GroupIdPrefix: "com.example"}
+	cfg := config.MavenConfig{GroupIdPrefix: "com"}
 	result := buildGroupId("testScope", cfg)
-	expected := "com.example.testScope"
+	expected := "com.testScope"
 	if result != expected {
 		t.Errorf("expected '%s', got '%s'", expected, result)
+	}
+}
+
+func Test_groupIdToScope_NoPrefix_ReturnsGroupId(t *testing.T) {
+	cfg := config.MavenConfig{}
+	result := groupIdToScope("testScope", cfg)
+	if result != "testScope" {
+		t.Errorf("expected 'testScope', got '%s'", result)
+	}
+}
+
+// Per SPM Registry, the only dot is between scope and package name (scope.packageName).
+// So scope is a single segment — no dots. groupId is prefix + "." + scope when prefix is set.
+func Test_groupIdToScope_WithPrefix_ReturnsScopeWithoutPrefix(t *testing.T) {
+	cfg := config.MavenConfig{GroupIdPrefix: "com"} // single-segment prefix so groupId has exactly one dot
+	result := groupIdToScope("com.testScope", cfg)
+	if result != "testScope" {
+		t.Errorf("expected 'testScope', got '%s'", result)
+	}
+	if strings.Contains(result, ".") {
+		t.Errorf("scope must be a single segment (only one dot exists between scope and package name); got %q", result)
+	}
+}
+
+func Test_groupIdToScope_WithPrefix_NoMatch_ReturnsGroupId(t *testing.T) {
+	cfg := config.MavenConfig{GroupIdPrefix: "com"} // same single-segment prefix as other prefix tests
+	// groupId does not have prefix "com." so return as-is; single segment so valid scope shape
+	result := groupIdToScope("otherscope", cfg)
+	if result != "otherscope" {
+		t.Errorf("expected 'otherscope', got '%s'", result)
 	}
 }
 

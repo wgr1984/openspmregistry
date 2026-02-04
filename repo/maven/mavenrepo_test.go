@@ -19,7 +19,6 @@ import (
 	"time"
 )
 
-
 func Test_NewMavenRepo_ValidConfig_ReturnsRepo(t *testing.T) {
 	cfg := config.MavenConfig{
 		BaseURL: "https://repo.example.com",
@@ -58,7 +57,7 @@ func Test_List_ValidMetadata_ReturnsVersions(t *testing.T) {
 		if strings.HasSuffix(r.URL.Path, "maven-metadata.xml") {
 			w.Header().Set("Content-Type", "application/xml")
 			w.WriteHeader(http.StatusOK)
-			w.Write([]byte(xmlData))
+			_, _ = w.Write([]byte(xmlData))
 		} else {
 			w.WriteHeader(http.StatusNotFound)
 		}
@@ -103,6 +102,175 @@ func Test_List_NoMetadata_ReturnsEmptyList(t *testing.T) {
 	}
 }
 
+func Test_GetAlternativeManifests_ValidMetadata_ReturnsOtherVersions(t *testing.T) {
+	xmlData := `<?xml version="1.0" encoding="UTF-8"?>
+<metadata>
+	<groupId>test</groupId>
+	<artifactId>TestPackage</artifactId>
+	<versioning>
+		<versions>
+			<version>1.0.0</version>
+			<version>1.1.0</version>
+			<version>2.0.0</version>
+		</versions>
+	</versioning>
+</metadata>`
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if strings.HasSuffix(r.URL.Path, "maven-metadata.xml") {
+			w.Header().Set("Content-Type", "application/xml")
+			w.WriteHeader(http.StatusOK)
+			_, _ = w.Write([]byte(xmlData))
+		} else {
+			w.WriteHeader(http.StatusNotFound)
+		}
+	}))
+	defer server.Close()
+
+	cfg := config.MavenConfig{BaseURL: server.URL}
+	repo, err := NewMavenRepo(cfg)
+	if err != nil {
+		t.Fatalf("failed to create repo: %v", err)
+	}
+
+	element := models.NewUploadElement("test", "TestPackage", "1.0.0", mimetypes.ApplicationZip, models.SourceArchive)
+	manifests, err := repo.GetAlternativeManifests(context.Background(), element)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(manifests) != 2 {
+		t.Errorf("expected 2 alternative manifests (1.1.0, 2.0.0), got %d", len(manifests))
+	}
+	versions := make(map[string]bool)
+	for _, m := range manifests {
+		if m.Scope != "test" || m.Name != "TestPackage" {
+			t.Errorf("expected scope=test name=TestPackage, got scope=%s name=%s", m.Scope, m.Name)
+		}
+		versions[m.Version] = true
+	}
+	if !versions["1.1.0"] || !versions["2.0.0"] {
+		t.Errorf("expected versions 1.1.0 and 2.0.0, got %v", versions)
+	}
+}
+
+func Test_ListScopes_HTMLListing_ReturnsScopes(t *testing.T) {
+	html := `<!DOCTYPE html><html><body><a href="test/">test/</a></body></html>`
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/" || r.URL.Path == "" {
+			w.Header().Set("Content-Type", "text/html")
+			w.WriteHeader(http.StatusOK)
+			_, _ = w.Write([]byte(html))
+		} else {
+			w.WriteHeader(http.StatusNotFound)
+		}
+	}))
+	defer server.Close()
+
+	cfg := config.MavenConfig{BaseURL: server.URL}
+	repo, err := NewMavenRepo(cfg)
+	if err != nil {
+		t.Fatalf("failed to create repo: %v", err)
+	}
+
+	scopes, err := repo.ListScopes(context.Background())
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(scopes) != 1 || scopes[0] != "test" {
+		t.Errorf("expected scopes [test], got %v", scopes)
+	}
+}
+
+func Test_ListInScope_ValidMetadata_ReturnsListElements(t *testing.T) {
+	metadataXML := `<?xml version="1.0" encoding="UTF-8"?>
+<metadata>
+	<groupId>test</groupId>
+	<artifactId>TestPackage</artifactId>
+	<versioning>
+		<versions>
+			<version>1.0.0</version>
+			<version>1.1.0</version>
+		</versions>
+	</versioning>
+</metadata>`
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if strings.HasSuffix(r.URL.Path, "maven-metadata.xml") {
+			w.Header().Set("Content-Type", "application/xml")
+			w.WriteHeader(http.StatusOK)
+			_, _ = w.Write([]byte(metadataXML))
+		} else if r.URL.Path == "/test/" {
+			w.Header().Set("Content-Type", "text/html")
+			w.WriteHeader(http.StatusOK)
+			_, _ = w.Write([]byte(`<html><body><a href="TestPackage/">TestPackage/</a></body></html>`))
+		} else {
+			w.WriteHeader(http.StatusNotFound)
+		}
+	}))
+	defer server.Close()
+
+	cfg := config.MavenConfig{BaseURL: server.URL}
+	repo, err := NewMavenRepo(cfg)
+	if err != nil {
+		t.Fatalf("failed to create repo: %v", err)
+	}
+
+	elements, err := repo.ListInScope(context.Background(), "test")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(elements) != 2 {
+		t.Errorf("expected 2 list elements (TestPackage 1.0.0 and 1.1.0), got %d", len(elements))
+	}
+	for _, e := range elements {
+		if e.Scope != "test" || e.PackageName != "TestPackage" {
+			t.Errorf("expected scope=test package=TestPackage, got scope=%s package=%s", e.Scope, e.PackageName)
+		}
+	}
+}
+
+func Test_ListAll_CombinesScopes(t *testing.T) {
+	metadataXML := `<?xml version="1.0" encoding="UTF-8"?>
+<metadata>
+	<groupId>test</groupId>
+	<artifactId>TestPackage</artifactId>
+	<versioning><versions><version>1.0.0</version></versions></versioning>
+</metadata>`
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if strings.HasSuffix(r.URL.Path, "maven-metadata.xml") {
+			w.Header().Set("Content-Type", "application/xml")
+			w.WriteHeader(http.StatusOK)
+			_, _ = w.Write([]byte(metadataXML))
+		} else if r.URL.Path == "/" || r.URL.Path == "" {
+			w.Header().Set("Content-Type", "text/html")
+			w.WriteHeader(http.StatusOK)
+			_, _ = w.Write([]byte(`<html><body><a href="test/">test/</a></body></html>`))
+		} else if r.URL.Path == "/test/" {
+			w.Header().Set("Content-Type", "text/html")
+			w.WriteHeader(http.StatusOK)
+			_, _ = w.Write([]byte(`<html><body><a href="TestPackage/">TestPackage/</a></body></html>`))
+		} else {
+			w.WriteHeader(http.StatusNotFound)
+		}
+	}))
+	defer server.Close()
+
+	cfg := config.MavenConfig{BaseURL: server.URL}
+	repo, err := NewMavenRepo(cfg)
+	if err != nil {
+		t.Fatalf("failed to create repo: %v", err)
+	}
+
+	all, err := repo.ListAll(context.Background())
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(all) != 1 {
+		t.Errorf("expected 1 list element (test/TestPackage/1.0.0), got %d", len(all))
+	}
+	if len(all) > 0 && (all[0].Scope != "test" || all[0].PackageName != "TestPackage" || all[0].Version != "1.0.0") {
+		t.Errorf("expected test/TestPackage/1.0.0, got %s/%s/%s", all[0].Scope, all[0].PackageName, all[0].Version)
+	}
+}
+
 func Test_EncodeBase64_FileExists_ReturnsBase64(t *testing.T) {
 	testData := []byte("test data for base64")
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -110,7 +278,7 @@ func Test_EncodeBase64_FileExists_ReturnsBase64(t *testing.T) {
 			w.WriteHeader(http.StatusOK)
 		} else if r.Method == "GET" {
 			w.WriteHeader(http.StatusOK)
-			w.Write(testData)
+			_, _ = w.Write(testData)
 		}
 	}))
 	defer server.Close()
@@ -239,7 +407,7 @@ func Test_LoadMetadata_ValidFile_ReturnsMetadata(t *testing.T) {
 			w.WriteHeader(http.StatusOK)
 		} else if r.Method == "GET" {
 			w.WriteHeader(http.StatusOK)
-			w.Write(jsonData)
+			_, _ = w.Write(jsonData)
 		}
 	}))
 	defer server.Close()
@@ -285,7 +453,7 @@ func Test_Checksum_ValidFile_ReturnsChecksum(t *testing.T) {
 			w.WriteHeader(http.StatusOK)
 		} else if r.Method == "GET" {
 			w.WriteHeader(http.StatusOK)
-			w.Write(testData)
+			_, _ = w.Write(testData)
 		}
 	}))
 	defer server.Close()
@@ -333,7 +501,7 @@ func Test_GetSwiftToolVersion_ValidManifest_ReturnsVersion(t *testing.T) {
 			w.WriteHeader(http.StatusOK)
 		} else if r.Method == "GET" {
 			w.WriteHeader(http.StatusOK)
-			w.Write([]byte(manifestContent))
+			_, _ = w.Write([]byte(manifestContent))
 		}
 	}))
 	defer server.Close()
@@ -362,7 +530,7 @@ func Test_GetSwiftToolVersion_NoVersion_ReturnsError(t *testing.T) {
 			w.WriteHeader(http.StatusOK)
 		} else if r.Method == "GET" {
 			w.WriteHeader(http.StatusOK)
-			w.Write([]byte(manifestContent))
+			_, _ = w.Write([]byte(manifestContent))
 		}
 	}))
 	defer server.Close()
@@ -514,7 +682,7 @@ func Test_LoadPackageJson_ValidFile_ReturnsPackageJson(t *testing.T) {
 			w.WriteHeader(http.StatusOK)
 		} else if r.Method == "GET" {
 			w.WriteHeader(http.StatusOK)
-			w.Write(jsonData)
+			_, _ = w.Write(jsonData)
 		}
 	}))
 	defer server.Close()
@@ -561,18 +729,18 @@ func Test_ExtractManifestFiles_ValidZip_ExtractsFiles(t *testing.T) {
 
 	// Add Package.swift - directory must match scope.name format
 	packageSwift, _ := zipWriter.Create("testScope.my-package/Package.swift")
-	packageSwift.Write([]byte("// swift-tools-version:5.3\nlet package = Package(name: \"test\")"))
+	_, _ = packageSwift.Write([]byte("// swift-tools-version:5.3\nlet package = Package(name: \"test\")"))
 
 	// Add alternative Package.swift files (should also be extracted)
 	packageSwift57, _ := zipWriter.Create("testScope.my-package/Package@swift-5.7.0.swift")
-	packageSwift57.Write([]byte("// swift-tools-version:5.7.0\nlet package = Package(name: \"test\")"))
+	_, _ = packageSwift57.Write([]byte("// swift-tools-version:5.7.0\nlet package = Package(name: \"test\")"))
 
 	packageSwift5, _ := zipWriter.Create("testScope.my-package/Package@swift-5.swift")
-	packageSwift5.Write([]byte("// swift-tools-version:5.0\nlet package = Package(name: \"test\")"))
+	_, _ = packageSwift5.Write([]byte("// swift-tools-version:5.0\nlet package = Package(name: \"test\")"))
 
 	// Add Package.json - directory must match scope.name format
 	packageJson, _ := zipWriter.Create("testScope.my-package/Package.json")
-	packageJson.Write([]byte(`{"name": "test", "version": "1.0.0"}`))
+	_, _ = packageJson.Write([]byte(`{"name": "test", "version": "1.0.0"}`))
 
 	zipWriter.Close()
 	zipData := zipBuf.Bytes()
@@ -583,7 +751,7 @@ func Test_ExtractManifestFiles_ValidZip_ExtractsFiles(t *testing.T) {
 			w.WriteHeader(http.StatusOK)
 		} else if r.Method == "GET" {
 			w.WriteHeader(http.StatusOK)
-			w.Write(zipData)
+			_, _ = w.Write(zipData)
 		} else if r.Method == "PUT" {
 			// Capture uploaded file - path includes the base URL path
 			path := strings.TrimPrefix(r.URL.Path, "/")
@@ -661,7 +829,7 @@ func Test_ExtractManifestFiles_RealZipFile_ExtractsFiles(t *testing.T) {
 			w.WriteHeader(http.StatusOK)
 		} else if r.Method == "GET" {
 			w.WriteHeader(http.StatusOK)
-			w.Write(zipData)
+			_, _ = w.Write(zipData)
 		} else if r.Method == "PUT" {
 			// Capture uploaded file - path includes the base URL path
 			path := strings.TrimPrefix(r.URL.Path, "/")

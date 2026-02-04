@@ -14,6 +14,23 @@ func buildGroupId(scope string, cfg config.MavenConfig) string {
 	return cfg.GroupIdPrefix + "." + scope
 }
 
+// groupIdToScope converts Maven groupId to SPM scope (inverse of buildGroupId).
+// If GroupIdPrefix is set and groupId has that prefix, returns groupId without the prefix; otherwise returns groupId.
+// Example:
+// - groupId: "com-example.testScope"
+// - cfg.GroupIdPrefix: "com-example"
+// - Returns: "testScope"
+func groupIdToScope(groupId string, cfg config.MavenConfig) string {
+	if cfg.GroupIdPrefix == "" {
+		return groupId
+	}
+	prefix := cfg.GroupIdPrefix + "."
+	if len(groupId) >= len(prefix) && groupId[:len(prefix)] == prefix {
+		return groupId[len(prefix):]
+	}
+	return groupId
+}
+
 // buildArtifactId converts SPM name to Maven artifactId (direct mapping)
 func buildArtifactId(name string) string {
 	return name

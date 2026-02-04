@@ -23,7 +23,7 @@ func Test_newRangeReadSeekCloser_ValidResponse_ReturnsReader(t *testing.T) {
 			if rangeHeader == "bytes=0-" {
 				w.Header().Set("Content-Range", "bytes 0-"+strconv.Itoa(dataLen-1)+"/"+strconv.Itoa(dataLen))
 				w.WriteHeader(http.StatusPartialContent)
-				w.Write(testData)
+				_, _ = w.Write(testData)
 			} else {
 				w.WriteHeader(http.StatusOK)
 			}
@@ -78,7 +78,7 @@ func Test_rangeReadSeekCloser_Read_ReadsData(t *testing.T) {
 			if rangeHeader == "bytes=0-" {
 				w.Header().Set("Content-Range", "bytes 0-"+strconv.Itoa(dataLen-1)+"/"+strconv.Itoa(dataLen))
 				w.WriteHeader(http.StatusPartialContent)
-				w.Write(testData)
+				_, _ = w.Write(testData)
 			} else {
 				w.WriteHeader(http.StatusOK)
 			}
@@ -120,11 +120,11 @@ func Test_rangeReadSeekCloser_Seek_SeeksToPosition(t *testing.T) {
 			if rangeHeader == "bytes=10-" {
 				w.Header().Set("Content-Range", "bytes 10-"+strconv.Itoa(dataLen-1)+"/"+strconv.Itoa(dataLen))
 				w.WriteHeader(http.StatusPartialContent)
-				w.Write(testData[10:])
+				_, _ = w.Write(testData[10:])
 			} else if rangeHeader == "bytes=0-" {
 				w.Header().Set("Content-Range", "bytes 0-"+strconv.Itoa(dataLen-1)+"/"+strconv.Itoa(dataLen))
 				w.WriteHeader(http.StatusPartialContent)
-				w.Write(testData)
+				_, _ = w.Write(testData)
 			} else {
 				w.WriteHeader(http.StatusOK)
 			}
@@ -172,7 +172,7 @@ func Test_rangeReadSeekCloser_Seek_SeekStart(t *testing.T) {
 		} else if r.Method == "GET" {
 			w.Header().Set("Content-Range", "bytes 0-"+strconv.Itoa(dataLen-1)+"/"+strconv.Itoa(dataLen))
 			w.WriteHeader(http.StatusPartialContent)
-			w.Write(testData)
+			_, _ = w.Write(testData)
 		}
 	}))
 	defer server.Close()
@@ -205,7 +205,7 @@ func Test_rangeReadSeekCloser_Seek_SeekCurrent(t *testing.T) {
 		} else if r.Method == "GET" {
 			w.Header().Set("Content-Range", "bytes 0-"+strconv.Itoa(dataLen-1)+"/"+strconv.Itoa(dataLen))
 			w.WriteHeader(http.StatusPartialContent)
-			w.Write(testData)
+			_, _ = w.Write(testData)
 		}
 	}))
 	defer server.Close()
@@ -221,7 +221,9 @@ func Test_rangeReadSeekCloser_Seek_SeekCurrent(t *testing.T) {
 
 	// Read some data first
 	buf := make([]byte, 3)
-	reader.Read(buf)
+	if _, err := reader.Read(buf); err != nil {
+		t.Fatalf("unexpected error reading: %v", err)
+	}
 
 	// Seek relative to current position
 	pos, err := reader.Seek(2, io.SeekCurrent)
@@ -243,7 +245,7 @@ func Test_rangeReadSeekCloser_Seek_SeekEnd(t *testing.T) {
 		} else if r.Method == "GET" {
 			w.Header().Set("Content-Range", "bytes 0-"+strconv.Itoa(dataLen-1)+"/"+strconv.Itoa(dataLen))
 			w.WriteHeader(http.StatusPartialContent)
-			w.Write(testData)
+			_, _ = w.Write(testData)
 		}
 	}))
 	defer server.Close()
@@ -277,7 +279,7 @@ func Test_rangeReadSeekCloser_Seek_NegativePosition_ReturnsError(t *testing.T) {
 		} else if r.Method == "GET" {
 			w.Header().Set("Content-Range", "bytes 0-"+strconv.Itoa(dataLen-1)+"/"+strconv.Itoa(dataLen))
 			w.WriteHeader(http.StatusPartialContent)
-			w.Write(testData)
+			_, _ = w.Write(testData)
 		}
 	}))
 	defer server.Close()
@@ -307,7 +309,7 @@ func Test_rangeReadSeekCloser_Seek_BeyondSize_ClampsToSize(t *testing.T) {
 		} else if r.Method == "GET" {
 			w.Header().Set("Content-Range", "bytes 0-"+strconv.Itoa(dataLen-1)+"/"+strconv.Itoa(dataLen))
 			w.WriteHeader(http.StatusPartialContent)
-			w.Write(testData)
+			_, _ = w.Write(testData)
 		}
 	}))
 	defer server.Close()
@@ -340,7 +342,7 @@ func Test_rangeReadSeekCloser_Close_ClosesReader(t *testing.T) {
 		} else if r.Method == "GET" {
 			w.Header().Set("Content-Range", "bytes 0-"+strconv.Itoa(dataLen-1)+"/"+strconv.Itoa(dataLen))
 			w.WriteHeader(http.StatusPartialContent)
-			w.Write(testData)
+			_, _ = w.Write(testData)
 		}
 	}))
 	defer server.Close()
@@ -370,7 +372,7 @@ func Test_newBufferedReadSeekCloser_ValidResponse_ReturnsReader(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Method == "GET" {
 			w.WriteHeader(http.StatusOK)
-			w.Write(testData)
+			_, _ = w.Write(testData)
 		}
 	}))
 	defer server.Close()
@@ -398,7 +400,7 @@ func Test_bufferedReadSeekCloser_Seek_SeeksToPosition(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Method == "GET" {
 			w.WriteHeader(http.StatusOK)
-			w.Write(testData)
+			_, _ = w.Write(testData)
 		}
 	}))
 	defer server.Close()
@@ -438,7 +440,7 @@ func Test_bufferedReadSeekCloser_Close_ClosesReader(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Method == "GET" {
 			w.WriteHeader(http.StatusOK)
-			w.Write(testData)
+			_, _ = w.Write(testData)
 		}
 	}))
 	defer server.Close()
@@ -468,7 +470,7 @@ func Test_bufferedReadSeekCloser_ReadAll_ReadsAllData(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Method == "GET" {
 			w.WriteHeader(http.StatusOK)
-			w.Write(testData)
+			_, _ = w.Write(testData)
 		}
 	}))
 	defer server.Close()

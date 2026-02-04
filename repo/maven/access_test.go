@@ -357,7 +357,7 @@ func Test_GetReader_WithRangeSupport_ReturnsRangeReader(t *testing.T) {
 			} else {
 				w.WriteHeader(http.StatusOK)
 			}
-			w.Write([]byte("test data"))
+			_, _ = w.Write([]byte("test data"))
 		}
 	}))
 	defer server.Close()
@@ -384,7 +384,7 @@ func Test_GetReader_WithoutRangeSupport_ReturnsBufferedReader(t *testing.T) {
 			w.WriteHeader(http.StatusOK)
 		} else if r.Method == "GET" {
 			w.WriteHeader(http.StatusOK)
-			w.Write([]byte("test data"))
+			_, _ = w.Write([]byte("test data"))
 		}
 	}))
 	defer server.Close()
@@ -428,7 +428,7 @@ func Test_GetReader_RangeReaderFails_FallsBackToBuffered(t *testing.T) {
 				w.WriteHeader(http.StatusRequestedRangeNotSatisfiable)
 			} else {
 				w.WriteHeader(http.StatusOK)
-				w.Write([]byte("test data"))
+				_, _ = w.Write([]byte("test data"))
 			}
 		}
 	}))
@@ -483,7 +483,9 @@ func Test_GetWriter_ValidElement_ReturnsWriter(t *testing.T) {
 	}
 
 	// Write and close to trigger PUT
-	writer.Write([]byte("test data"))
+	if _, err := writer.Write([]byte("test data")); err != nil {
+		t.Fatalf("unexpected error writing: %v", err)
+	}
 	err = writer.Close()
 	if err != nil {
 		t.Errorf("unexpected error closing writer: %v", err)
@@ -500,9 +502,10 @@ func Test_mavenWriter_Write_AppendsToBuffer(t *testing.T) {
 
 	cfg := config.MavenConfig{BaseURL: server.URL}
 	c, _ := newClient(cfg)
+	a := newAccess(c, cfg)
 
 	element := models.NewUploadElement("testScope", "my-package", "1.0.0", mimetypes.ApplicationZip, models.SourceArchive)
-	writer := newMavenWriter(c, cfg, "test/path", element, context.Background())
+	writer := newMavenWriter(c, cfg, a, "test/path", element, context.Background())
 	data := []byte("test data")
 	n, err := writer.Write(data)
 	if err != nil {
@@ -530,9 +533,11 @@ func Test_mavenWriter_Close_UploadsData(t *testing.T) {
 
 	element := models.NewUploadElement("testScope", "my-package", "1.0.0", mimetypes.ApplicationZip, models.SourceArchive)
 	path := a.buildMavenPathForElement(element)
-	writer := newMavenWriter(c, cfg, path, element, context.Background())
+	writer := newMavenWriter(c, cfg, a, path, element, context.Background())
 	testData := []byte("test upload data")
-	writer.Write(testData)
+	if _, err := writer.Write(testData); err != nil {
+		t.Fatalf("unexpected error writing: %v", err)
+	}
 	err := writer.Close()
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)

@@ -89,7 +89,7 @@ func Test_loadMetadata_ValidResponse_ReturnsMetadata(t *testing.T) {
 		if r.URL.Path == "/com/example/test-package/maven-metadata.xml" {
 			w.Header().Set("Content-Type", "application/xml")
 			w.WriteHeader(http.StatusOK)
-			w.Write([]byte(xmlData))
+			_, _ = w.Write([]byte(xmlData))
 		} else {
 			w.WriteHeader(http.StatusNotFound)
 		}
@@ -137,7 +137,7 @@ func Test_loadMetadata_InvalidXML_ReturnsError(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/xml")
 		w.WriteHeader(http.StatusOK)
-		w.Write([]byte("<invalid>xml</invalid>"))
+		_, _ = w.Write([]byte("<invalid>xml</invalid>"))
 	}))
 	defer server.Close()
 

@@ -19,6 +19,9 @@ type access struct {
 	config         config.MavenConfig
 	supportsRanges *bool
 	rangeCheckMu   sync.Mutex
+	// metadataKeys serializes maven-metadata.xml updates per groupId/artifactId to prevent lost updates from concurrent uploads
+	metadataMu   sync.Mutex
+	metadataKeys map[string]*sync.Mutex
 }
 
 // newAccess creates a new Maven access implementation
@@ -27,6 +30,7 @@ func newAccess(client *client, cfg config.MavenConfig) *access {
 		client:         client,
 		config:         cfg,
 		supportsRanges: nil,
+		metadataKeys:   make(map[string]*sync.Mutex),
 	}
 }
 
@@ -109,13 +113,14 @@ func (a *access) GetReader(ctx context.Context, element *models.UploadElement) (
 func (a *access) GetWriter(ctx context.Context, element *models.UploadElement) (io.WriteCloser, error) {
 	path := a.buildMavenPathForElement(element)
 
-	return newMavenWriter(a.client, a.config, path, element, ctx), nil
+	return newMavenWriter(a.client, a.config, a, path, element, ctx), nil
 }
 
 // mavenWriter implements io.WriteCloser and uploads data via PUT on Close()
 type mavenWriter struct {
 	client      *client
 	config      config.MavenConfig
+	access      *access
 	path        string
 	element     *models.UploadElement
 	contentType string
@@ -123,16 +128,33 @@ type mavenWriter struct {
 	ctx         context.Context
 }
 
-func newMavenWriter(client *client, cfg config.MavenConfig, path string, element *models.UploadElement, ctx context.Context) *mavenWriter {
+func newMavenWriter(client *client, cfg config.MavenConfig, access *access, path string, element *models.UploadElement, ctx context.Context) *mavenWriter {
 	return &mavenWriter{
 		client:      client,
 		config:      cfg,
+		access:      access,
 		path:        path,
 		element:     element,
 		contentType: element.MimeType,
 		buffer:      make([]byte, 0),
 		ctx:         ctx,
 	}
+}
+
+// updateMetadataLocked updates maven-metadata.xml under a per-(groupId, artifactId) lock to prevent lost updates from concurrent uploads
+func (a *access) updateMetadataLocked(ctx context.Context, groupId, artifactId, version string) error {
+	key := groupId + "/" + artifactId
+	a.metadataMu.Lock()
+	keyMu, ok := a.metadataKeys[key]
+	if !ok {
+		keyMu = &sync.Mutex{}
+		a.metadataKeys[key] = keyMu
+	}
+	a.metadataMu.Unlock()
+
+	keyMu.Lock()
+	defer keyMu.Unlock()
+	return updateMetadata(a.client, ctx, groupId, artifactId, version)
 }
 
 func (w *mavenWriter) Write(p []byte) (n int, err error) {
@@ -168,7 +190,7 @@ func (w *mavenWriter) Close() error {
 		groupId := buildGroupId(w.element.Scope, w.config)
 		artifactId := buildArtifactId(w.element.Name)
 		version := buildVersion(w.element.Version)
-		if err := updateMetadata(w.client, w.ctx, groupId, artifactId, version); err != nil {
+		if err := w.access.updateMetadataLocked(w.ctx, groupId, artifactId, version); err != nil {
 			// Log warning but don't fail the upload if metadata update fails
 			// Some repositories might not support PUT for metadata, or it might be auto-generated
 			if slog.Default().Enabled(context.Background(), slog.LevelDebug) {

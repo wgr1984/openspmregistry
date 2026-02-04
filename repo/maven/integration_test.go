@@ -667,6 +667,92 @@ func TestIntegration_PublishAndGet_RealServer(t *testing.T) {
 		t.Logf("Package.json verified via LoadPackageJson")
 	})
 
+	// Test 12: List, GetAlternativeManifests, ListScopes, ListInScope, ListAll (maven-metadata.xml and directory listing)
+	t.Run("ListAndListScopes", func(t *testing.T) {
+		// List(scope, name) uses maven-metadata.xml — should return at least the published version
+		versions, err := repo.List(ctx, scope, name)
+		if err != nil {
+			t.Fatalf("List failed: %v", err)
+		}
+		if len(versions) == 0 {
+			t.Fatalf("List returned no versions; expected at least %s (maven-metadata.xml should list it)", version)
+		}
+		found := false
+		for _, v := range versions {
+			if v.Scope == scope && v.PackageName == name && v.Version == version {
+				found = true
+				break
+			}
+		}
+		if !found {
+			t.Fatalf("List did not return %s/%s/%s; got %v", scope, name, version, versions)
+		}
+		t.Logf("List returned %d version(s), including %s", len(versions), version)
+
+		// GetAlternativeManifests: with only one version published, alternatives should be empty (or other versions if any)
+		manifestElement := models.NewUploadElement(scope, name, version, mimetypes.TextXSwift, models.Manifest)
+		alternatives, err := repo.GetAlternativeManifests(ctx, manifestElement)
+		if err != nil {
+			t.Fatalf("GetAlternativeManifests failed: %v", err)
+		}
+		t.Logf("GetAlternativeManifests returned %d alternative manifest(s)", len(alternatives))
+
+		// ListScopes / ListInScope / ListAll depend on HTTP directory listing; server may not support it
+		scopes, err := repo.ListScopes(ctx)
+		if err != nil {
+			t.Fatalf("ListScopes failed: %v", err)
+		}
+		t.Logf("ListScopes returned %d scope(s): %v", len(scopes), scopes)
+		if len(scopes) > 0 {
+			scopeFound := false
+			for _, s := range scopes {
+				if s == scope {
+					scopeFound = true
+					break
+				}
+			}
+			if !scopeFound {
+				t.Logf("Note: scope %q not in ListScopes result (directory listing may use different names)", scope)
+			}
+		}
+
+		inScope, err := repo.ListInScope(ctx, scope)
+		if err != nil {
+			t.Fatalf("ListInScope failed: %v", err)
+		}
+		t.Logf("ListInScope(%q) returned %d package(s)", scope, len(inScope))
+		if len(inScope) > 0 {
+			foundInScope := false
+			for _, e := range inScope {
+				if e.Scope == scope && e.PackageName == name && e.Version == version {
+					foundInScope = true
+					break
+				}
+			}
+			if !foundInScope {
+				t.Logf("Note: %s/%s/%s not in ListInScope result", scope, name, version)
+			}
+		}
+
+		all, err := repo.ListAll(ctx)
+		if err != nil {
+			t.Fatalf("ListAll failed: %v", err)
+		}
+		t.Logf("ListAll returned %d package(s)", len(all))
+		if len(all) > 0 {
+			foundAll := false
+			for _, e := range all {
+				if e.Scope == scope && e.PackageName == name && e.Version == version {
+					foundAll = true
+					break
+				}
+			}
+			if !foundAll {
+				t.Logf("Note: %s/%s/%s not in ListAll result", scope, name, version)
+			}
+		}
+	})
+
 	// Cleanup: Remove the test files (unless KEEP_TEST_DATA is set)
 	t.Run("Cleanup", func(t *testing.T) {
 		if os.Getenv("KEEP_TEST_DATA") != "" {

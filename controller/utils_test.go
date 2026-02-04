@@ -59,7 +59,9 @@ func Test_HeaderError_WriteResponse_WritesErrorMessage(t *testing.T) {
 	err.writeResponse(w)
 
 	var response responses.Error
-	json.NewDecoder(w.Body).Decode(&response)
+	if err := json.NewDecoder(w.Body).Decode(&response); err != nil {
+		t.Fatalf("failed to decode response: %v", err)
+	}
 	if response.Detail != "test error message" {
 		t.Errorf("expected 'test error message', got %s", response.Detail)
 	}
@@ -196,7 +198,9 @@ func Test_ListElements_RepoError_WritesError(t *testing.T) {
 	}
 
 	var response responses.Error
-	json.NewDecoder(w.Body).Decode(&response)
+	if err := json.NewDecoder(w.Body).Decode(&response); err != nil {
+		t.Fatalf("failed to decode response: %v", err)
+	}
 	if response.Detail != "error listing package testScope.testPackage" {
 		t.Errorf("expected 'error listing package testScope.testPackage', got %s", response.Detail)
 	}
@@ -345,7 +349,9 @@ func Test_WriteError_ValidError_WritesError(t *testing.T) {
 	}
 
 	var response responses.Error
-	json.NewDecoder(w.Body).Decode(&response)
+	if err := json.NewDecoder(w.Body).Decode(&response); err != nil {
+		t.Fatalf("failed to decode response: %v", err)
+	}
 	if response.Detail != "test error message" {
 		t.Errorf("expected 'test error message', got %s", response.Detail)
 	}
@@ -360,7 +366,9 @@ func Test_WriteErrorWithStatusCode_ValidError_WritesError(t *testing.T) {
 	}
 
 	var response responses.Error
-	json.NewDecoder(w.Body).Decode(&response)
+	if err := json.NewDecoder(w.Body).Decode(&response); err != nil {
+		t.Fatalf("failed to decode response: %v", err)
+	}
 	if response.Detail != "test error message" {
 		t.Errorf("expected 'test error message', got %s", response.Detail)
 	}

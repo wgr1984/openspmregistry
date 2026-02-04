@@ -9,6 +9,7 @@ import (
 	"log/slog"
 	"net/http"
 	"net/url"
+	"regexp"
 	"strings"
 	"time"
 )
@@ -120,6 +121,51 @@ func (c *client) HEAD(ctx context.Context, path string) (*http.Response, error) 
 // GET performs a GET request to download artifacts
 func (c *client) GET(ctx context.Context, path string) (*http.Response, error) {
 	return c.doRequest(ctx, "GET", path, nil)
+}
+
+// hrefRegex matches href="..." in HTML (Apache-style directory listing)
+var hrefRegex = regexp.MustCompile(`href="([^"]+)"`)
+
+// listDirectory lists direct child directory names at path via HTTP GET.
+// Parses HTML response for links (e.g. href="name/" or href="name"). On GET failure or non-HTML, returns nil, nil (degradation).
+func (c *client) listDirectory(ctx context.Context, path string) ([]string, error) {
+	path = strings.TrimSuffix(path, "/")
+	if path != "" {
+		path = path + "/"
+	}
+	resp, err := c.GET(ctx, path)
+	if err != nil {
+		return []string{}, nil
+	}
+	defer func() { _ = resp.Body.Close() }()
+	if resp.StatusCode != http.StatusOK {
+		return []string{}, nil
+	}
+	ct := resp.Header.Get("Content-Type")
+	if ct != "" && !strings.Contains(ct, "text/html") {
+		return []string{}, nil
+	}
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return []string{}, nil
+	}
+	var names []string
+	seen := make(map[string]bool)
+	for _, m := range hrefRegex.FindAllStringSubmatch(string(body), -1) {
+		if len(m) < 2 {
+			continue
+		}
+		name := strings.TrimSuffix(m[1], "/")
+		if name == "" || name == "." || name == ".." {
+			continue
+		}
+		if seen[name] {
+			continue
+		}
+		seen[name] = true
+		names = append(names, name)
+	}
+	return names, nil
 }
 
 // PUT performs a PUT request to upload artifacts

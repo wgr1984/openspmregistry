@@ -84,7 +84,7 @@ func (c *Controller) FetchManifestAction(w http.ResponseWriter, r *http.Request)
 			w.Header().Set("Content-Type", "application/problem+json")
 			w.Header().Set("Content-Version", "1")
 			w.WriteHeader(http.StatusInternalServerError)
-			json.NewEncoder(w).Encode(map[string]string{
+			_ = json.NewEncoder(w).Encode(map[string]string{
 				"detail": "internal server error while preparing manifest",
 			})
 			return
