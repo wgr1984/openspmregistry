@@ -667,6 +667,28 @@ func TestIntegration_PublishAndGet_RealServer(t *testing.T) {
 		t.Logf("Package.json verified via LoadPackageJson")
 	})
 
+	// Publish second package in same scope to verify listing with multiple packages
+	scope2, name2, version2 := "test", "OtherPackage", "2.0.0"
+	element2 := models.NewUploadElement(scope2, name2, version2, mimetypes.ApplicationZip, models.SourceArchive)
+	t.Run("PublishSecondPackage", func(t *testing.T) {
+		zip2 := createTestZipWithManifests(t, scope2, name2)
+		writer, err := repo.GetWriter(ctx, element2)
+		if err != nil {
+			t.Fatalf("Failed to get writer for second package: %v", err)
+		}
+		if _, err := writer.Write(zip2); err != nil {
+			_ = writer.Close()
+			t.Fatalf("Failed to write second package zip: %v", err)
+		}
+		if err := writer.Close(); err != nil {
+			t.Fatalf("Failed to close writer (second package): %v", err)
+		}
+		if !repo.Exists(ctx, element2) {
+			t.Fatalf("Second package source archive does not exist after publish")
+		}
+		t.Logf("Successfully published second package %s/%s/%s", scope2, name2, version2)
+	})
+
 	// Test 12: List, GetAlternativeManifests, ListScopes, ListInScope, ListAll (maven-metadata.xml and directory listing)
 	t.Run("ListAndListScopes", func(t *testing.T) {
 		// List(scope, name) uses maven-metadata.xml — should return at least the published version
@@ -688,6 +710,23 @@ func TestIntegration_PublishAndGet_RealServer(t *testing.T) {
 			t.Fatalf("List did not return %s/%s/%s; got %v", scope, name, version, versions)
 		}
 		t.Logf("List returned %d version(s), including %s", len(versions), version)
+
+		// List(scope, name2) for second package — must include version2
+		versions2, err := repo.List(ctx, scope2, name2)
+		if err != nil {
+			t.Fatalf("List(scope, %q) failed: %v", name2, err)
+		}
+		found2 := false
+		for _, v := range versions2 {
+			if v.Scope == scope2 && v.PackageName == name2 && v.Version == version2 {
+				found2 = true
+				break
+			}
+		}
+		if !found2 {
+			t.Fatalf("List did not return %s/%s/%s; got %v", scope2, name2, version2, versions2)
+		}
+		t.Logf("List(%q, %q) returned %d version(s), including %s", scope2, name2, len(versions2), version2)
 
 		// GetAlternativeManifests: with only one version published, alternatives should be empty (or other versions if any)
 		manifestElement := models.NewUploadElement(scope, name, version, mimetypes.TextXSwift, models.Manifest)
@@ -721,17 +760,21 @@ func TestIntegration_PublishAndGet_RealServer(t *testing.T) {
 			t.Fatalf("ListInScope failed: %v", err)
 		}
 		t.Logf("ListInScope(%q) returned %d package(s)", scope, len(inScope))
-		if len(inScope) > 0 {
-			foundInScope := false
-			for _, e := range inScope {
-				if e.Scope == scope && e.PackageName == name && e.Version == version {
-					foundInScope = true
-					break
-				}
+		foundInScope1 := false
+		foundInScope2 := false
+		for _, e := range inScope {
+			if e.Scope == scope && e.PackageName == name && e.Version == version {
+				foundInScope1 = true
 			}
-			if !foundInScope {
-				t.Logf("Note: %s/%s/%s not in ListInScope result", scope, name, version)
+			if e.Scope == scope2 && e.PackageName == name2 && e.Version == version2 {
+				foundInScope2 = true
 			}
+		}
+		if !foundInScope1 {
+			t.Fatalf("ListInScope(%q) missing %s/%s/%s; got %v", scope, scope, name, version, inScope)
+		}
+		if !foundInScope2 {
+			t.Fatalf("ListInScope(%q) missing %s/%s/%s (multiple packages); got %v", scope, scope2, name2, version2, inScope)
 		}
 
 		all, err := repo.ListAll(ctx)
@@ -739,17 +782,21 @@ func TestIntegration_PublishAndGet_RealServer(t *testing.T) {
 			t.Fatalf("ListAll failed: %v", err)
 		}
 		t.Logf("ListAll returned %d package(s)", len(all))
-		if len(all) > 0 {
-			foundAll := false
-			for _, e := range all {
-				if e.Scope == scope && e.PackageName == name && e.Version == version {
-					foundAll = true
-					break
-				}
+		foundAll1 := false
+		foundAll2 := false
+		for _, e := range all {
+			if e.Scope == scope && e.PackageName == name && e.Version == version {
+				foundAll1 = true
 			}
-			if !foundAll {
-				t.Logf("Note: %s/%s/%s not in ListAll result", scope, name, version)
+			if e.Scope == scope2 && e.PackageName == name2 && e.Version == version2 {
+				foundAll2 = true
 			}
+		}
+		if !foundAll1 {
+			t.Fatalf("ListAll missing %s/%s/%s; got %v", scope, name, version, all)
+		}
+		if !foundAll2 {
+			t.Fatalf("ListAll missing %s/%s/%s (multiple packages); got %v", scope2, name2, version2, all)
 		}
 	})
 
@@ -770,7 +817,8 @@ func TestIntegration_PublishAndGet_RealServer(t *testing.T) {
 
 		// Remove all test files
 		filesToRemove := []*models.UploadElement{
-			element, // Source archive
+			element,  // Source archive (first package)
+			element2, // Second package source archive
 		}
 
 		// Add manifest files
@@ -810,14 +858,15 @@ func TestIntegration_PublishAndGet_RealServer(t *testing.T) {
 			}
 		}
 
-		// Remove maven-metadata.xml file
-		groupId := buildGroupId(scope, cfg)
-		artifactId := buildArtifactId(name)
-		metadataPath := getMetadataPath(groupId, artifactId)
-		if err := repo.client.DELETE(ctx, metadataPath); err != nil {
-			// Log but don't fail - metadata file might not exist
-			if slog.Default().Enabled(context.Background(), slog.LevelDebug) {
-				t.Logf("Warning: Failed to remove maven-metadata.xml: %v", err)
+		// Remove maven-metadata.xml for both packages
+		for _, s := range []struct{ sc, nm string }{{scope, name}, {scope2, name2}} {
+			groupId := buildGroupId(s.sc, cfg)
+			artifactId := buildArtifactId(s.nm)
+			metadataPath := getMetadataPath(groupId, artifactId)
+			if err := repo.client.DELETE(ctx, metadataPath); err != nil {
+				if slog.Default().Enabled(context.Background(), slog.LevelDebug) {
+					t.Logf("Warning: Failed to remove maven-metadata.xml %s: %v", metadataPath, err)
+				}
 			}
 		}
 

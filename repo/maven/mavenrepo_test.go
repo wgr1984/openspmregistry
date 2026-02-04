@@ -227,6 +227,69 @@ func Test_ListInScope_ValidMetadata_ReturnsListElements(t *testing.T) {
 	}
 }
 
+// Test_ListInScope_MultiplePackages_ReturnsAll ensures ListInScope returns all packages in a scope
+// when multiple artifacts (packages) exist, each with their own maven-metadata.xml.
+func Test_ListInScope_MultiplePackages_ReturnsAll(t *testing.T) {
+	metadataTestPkg := `<?xml version="1.0" encoding="UTF-8"?>
+<metadata>
+	<groupId>test</groupId>
+	<artifactId>TestPackage</artifactId>
+	<versioning><versions><version>1.0.0</version></versions></versioning>
+</metadata>`
+	metadataOtherPkg := `<?xml version="1.0" encoding="UTF-8"?>
+<metadata>
+	<groupId>test</groupId>
+	<artifactId>OtherPackage</artifactId>
+	<versioning><versions><version>2.0.0</version><version>2.1.0</version></versions></versioning>
+</metadata>`
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if strings.HasSuffix(r.URL.Path, "maven-metadata.xml") {
+			w.Header().Set("Content-Type", "application/xml")
+			w.WriteHeader(http.StatusOK)
+			if strings.Contains(r.URL.Path, "OtherPackage") {
+				_, _ = w.Write([]byte(metadataOtherPkg))
+			} else {
+				_, _ = w.Write([]byte(metadataTestPkg))
+			}
+		} else if r.URL.Path == "/test/" {
+			w.Header().Set("Content-Type", "text/html")
+			w.WriteHeader(http.StatusOK)
+			_, _ = w.Write([]byte(`<html><body><a href="TestPackage/">TestPackage/</a><a href="OtherPackage/">OtherPackage/</a></body></html>`))
+		} else {
+			w.WriteHeader(http.StatusNotFound)
+		}
+	}))
+	defer server.Close()
+
+	cfg := config.MavenConfig{BaseURL: server.URL}
+	repo, err := NewMavenRepo(cfg)
+	if err != nil {
+		t.Fatalf("failed to create repo: %v", err)
+	}
+
+	elements, err := repo.ListInScope(context.Background(), "test")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	// TestPackage has 1 version, OtherPackage has 2 versions => 3 list elements
+	if len(elements) != 3 {
+		t.Errorf("expected 3 list elements (TestPackage 1.0.0, OtherPackage 2.0.0 and 2.1.0), got %d: %v", len(elements), elements)
+	}
+	byPkg := make(map[string][]string)
+	for _, e := range elements {
+		if e.Scope != "test" {
+			t.Errorf("expected scope=test, got scope=%s", e.Scope)
+		}
+		byPkg[e.PackageName] = append(byPkg[e.PackageName], e.Version)
+	}
+	if len(byPkg["TestPackage"]) != 1 || byPkg["TestPackage"][0] != "1.0.0" {
+		t.Errorf("expected TestPackage [1.0.0], got %v", byPkg["TestPackage"])
+	}
+	if len(byPkg["OtherPackage"]) != 2 {
+		t.Errorf("expected OtherPackage to have 2 versions, got %v", byPkg["OtherPackage"])
+	}
+}
+
 func Test_ListAll_CombinesScopes(t *testing.T) {
 	metadataXML := `<?xml version="1.0" encoding="UTF-8"?>
 <metadata>
@@ -268,6 +331,74 @@ func Test_ListAll_CombinesScopes(t *testing.T) {
 	}
 	if len(all) > 0 && (all[0].Scope != "test" || all[0].PackageName != "TestPackage" || all[0].Version != "1.0.0") {
 		t.Errorf("expected test/TestPackage/1.0.0, got %s/%s/%s", all[0].Scope, all[0].PackageName, all[0].Version)
+	}
+}
+
+// Test_ListAll_MultiplePackagesMultipleScopes_ReturnsAll ensures ListAll returns all packages
+// across multiple scopes when each scope has one or more packages.
+func Test_ListAll_MultiplePackagesMultipleScopes_ReturnsAll(t *testing.T) {
+	metadataTestPkg := `<?xml version="1.0" encoding="UTF-8"?>
+<metadata>
+	<groupId>test</groupId>
+	<artifactId>TestPackage</artifactId>
+	<versioning><versions><version>1.0.0</version></versions></versioning>
+</metadata>`
+	metadataOtherPkg := `<?xml version="1.0" encoding="UTF-8"?>
+<metadata>
+	<groupId>other</groupId>
+	<artifactId>OtherPackage</artifactId>
+	<versioning><versions><version>2.0.0</version></versions></versioning>
+</metadata>`
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if strings.HasSuffix(r.URL.Path, "maven-metadata.xml") {
+			w.Header().Set("Content-Type", "application/xml")
+			w.WriteHeader(http.StatusOK)
+			if strings.Contains(r.URL.Path, "OtherPackage") {
+				_, _ = w.Write([]byte(metadataOtherPkg))
+			} else {
+				_, _ = w.Write([]byte(metadataTestPkg))
+			}
+		} else if r.URL.Path == "/" || r.URL.Path == "" {
+			w.Header().Set("Content-Type", "text/html")
+			w.WriteHeader(http.StatusOK)
+			_, _ = w.Write([]byte(`<html><body><a href="test/">test/</a><a href="other/">other/</a></body></html>`))
+		} else if r.URL.Path == "/test/" {
+			w.Header().Set("Content-Type", "text/html")
+			w.WriteHeader(http.StatusOK)
+			_, _ = w.Write([]byte(`<html><body><a href="TestPackage/">TestPackage/</a></body></html>`))
+		} else if r.URL.Path == "/other/" {
+			w.Header().Set("Content-Type", "text/html")
+			w.WriteHeader(http.StatusOK)
+			_, _ = w.Write([]byte(`<html><body><a href="OtherPackage/">OtherPackage/</a></body></html>`))
+		} else {
+			w.WriteHeader(http.StatusNotFound)
+		}
+	}))
+	defer server.Close()
+
+	cfg := config.MavenConfig{BaseURL: server.URL}
+	repo, err := NewMavenRepo(cfg)
+	if err != nil {
+		t.Fatalf("failed to create repo: %v", err)
+	}
+
+	all, err := repo.ListAll(context.Background())
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(all) != 2 {
+		t.Errorf("expected 2 list elements (test/TestPackage/1.0.0, other/OtherPackage/2.0.0), got %d: %v", len(all), all)
+	}
+	seen := make(map[string]bool)
+	for _, e := range all {
+		key := e.Scope + "/" + e.PackageName + "/" + e.Version
+		seen[key] = true
+	}
+	if !seen["test/TestPackage/1.0.0"] {
+		t.Errorf("ListAll missing test/TestPackage/1.0.0, got %v", all)
+	}
+	if !seen["other/OtherPackage/2.0.0"] {
+		t.Errorf("ListAll missing other/OtherPackage/2.0.0, got %v", all)
 	}
 }
 
