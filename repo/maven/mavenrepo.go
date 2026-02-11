@@ -20,7 +20,6 @@ import (
 	"log/slog"
 	"net/http"
 	"path/filepath"
-	"sort"
 	"strings"
 	"time"
 )
@@ -328,39 +327,29 @@ func (m *MavenRepo) Remove(ctx context.Context, element *models.UploadElement) e
 	return m.client.DELETE(ctx, path)
 }
 
-// ListScopes returns all available scopes (D1 = scope). Lists base path; direct children are scopes.
+// ListScopes returns all available scopes from .spm-registry/index.json only.
+// If the index is missing or invalid, returns an empty list and nil error (no directory/HTML fallback).
 func (m *MavenRepo) ListScopes(ctx context.Context) ([]string, error) {
-	names, err := m.client.listDirectory(ctx, "")
-	if err != nil {
-		return nil, err
-	}
-	if len(names) == 0 {
+	scopes, err := m.client.getSPMRegistryIndex(ctx)
+	if err != nil || scopes == nil {
 		return []string{}, nil
 	}
-	scopeSet := make(map[string]struct{})
-	for _, name := range names {
-		scope := groupIdToScope(name, m.config)
-		scopeSet[scope] = struct{}{}
-	}
-	scopes := make([]string, 0, len(scopeSet))
-	for s := range scopeSet {
-		scopes = append(scopes, s)
-	}
-	sort.Strings(scopes)
 	return scopes, nil
 }
 
-// ListInScope returns all packages in a scope. D2 = artifact; maven-metadata.xml at D1/D2 contains versions.
+// ListInScope returns all packages in a scope from .spm-registry/index.json only.
+// Package names come from index.packages[scope]; versions from maven-metadata.xml per package.
+// If the index is missing or has no packages for the scope, returns an empty list (no fallback).
 func (m *MavenRepo) ListInScope(ctx context.Context, scope string) ([]models.ListElement, error) {
-	groupId := buildGroupId(scope, m.config)
-	scopePath := strings.ReplaceAll(groupId, ".", "/")
-	artifactIds, err := m.client.listDirectory(ctx, scopePath)
-	if err != nil {
-		return nil, err
+	index, err := m.client.getSPMRegistryIndexFull(ctx)
+	if err != nil || index == nil || index.Packages == nil {
+		return []models.ListElement{}, nil
 	}
+	artifactIds := index.Packages[scope]
 	if len(artifactIds) == 0 {
 		return []models.ListElement{}, nil
 	}
+	groupId := buildGroupId(scope, m.config)
 	var out []models.ListElement
 	for _, artifactId := range artifactIds {
 		metadata, err := loadMetadata(m.client, ctx, groupId, artifactId)

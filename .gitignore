@@ -28,6 +28,8 @@ go.work.sum
 .idea
 /files/
 /maven-files/
+/nexus-data/
+.nexus-test-password
 **/config.local.yml
 /node_modules/
 /static/output.css

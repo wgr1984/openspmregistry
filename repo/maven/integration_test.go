@@ -51,7 +51,9 @@ func (h *IntegrationTestHelper) WaitForServer(ctx context.Context, maxWait time.
 		case <-ctx.Done():
 			return ctx.Err()
 		case <-ticker.C:
-			req, err := http.NewRequestWithContext(ctx, "GET", h.BaseURL, nil)
+			// Nexus requires a path segment after the repo key (e.g. .../repository/private/); use trailing slash
+			checkURL := strings.TrimSuffix(h.BaseURL, "/") + "/"
+			req, err := http.NewRequestWithContext(ctx, "GET", checkURL, nil)
 			if err != nil {
 				return fmt.Errorf("failed to create request: %w", err)
 			}
@@ -72,16 +74,16 @@ func (h *IntegrationTestHelper) WaitForServer(ctx context.Context, maxWait time.
 }
 
 // GetMavenConfig returns a MavenConfig for integration tests
-// It reads credentials from environment variables or uses Archiva defaults
+// It reads credentials from environment variables or uses Maven server defaults
 func (h *IntegrationTestHelper) GetMavenConfig() config.MavenConfig {
 	username := os.Getenv("MAVEN_REPO_USERNAME")
 	if username == "" {
-		username = "admin" // Reposilite default
+		username = "admin" // Nexus default
 	}
 
 	password := os.Getenv("MAVEN_REPO_PASSWORD")
 	if password == "" {
-		password = "admin123" // Reposilite default
+		password = "admin123" // Nexus default (set by bootstrap)
 	}
 
 	return config.MavenConfig{
@@ -162,14 +164,13 @@ func TestIntegration_PublishAndGet_RealServer(t *testing.T) {
 
 	baseURL := os.Getenv("MAVEN_REPO_URL")
 	if baseURL == "" {
-		baseURL = "http://localhost:8080"
+		baseURL = "http://localhost:8081/repository"
 	}
 
-	// Reposilite requires a repository name prefix (e.g., "private")
-	// If BaseURL doesn't already include a repository path, append the default repository
+	// If BaseURL doesn't already include a repository path, append the default repository name
 	repositoryName := os.Getenv("MAVEN_REPO_NAME")
 	if repositoryName == "" {
-		repositoryName = "private" // Reposilite default repository
+		repositoryName = "private" // Nexus repo created by bootstrap script
 	}
 
 	// Ensure BaseURL ends with the repository name
@@ -213,7 +214,7 @@ func TestIntegration_PublishAndGet_RealServer(t *testing.T) {
 	expectedPath := fmt.Sprintf("%s/%s/%s/%s-%s.zip", scope, name, version, name, version)
 	t.Logf("  Expected Maven path: %s", expectedPath)
 	t.Logf("  Full URL: %s/%s", baseURL, expectedPath)
-	t.Logf("  Local file path: ./maven-files/repositories/%s/%s", repositoryName, expectedPath)
+	t.Logf("  Nexus data in container: /nexus-data (host: ./nexus-data)")
 
 	// Test 1: Publish (upload) the file
 	t.Run("Publish", func(t *testing.T) {
@@ -302,11 +303,11 @@ func TestIntegration_PublishAndGet_RealServer(t *testing.T) {
 			// Add authentication (same as helper uses)
 			username := os.Getenv("MAVEN_REPO_USERNAME")
 			if username == "" {
-				username = "admin" // Reposilite default
+				username = "admin" // Nexus default
 			}
 			password := os.Getenv("MAVEN_REPO_PASSWORD")
 			if password == "" {
-				password = "admin123" // Reposilite default
+				password = "admin123" // Nexus default
 			}
 			req.SetBasicAuth(username, password)
 
@@ -570,8 +571,9 @@ func TestIntegration_PublishAndGet_RealServer(t *testing.T) {
 
 	// Test 10: Publish and verify metadata.sig
 	t.Run("PublishMetadataSig", func(t *testing.T) {
-		metadataSigElement := models.NewUploadElement(scope, name, version, "application/octet-stream", models.MetadataSignature)
-		sigContent := []byte("dummy-signature-content")
+		metadataSigElement := models.NewUploadElement(scope, name, version, "application/pgp-signature", models.MetadataSignature)
+		// Use binary content so Nexus content sniffing does not detect text/plain and reject the upload
+		sigContent := []byte{0x89, 0x50, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0x00} // dummy binary (PGP-like) content
 
 		writer, err := repo.GetWriter(ctx, metadataSigElement)
 		if err != nil {
@@ -689,7 +691,7 @@ func TestIntegration_PublishAndGet_RealServer(t *testing.T) {
 		t.Logf("Successfully published second package %s/%s/%s", scope2, name2, version2)
 	})
 
-	// Test 12: List, GetAlternativeManifests, ListScopes, ListInScope, ListAll (maven-metadata.xml and directory listing)
+	// Test 12: List, GetAlternativeManifests, ListScopes, ListInScope, ListAll (maven-metadata.xml and .spm-registry/index.json)
 	t.Run("ListAndListScopes", func(t *testing.T) {
 		// List(scope, name) uses maven-metadata.xml — should return at least the published version
 		versions, err := repo.List(ctx, scope, name)
@@ -736,14 +738,14 @@ func TestIntegration_PublishAndGet_RealServer(t *testing.T) {
 		}
 		t.Logf("GetAlternativeManifests returned %d alternative manifest(s)", len(alternatives))
 
-		// ListScopes / ListInScope / ListAll depend on HTTP directory listing; server may not support it
+		// ListScopes / ListInScope / ListAll read from .spm-registry/index.json (updated when we publish)
 		scopes, err := repo.ListScopes(ctx)
 		if err != nil {
 			t.Fatalf("ListScopes failed: %v", err)
 		}
 		t.Logf("ListScopes returned %d scope(s): %v", len(scopes), scopes)
+		scopeFound := false
 		if len(scopes) > 0 {
-			scopeFound := false
 			for _, s := range scopes {
 				if s == scope {
 					scopeFound = true
@@ -751,7 +753,7 @@ func TestIntegration_PublishAndGet_RealServer(t *testing.T) {
 				}
 			}
 			if !scopeFound {
-				t.Logf("Note: scope %q not in ListScopes result (directory listing may use different names)", scope)
+				t.Logf("Note: scope %q not in ListScopes result (index may not include scope)", scope)
 			}
 		}
 
@@ -803,15 +805,9 @@ func TestIntegration_PublishAndGet_RealServer(t *testing.T) {
 	// Cleanup: Remove the test files (unless KEEP_TEST_DATA is set)
 	t.Run("Cleanup", func(t *testing.T) {
 		if os.Getenv("KEEP_TEST_DATA") != "" {
-			expectedPath := fmt.Sprintf("%s/%s/%s/%s-%s.zip", scope, name, version, name, version)
-			packageSwiftPath := fmt.Sprintf("%s/%s/%s/%s-%s-package.swift", scope, name, version, name, version)
-			variantPath := fmt.Sprintf("%s/%s/%s/%s-%s-package-swift-5.7.0.swift", scope, name, version, name, version)
 			t.Logf("Keeping test data for inspection:")
 			t.Logf("  Repository: %s", repositoryName)
-			t.Logf("  Source archive: ./maven-files/repositories/%s/%s", repositoryName, expectedPath)
-			t.Logf("  Package.swift: ./maven-files/repositories/%s/%s", repositoryName, packageSwiftPath)
-			t.Logf("  Package@swift-5.7.0.swift: ./maven-files/repositories/%s/%s", repositoryName, variantPath)
-			t.Logf("  Inspect with: ls -la ./maven-files/repositories/%s/%s/", repositoryName, fmt.Sprintf("%s/%s/%s", scope, name, version))
+			t.Logf("  Nexus data: ./nexus-data (container: /nexus-data)")
 			return
 		}
 
@@ -832,7 +828,7 @@ func TestIntegration_PublishAndGet_RealServer(t *testing.T) {
 		metadataElement := models.NewUploadElement(scope, name, version, mimetypes.ApplicationJson, models.Metadata)
 		filesToRemove = append(filesToRemove, metadataElement)
 
-		metadataSigElement := models.NewUploadElement(scope, name, version, "application/octet-stream", models.MetadataSignature)
+		metadataSigElement := models.NewUploadElement(scope, name, version, "application/pgp-signature", models.MetadataSignature)
 		filesToRemove = append(filesToRemove, metadataSigElement)
 
 		packageJsonElement := models.NewUploadElement(scope, name, version, mimetypes.ApplicationJson, models.PackageManifestJson)

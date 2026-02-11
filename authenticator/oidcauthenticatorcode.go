@@ -25,13 +25,13 @@ type randomStringGenerator interface {
 
 type defaultRandomStringGenerator struct{}
 
-func (d *defaultRandomStringGenerator) RandomString(length int) (string, error) {
-	return utils.RandomString(length)
-}
-
 type OidcAuthenticatorCodeImpl struct {
 	*OidcAuthenticatorImpl
 	randomStringGenerator randomStringGenerator
+}
+
+func (d *defaultRandomStringGenerator) RandomString(length int) (string, error) {
+	return utils.RandomString(length)
 }
 
 // NewOIDCAuthenticatorCodeWithConfig creates a new OIDC authenticator with code grant

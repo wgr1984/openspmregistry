@@ -1,6 +1,6 @@
 # Integration Tests
 
-This project includes integration tests that use a real Maven repository server (Reposilite) to test Maven repository functionality.
+This project includes integration tests that use a real Maven repository server (Nexus OSS) to test Maven repository functionality.
 
 ## Prerequisites
 
@@ -16,10 +16,11 @@ make test-integration
 ```
 
 This will:
-1. Start Reposilite in a Docker container
-2. Wait for it to be ready
-3. Run integration tests
-4. Stop and clean up the container
+1. Start Nexus OSS in a Docker container (embedded DB, no separate database)
+2. Wait for Nexus to be ready (2–3 minutes on first start)
+3. Run the bootstrap script: create Maven repo `private` via Script API, set admin password to `admin123`
+4. Run integration tests
+5. Stop and clean up the container
 
 ### Manual Control
 
@@ -35,7 +36,7 @@ make test-integration-down
 
 Run integration tests manually:
 ```bash
-INTEGRATION_TESTS=1 MAVEN_REPO_URL=http://localhost:8080 go test -tags=integration -v ./repo/maven/... -run TestIntegration
+INTEGRATION_TESTS=1 MAVEN_REPO_URL=http://localhost:8081/repository MAVEN_REPO_NAME=private MAVEN_REPO_USERNAME=admin MAVEN_REPO_PASSWORD=admin123 go test -tags=integration -v ./repo/maven/... -run TestIntegration
 ```
 
 ## Architecture
@@ -43,10 +44,24 @@ INTEGRATION_TESTS=1 MAVEN_REPO_URL=http://localhost:8080 go test -tags=integrati
 ### Docker Compose
 
 The `docker-compose.test.yml` file defines:
-- **Reposilite**: Lightweight Maven repository server
-  - Port: 8080
-  - Data persisted in local directory `./maven-files/` for easy debugging
-  - Admin token configured via `ADMIN_TOKEN` environment variable (default: `admin:admin123`)
+- **Nexus OSS**: Maven repository server (embedded database, no separate DB container)
+  - Port: 8081
+  - Data persisted in local directory `./nexus-data/` for easy debugging
+  - Image: `sonatype/nexus3:3.68.1` (security-hardened; scripting enabled via `INSTALL4J_ADD_VM_PARAMS` for bootstrap)
+  - Container name: `nexus-test`
+
+### Bootstrap Script
+
+After Nexus is ready, `scripts/nexus-bootstrap.sh`:
+- Reads the initial admin password from the container (`/nexus-data/admin.password`) if present
+- Creates a Maven hosted repository named `private` via the Nexus Script API
+- Sets the admin password to `admin123` so tests can use fixed credentials
+
+The script is idempotent (safe to run multiple times).
+
+### Scope and package listing
+
+`ListScopes` and `ListInScope` use the SPM registry index only (path `com/spm/registry/index/1/index-1.json`, Maven 2 layout); there are no directory/HTML fallbacks. The index contains `scopes` (array) and `packages` (map from scope to package names). If the file is missing or invalid, or a scope has no packages in the index, the respective call returns an empty list. Publishing from this codebase updates both `scopes` and `packages` in the index so it stays in sync.
 
 ### Integration Test Helper
 
@@ -74,7 +89,7 @@ func TestMyIntegrationTest(t *testing.T) {
     
     baseURL := os.Getenv("MAVEN_REPO_URL")
     if baseURL == "" {
-        baseURL = "http://localhost:8080"
+        baseURL = "http://localhost:8081/repository"
     }
     
     helper := NewIntegrationTestHelper(baseURL)
@@ -96,27 +111,28 @@ func TestMyIntegrationTest(t *testing.T) {
 ### Environment Variables
 
 - `INTEGRATION_TESTS`: Set to `1` to enable integration tests
-- `MAVEN_REPO_URL`: Base URL of the Maven repository (default: `http://localhost:8080`)
-- `MAVEN_REPO_NAME`: Repository name in Reposilite (default: `private`)
+- `MAVEN_REPO_URL`: Base URL of the Maven repository (default: `http://localhost:8081/repository`)
+- `MAVEN_REPO_NAME`: Repository name (default: `private`, created by bootstrap script)
 - `MAVEN_REPO_USERNAME`: Username for Maven repository authentication (default: `admin`)
 - `MAVEN_REPO_PASSWORD`: Password for Maven repository authentication (default: `admin123`)
 
-### Reposilite Defaults
+### Nexus OSS Defaults
 
-- URL: http://localhost:8080
-- Default repository: `private` (created automatically on first upload)
-- Default admin token: `admin:admin123` (configured via `ADMIN_TOKEN` environment variable)
-- Data directory: `./maven-files/` (local directory for easy debugging)
-- Image: `dzikoysk/reposilite:3.5.0`
+- URL: http://localhost:8081/repository/private (base + repo name)
+- Default repository: `private` (created by `scripts/nexus-bootstrap.sh`)
+- Default credentials: `admin` / `admin123` (password set by bootstrap)
+- Data directory: `./nexus-data/` (host); `/nexus-data` in container
+- Image: `sonatype/nexus3:3.68.1` (scripting enabled via env for repo creation)
 
-**Note:** Reposilite requires a repository name prefix in the URL. The integration tests automatically append `/private` to the BaseURL if not already present. You can customize this via the `MAVEN_REPO_NAME` environment variable.
+The integration tests append the repository name to the base URL if not already present. Customize via `MAVEN_REPO_NAME`.
 
-### Customizing Admin Token
+### Bootstrap Script Environment
 
-You can customize the admin token by setting the `ADMIN_TOKEN` environment variable:
-```bash
-ADMIN_TOKEN=myuser:mypassword make test-integration-up
-```
+The script `scripts/nexus-bootstrap.sh` accepts:
+- `NEXUS_URL`: Base URL (default: `http://localhost:8081`)
+- `NEXUS_CONTAINER`: Container name (default: `nexus-test`)
+- `NEXUS_REPO_KEY`: Repository key to create (default: `private`)
+- `NEXUS_TARGET_PASSWORD`: Admin password to set (default: `admin123`)
 
 ## Troubleshooting
 
@@ -124,7 +140,7 @@ ADMIN_TOKEN=myuser:mypassword make test-integration-up
 
 Check if the port is already in use:
 ```bash
-lsof -i :8080
+lsof -i :8081
 ```
 
 ### Tests Timing Out
@@ -136,17 +152,17 @@ ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
 
 ### Clean Up
 
-To completely remove test data:
+To completely remove test data and containers:
 ```bash
 docker-compose -f docker-compose.test.yml down
-rm -rf maven-files/
+rm -rf nexus-data/
 ```
 
 ## CI/CD Integration
 
 Integration tests are designed to be run in CI/CD pipelines. The Docker Compose setup ensures:
 - Isolated test environment
-- Automatic cleanup
+- Bootstrap creates repo and sets password before tests
 - Health checks before running tests
 
 Example GitHub Actions step:

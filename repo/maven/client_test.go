@@ -327,16 +327,16 @@ func Test_makeRequest_WithAuth_IncludesAuthHeader(t *testing.T) {
 	}
 }
 
-func Test_listDirectory_HTMLListing_ReturnsDirNames(t *testing.T) {
-	html := `<!DOCTYPE html><html><body>
-<a href="test/">test/</a>
-<a href="other/">other/</a>
-<a href="../">../</a>
-</body></html>`
+func Test_getSPMRegistryIndex_ValidJSON_ReturnsSortedScopes(t *testing.T) {
+	body := `{"scopes":["z-scope","a-scope","m-scope"]}`
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "text/html")
-		w.WriteHeader(http.StatusOK)
-		_, _ = w.Write([]byte(html))
+		if strings.HasSuffix(r.URL.Path, "index-1.json") {
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusOK)
+			_, _ = w.Write([]byte(body))
+		} else {
+			w.WriteHeader(http.StatusNotFound)
+		}
 	}))
 	defer server.Close()
 
@@ -346,54 +346,23 @@ func Test_listDirectory_HTMLListing_ReturnsDirNames(t *testing.T) {
 		t.Fatalf("failed to create client: %v", err)
 	}
 
-	names, err := c.listDirectory(context.Background(), "")
+	scopes, err := c.getSPMRegistryIndex(context.Background())
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	if len(names) != 2 {
-		t.Errorf("expected 2 names, got %d: %v", len(names), names)
+	expected := []string{"a-scope", "m-scope", "z-scope"}
+	if len(scopes) != len(expected) {
+		t.Errorf("expected %d scopes, got %d: %v", len(expected), len(scopes), scopes)
 	}
-	if names[0] != "other" || names[1] != "test" {
-		// regex order may vary
-		hasTest, hasOther := false, false
-		for _, n := range names {
-			if n == "test" {
-				hasTest = true
-			}
-			if n == "other" {
-				hasOther = true
-			}
-		}
-		if !hasTest || !hasOther {
-			t.Errorf("expected names [test, other], got %v", names)
+	for i := range expected {
+		if scopes[i] != expected[i] {
+			t.Errorf("expected scopes %v, got %v", expected, scopes)
+			break
 		}
 	}
 }
 
-func Test_listDirectory_NonHTML_ReturnsEmpty(t *testing.T) {
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusOK)
-		_, _ = w.Write([]byte("{}"))
-	}))
-	defer server.Close()
-
-	cfg := config.MavenConfig{BaseURL: server.URL}
-	c, err := newClient(cfg)
-	if err != nil {
-		t.Fatalf("failed to create client: %v", err)
-	}
-
-	names, err := c.listDirectory(context.Background(), "")
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if len(names) != 0 {
-		t.Errorf("expected 0 names for non-HTML, got %d", len(names))
-	}
-}
-
-func Test_listDirectory_NotFound_ReturnsEmpty(t *testing.T) {
+func Test_getSPMRegistryIndex_404_ReturnsError(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusNotFound)
 	}))
@@ -405,11 +374,92 @@ func Test_listDirectory_NotFound_ReturnsEmpty(t *testing.T) {
 		t.Fatalf("failed to create client: %v", err)
 	}
 
-	names, err := c.listDirectory(context.Background(), "missing")
+	_, err = c.getSPMRegistryIndex(context.Background())
+	if err == nil {
+		t.Errorf("expected error for 404, got nil")
+	}
+}
+
+func Test_getSPMRegistryIndex_InvalidJSON_ReturnsError(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte("not json"))
+	}))
+	defer server.Close()
+
+	cfg := config.MavenConfig{BaseURL: server.URL}
+	c, err := newClient(cfg)
+	if err != nil {
+		t.Fatalf("failed to create client: %v", err)
+	}
+
+	_, err = c.getSPMRegistryIndex(context.Background())
+	if err == nil {
+		t.Errorf("expected error for invalid JSON, got nil")
+	}
+}
+
+func Test_getSPMRegistryIndexFull_WithPackages_ReturnsFullIndex(t *testing.T) {
+	body := `{"scopes":["s1","s2"],"packages":{"s1":["pkgA","pkgB"],"s2":["pkgC"]}}`
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if strings.HasSuffix(r.URL.Path, "index-1.json") {
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusOK)
+			_, _ = w.Write([]byte(body))
+		} else {
+			w.WriteHeader(http.StatusNotFound)
+		}
+	}))
+	defer server.Close()
+
+	cfg := config.MavenConfig{BaseURL: server.URL}
+	c, err := newClient(cfg)
+	if err != nil {
+		t.Fatalf("failed to create client: %v", err)
+	}
+
+	index, err := c.getSPMRegistryIndexFull(context.Background())
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	if len(names) != 0 {
-		t.Errorf("expected 0 names for 404, got %d", len(names))
+	if len(index.Scopes) != 2 || index.Scopes[0] != "s1" || index.Scopes[1] != "s2" {
+		t.Errorf("expected scopes [s1 s2], got %v", index.Scopes)
+	}
+	if len(index.Packages) != 2 {
+		t.Errorf("expected 2 scope entries in packages, got %d", len(index.Packages))
+	}
+	if len(index.Packages["s1"]) != 2 || index.Packages["s1"][0] != "pkgA" || index.Packages["s1"][1] != "pkgB" {
+		t.Errorf("expected packages[s1]=[pkgA pkgB], got %v", index.Packages["s1"])
+	}
+	if len(index.Packages["s2"]) != 1 || index.Packages["s2"][0] != "pkgC" {
+		t.Errorf("expected packages[s2]=[pkgC], got %v", index.Packages["s2"])
+	}
+}
+
+func Test_getSPMRegistryIndexFull_OnlyScopes_PackagesEmpty(t *testing.T) {
+	body := `{"scopes":["test"]}`
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(body))
+	}))
+	defer server.Close()
+
+	cfg := config.MavenConfig{BaseURL: server.URL}
+	c, err := newClient(cfg)
+	if err != nil {
+		t.Fatalf("failed to create client: %v", err)
+	}
+
+	index, err := c.getSPMRegistryIndexFull(context.Background())
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(index.Scopes) != 1 || index.Scopes[0] != "test" {
+		t.Errorf("expected scopes [test], got %v", index.Scopes)
+	}
+	if index.Packages == nil || len(index.Packages) != 0 {
+		t.Errorf("expected empty packages map when omitted, got %v", index.Packages)
 	}
 }

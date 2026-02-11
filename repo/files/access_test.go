@@ -10,18 +10,18 @@ import (
 	"testing"
 )
 
-var errFake = errors.New("fake_error")
-
 type fakeOsModule_mkDirAllError struct {
 	osAdapterDefault
 }
 
-func (m *fakeOsModule_mkDirAllError) MkdirAll(path string, perm os.FileMode) error {
-	return errFake
-}
-
 type fakeOsModule_openError struct {
 	osAdapterDefault
+}
+
+var errFake = errors.New("fake_error")
+
+func (m *fakeOsModule_mkDirAllError) MkdirAll(path string, perm os.FileMode) error {
+	return errFake
 }
 
 func (m *fakeOsModule_openError) Open(name string) (*os.File, error) {

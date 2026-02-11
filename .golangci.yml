@@ -1,4 +1,15 @@
 # errcheck: we do not use check-blank so explicit _ discards (e.g. _, _ = w.Write())
 # are not reported. Unchecked defer x.Close() is still caught by `make errcheck`.
+linters:
+  enable:
+    - decorder
+
 linters-settings:
+  decorder:
+    dec-order:
+      - type
+      - const
+      - var
+      - func
+    disable-dec-order-check: false
   errcheck: {}

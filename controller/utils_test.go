@@ -16,6 +16,15 @@ import (
 	"time"
 )
 
+type MockRepo struct {
+	shouldError bool
+}
+
+type MockListElementsRepo struct {
+	shouldError bool
+	elements    []models.ListElement
+}
+
 func Test_NewHeaderError_ReturnsCorrectErrorMessage(t *testing.T) {
 	err := NewHeaderError("test error message")
 	if err.Error() != "test error message" {
@@ -445,12 +454,6 @@ func Test_PrintCallInfo_OtherAuthHeader_LogsUnmaskedHeader(t *testing.T) {
 	}
 }
 
-// Mock types and implementations
-
-type MockRepo struct {
-	shouldError bool
-}
-
 func (m *MockRepo) Exists(ctx context.Context, element *models.UploadElement) bool {
 	return false
 }
@@ -520,11 +523,6 @@ func (m *MockRepo) ListAll(ctx context.Context) ([]models.ListElement, error) {
 
 func (m *MockRepo) LoadPackageJson(ctx context.Context, scope string, name string, version string) (map[string]any, error) {
 	return nil, nil
-}
-
-type MockListElementsRepo struct {
-	shouldError bool
-	elements    []models.ListElement
 }
 
 func (m MockListElementsRepo) Exists(ctx context.Context, element *models.UploadElement) bool {

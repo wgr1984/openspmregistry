@@ -21,12 +21,34 @@ type fakeOsModule_statError struct {
 	osAdapterDefault
 }
 
-func (m *fakeOsModule_statError) Stat(name string) (os.FileInfo, error) {
-	return nil, errFake
-}
-
 type fakeOsModule_walkDirError struct {
 	osAdapterDefault
+}
+
+type access_error struct{}
+
+type ErrReaderSeekCloser_ReadErr struct {
+	inner io.ReadSeekCloser
+}
+
+type ErrReaderSeekCloser_SeekErr struct {
+	inner io.ReadSeekCloser
+}
+
+type ErrReaderSeekCloser_CloseErr struct {
+	inner io.ReadSeekCloser
+}
+
+type reader_error_close struct {
+	access
+}
+
+type reader_error_reading struct {
+	access
+}
+
+func (m *fakeOsModule_statError) Stat(name string) (os.FileInfo, error) {
+	return nil, errFake
 }
 
 func (m *fakeOsModule_walkDirError) WalkDir(root string, fn fs.WalkDirFunc) error {
@@ -34,8 +56,6 @@ func (m *fakeOsModule_walkDirError) WalkDir(root string, fn fs.WalkDirFunc) erro
 		return fn(path, d, errFake)
 	})
 }
-
-type access_error struct{}
 
 func (a *access_error) Exists(ctx context.Context, element *models.UploadElement) bool {
 	return true
@@ -47,10 +67,6 @@ func (a *access_error) GetReader(ctx context.Context, element *models.UploadElem
 
 func (a *access_error) GetWriter(ctx context.Context, element *models.UploadElement) (io.WriteCloser, error) {
 	return nil, errFake
-}
-
-type ErrReaderSeekCloser_ReadErr struct {
-	inner io.ReadSeekCloser
 }
 
 func (r *ErrReaderSeekCloser_ReadErr) Read(p []byte) (n int, err error) {
@@ -65,10 +81,6 @@ func (r *ErrReaderSeekCloser_ReadErr) Close() error {
 	return r.inner.Close()
 }
 
-type ErrReaderSeekCloser_SeekErr struct {
-	inner io.ReadSeekCloser
-}
-
 func (r *ErrReaderSeekCloser_SeekErr) Read(p []byte) (n int, err error) {
 	return r.inner.Read(p)
 }
@@ -79,10 +91,6 @@ func (r *ErrReaderSeekCloser_SeekErr) Seek(offset int64, whence int) (int64, err
 
 func (r *ErrReaderSeekCloser_SeekErr) Close() error {
 	return r.inner.Close()
-}
-
-type ErrReaderSeekCloser_CloseErr struct {
-	inner io.ReadSeekCloser
 }
 
 func (r *ErrReaderSeekCloser_CloseErr) Read(p []byte) (n int, err error) {
@@ -97,19 +105,11 @@ func (r *ErrReaderSeekCloser_CloseErr) Close() error {
 	return errFake
 }
 
-type reader_error_close struct {
-	access
-}
-
 func (r *reader_error_close) GetReader(ctx context.Context, element *models.UploadElement) (io.ReadSeekCloser, error) {
 	inner, _ := r.access.GetReader(ctx, element)
 	return &ErrReaderSeekCloser_CloseErr{
 		inner: inner,
 	}, nil
-}
-
-type reader_error_reading struct {
-	access
 }
 
 func (r *reader_error_reading) GetReader(ctx context.Context, element *models.UploadElement) (io.ReadSeekCloser, error) {

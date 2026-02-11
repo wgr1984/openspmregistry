@@ -21,6 +21,10 @@ type HeaderError struct {
 	httpStatusCode int
 }
 
+const acceptHeaderPrefix = "application/vnd.swift.registry.v"
+
+var supportedMediaType = []string{"json", "swift", "zip"}
+
 func NewHeaderError(errorMessage string) *HeaderError {
 	return &HeaderError{errorMessage: errorMessage, httpStatusCode: http.StatusBadRequest}
 }
@@ -41,10 +45,6 @@ func (e *HeaderError) writeResponse(w http.ResponseWriter) {
 		slog.Error("Error writing response:", "error", err)
 	}
 }
-
-const acceptHeaderPrefix = "application/vnd.swift.registry.v"
-
-var supportedMediaType = []string{"json", "swift", "zip"}
 
 // checkHeaders checks headers according to spec:
 // https://github.com/swiftlang/swift-package-manager/blob/main/Documentation/PackageRegistry/Registry.md#35-api-versioning
@@ -214,12 +214,12 @@ func writeErrorWithStatusCode(msg string, w http.ResponseWriter, status int) {
 // This enables passthrough authentication mode for Maven repositories
 func requestContext(r *http.Request) context.Context {
 	ctx := r.Context()
-	
+
 	// Extract Authorization header and add to context for passthrough mode
 	if authHeader := r.Header.Get("Authorization"); authHeader != "" {
 		ctx = context.WithValue(ctx, config.AuthHeaderContextKey, authHeader)
 	}
-	
+
 	return ctx
 }
 

@@ -11,6 +11,12 @@ import (
 
 type ErrorReadCloser struct{}
 
+type ErrorZipReadCloser struct {
+	zip.ReadCloser
+}
+
+type SuccessReadCloser struct{}
+
 func (e *ErrorReadCloser) Read(p []byte) (n int, err error) {
 	return 0, errors.New("simulated read error")
 }
@@ -19,15 +25,9 @@ func (e *ErrorReadCloser) Close() error {
 	return errors.New("simulated read error")
 }
 
-type ErrorZipReadCloser struct {
-	zip.ReadCloser
-}
-
 func (e *ErrorZipReadCloser) Close() error {
 	return errors.New("simulated zip close error")
 }
-
-type SuccessReadCloser struct{}
 
 func (s *SuccessReadCloser) Read(p []byte) (n int, err error) {
 	return 0, nil

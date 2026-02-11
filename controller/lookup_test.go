@@ -1,8 +1,8 @@
 package controller
 
 import (
-	"context"
 	"OpenSPMRegistry/config"
+	"context"
 	"encoding/json"
 	"log/slog"
 	"net/http"
@@ -10,6 +10,15 @@ import (
 	"strings"
 	"testing"
 )
+
+type MockErrorRepo struct {
+	MockRepo
+}
+
+type MockLookupRepo struct {
+	MockRepo
+	identifiers []string
+}
 
 func Test_LookupAction_MissingAcceptHeader_ReturnsBadRequest(t *testing.T) {
 	c := NewController(config.ServerConfig{}, nil)
@@ -306,19 +315,8 @@ func Test_LookupAction_JSONEncodingError_ReturnsInternalError(t *testing.T) {
 	}
 }
 
-// Mock types and implementations
-
-type MockErrorRepo struct {
-	MockRepo
-}
-
 func (m *MockErrorRepo) Lookup(ctx context.Context, url string) []string {
 	return []string{strings.Repeat("a", 1<<32)} // Create a string that's too large to encode
-}
-
-type MockLookupRepo struct {
-	MockRepo
-	identifiers []string
 }
 
 func (m *MockLookupRepo) Lookup(ctx context.Context, url string) []string {

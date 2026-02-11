@@ -3,11 +3,6 @@ package config
 // ContextKey is a custom type for context keys to avoid collisions (SA1029).
 type ContextKey string
 
-const (
-	// AuthHeaderContextKey is the context key for the Authorization header (passthrough auth).
-	AuthHeaderContextKey ContextKey = "Authorization"
-)
-
 type ServerRoot struct {
 	Server ServerConfig `yaml:"server"`
 }
@@ -39,12 +34,12 @@ type Repo struct {
 }
 
 type MavenConfig struct {
-	BaseURL      string `yaml:"baseURL"`
+	BaseURL       string `yaml:"baseURL"`
 	GroupIdPrefix string `yaml:"groupIdPrefix"`
-	AuthMode     string `yaml:"authMode"`
-	Username     string `yaml:"username"`
-	Password     string `yaml:"password"`
-	Timeout      int    `yaml:"timeout"`
+	AuthMode      string `yaml:"authMode"`
+	Username      string `yaml:"username"`
+	Password      string `yaml:"password"`
+	Timeout       int    `yaml:"timeout"`
 }
 
 type AuthConfig struct {
@@ -67,3 +62,8 @@ type PackageCollectionsConfig struct {
 	Enabled            bool `yaml:"enabled"`
 	RequirePackageJson bool `yaml:"requirePackageJson"`
 }
+
+const (
+	// AuthHeaderContextKey is the context key for the Authorization header (passthrough auth).
+	AuthHeaderContextKey ContextKey = "Authorization"
+)

@@ -11,6 +11,11 @@ import (
 	"testing"
 )
 
+// errorWriter is a writer that always fails
+type errorWriter struct {
+	http.ResponseWriter
+}
+
 func Test_MainAction_Returns404(t *testing.T) {
 	// Create controller with minimal config
 	c := NewController(config.ServerConfig{}, nil)
@@ -134,11 +139,6 @@ func Test_NewController_InitializesCorrectly(t *testing.T) {
 	if c.repo != mockRepo {
 		t.Error("repo not set correctly")
 	}
-}
-
-// errorWriter is a writer that always fails
-type errorWriter struct {
-	http.ResponseWriter
 }
 
 func (w *errorWriter) Write([]byte) (int, error) {

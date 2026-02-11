@@ -10,6 +10,19 @@ import (
 	"golang.org/x/oauth2"
 )
 
+type MockTokenAuthenticator struct {
+	methodCallCount map[string]int
+}
+
+type MockOidcAuthenticator struct {
+	methodCallCount map[string]int
+}
+
+type MockAuthenticator struct {
+	shouldAuthenticate bool
+	methodCallCount    map[string]int
+}
+
 func Test_NewAuthentication_TokenAuthenticator_RegistersCallbackHandler(t *testing.T) {
 	router := http.NewServeMux()
 	auth := &MockTokenAuthenticator{}
@@ -91,12 +104,6 @@ func Test_HandleFunc_AuthorizedRequest_CallsNextHandler(t *testing.T) {
 	}
 }
 
-// Mock types and implementations
-
-type MockTokenAuthenticator struct {
-	methodCallCount map[string]int
-}
-
 func (m *MockTokenAuthenticator) increaseCallCount(method string) {
 	if m.methodCallCount == nil {
 		m.methodCallCount = make(map[string]int)
@@ -129,10 +136,6 @@ func (m *MockTokenAuthenticator) Callback(w http.ResponseWriter, r *http.Request
 	w.WriteHeader(http.StatusOK)
 }
 
-type MockOidcAuthenticator struct {
-	methodCallCount map[string]int
-}
-
 func (m *MockOidcAuthenticator) increaseCallCount(method string) {
 	if m.methodCallCount == nil {
 		m.methodCallCount = make(map[string]int)
@@ -153,11 +156,6 @@ func (m *MockOidcAuthenticator) Authenticate(w http.ResponseWriter, r *http.Requ
 func (m *MockOidcAuthenticator) Login(w http.ResponseWriter, r *http.Request) {
 	m.increaseCallCount("Login")
 	w.WriteHeader(http.StatusOK)
-}
-
-type MockAuthenticator struct {
-	shouldAuthenticate bool
-	methodCallCount    map[string]int
 }
 
 func (m *MockAuthenticator) increaseCallCount(method string) {

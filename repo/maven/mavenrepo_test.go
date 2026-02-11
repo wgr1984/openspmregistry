@@ -152,13 +152,13 @@ func Test_GetAlternativeManifests_ValidMetadata_ReturnsOtherVersions(t *testing.
 	}
 }
 
-func Test_ListScopes_HTMLListing_ReturnsScopes(t *testing.T) {
-	html := `<!DOCTYPE html><html><body><a href="test/">test/</a></body></html>`
+func Test_ListScopes_IndexJSON_ReturnsScopes(t *testing.T) {
+	indexJSON := `{"scopes":["test"]}`
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path == "/" || r.URL.Path == "" {
-			w.Header().Set("Content-Type", "text/html")
+		if strings.HasSuffix(r.URL.Path, "index-1.json") {
+			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(http.StatusOK)
-			_, _ = w.Write([]byte(html))
+			_, _ = w.Write([]byte(indexJSON))
 		} else {
 			w.WriteHeader(http.StatusNotFound)
 		}
@@ -180,6 +180,27 @@ func Test_ListScopes_HTMLListing_ReturnsScopes(t *testing.T) {
 	}
 }
 
+func Test_ListScopes_IndexMissing_ReturnsEmptyList(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusNotFound)
+	}))
+	defer server.Close()
+
+	cfg := config.MavenConfig{BaseURL: server.URL}
+	repo, err := NewMavenRepo(cfg)
+	if err != nil {
+		t.Fatalf("failed to create repo: %v", err)
+	}
+
+	scopes, err := repo.ListScopes(context.Background())
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(scopes) != 0 {
+		t.Errorf("expected empty scopes when index missing, got %v", scopes)
+	}
+}
+
 func Test_ListInScope_ValidMetadata_ReturnsListElements(t *testing.T) {
 	metadataXML := `<?xml version="1.0" encoding="UTF-8"?>
 <metadata>
@@ -197,10 +218,10 @@ func Test_ListInScope_ValidMetadata_ReturnsListElements(t *testing.T) {
 			w.Header().Set("Content-Type", "application/xml")
 			w.WriteHeader(http.StatusOK)
 			_, _ = w.Write([]byte(metadataXML))
-		} else if r.URL.Path == "/test/" {
-			w.Header().Set("Content-Type", "text/html")
+		} else if strings.HasSuffix(r.URL.Path, "index-1.json") {
+			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(http.StatusOK)
-			_, _ = w.Write([]byte(`<html><body><a href="TestPackage/">TestPackage/</a></body></html>`))
+			_, _ = w.Write([]byte(`{"scopes":["test"],"packages":{"test":["TestPackage"]}}`))
 		} else {
 			w.WriteHeader(http.StatusNotFound)
 		}
@@ -224,6 +245,33 @@ func Test_ListInScope_ValidMetadata_ReturnsListElements(t *testing.T) {
 		if e.Scope != "test" || e.PackageName != "TestPackage" {
 			t.Errorf("expected scope=test package=TestPackage, got scope=%s package=%s", e.Scope, e.PackageName)
 		}
+	}
+}
+
+func Test_ListInScope_IndexHasNoPackagesForScope_ReturnsEmptyList(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if strings.HasSuffix(r.URL.Path, "index-1.json") {
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusOK)
+			_, _ = w.Write([]byte(`{"scopes":["test"],"packages":{}}`))
+		} else {
+			w.WriteHeader(http.StatusNotFound)
+		}
+	}))
+	defer server.Close()
+
+	cfg := config.MavenConfig{BaseURL: server.URL}
+	repo, err := NewMavenRepo(cfg)
+	if err != nil {
+		t.Fatalf("failed to create repo: %v", err)
+	}
+
+	elements, err := repo.ListInScope(context.Background(), "test")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(elements) != 0 {
+		t.Errorf("expected empty list when index has no packages for scope, got %d", len(elements))
 	}
 }
 
@@ -251,10 +299,10 @@ func Test_ListInScope_MultiplePackages_ReturnsAll(t *testing.T) {
 			} else {
 				_, _ = w.Write([]byte(metadataTestPkg))
 			}
-		} else if r.URL.Path == "/test/" {
-			w.Header().Set("Content-Type", "text/html")
+		} else if strings.HasSuffix(r.URL.Path, "index-1.json") {
+			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(http.StatusOK)
-			_, _ = w.Write([]byte(`<html><body><a href="TestPackage/">TestPackage/</a><a href="OtherPackage/">OtherPackage/</a></body></html>`))
+			_, _ = w.Write([]byte(`{"scopes":["test"],"packages":{"test":["OtherPackage","TestPackage"]}}`))
 		} else {
 			w.WriteHeader(http.StatusNotFound)
 		}
@@ -302,14 +350,10 @@ func Test_ListAll_CombinesScopes(t *testing.T) {
 			w.Header().Set("Content-Type", "application/xml")
 			w.WriteHeader(http.StatusOK)
 			_, _ = w.Write([]byte(metadataXML))
-		} else if r.URL.Path == "/" || r.URL.Path == "" {
-			w.Header().Set("Content-Type", "text/html")
+		} else if strings.HasSuffix(r.URL.Path, "index-1.json") {
+			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(http.StatusOK)
-			_, _ = w.Write([]byte(`<html><body><a href="test/">test/</a></body></html>`))
-		} else if r.URL.Path == "/test/" {
-			w.Header().Set("Content-Type", "text/html")
-			w.WriteHeader(http.StatusOK)
-			_, _ = w.Write([]byte(`<html><body><a href="TestPackage/">TestPackage/</a></body></html>`))
+			_, _ = w.Write([]byte(`{"scopes":["test"],"packages":{"test":["TestPackage"]}}`))
 		} else {
 			w.WriteHeader(http.StatusNotFound)
 		}
@@ -358,18 +402,10 @@ func Test_ListAll_MultiplePackagesMultipleScopes_ReturnsAll(t *testing.T) {
 			} else {
 				_, _ = w.Write([]byte(metadataTestPkg))
 			}
-		} else if r.URL.Path == "/" || r.URL.Path == "" {
-			w.Header().Set("Content-Type", "text/html")
+		} else if strings.HasSuffix(r.URL.Path, "index-1.json") {
+			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(http.StatusOK)
-			_, _ = w.Write([]byte(`<html><body><a href="test/">test/</a><a href="other/">other/</a></body></html>`))
-		} else if r.URL.Path == "/test/" {
-			w.Header().Set("Content-Type", "text/html")
-			w.WriteHeader(http.StatusOK)
-			_, _ = w.Write([]byte(`<html><body><a href="TestPackage/">TestPackage/</a></body></html>`))
-		} else if r.URL.Path == "/other/" {
-			w.Header().Set("Content-Type", "text/html")
-			w.WriteHeader(http.StatusOK)
-			_, _ = w.Write([]byte(`<html><body><a href="OtherPackage/">OtherPackage/</a></body></html>`))
+			_, _ = w.Write([]byte(`{"scopes":["other","test"],"packages":{"test":["TestPackage"],"other":["OtherPackage"]}}`))
 		} else {
 			w.WriteHeader(http.StatusNotFound)
 		}

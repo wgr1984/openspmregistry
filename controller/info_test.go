@@ -16,6 +16,19 @@ import (
 	"time"
 )
 
+type MockInfoRepo struct {
+	MockRepo
+	exists         bool
+	metadata       map[string]any
+	metadataErr    error
+	signature      string
+	signatureErr   error
+	publishDate    time.Time
+	publishDateErr error
+	checksum       string
+	checksumErr    error
+}
+
 func Test_InfoAction_MissingAcceptHeader_ReturnsBadRequest(t *testing.T) {
 	c := NewController(config.ServerConfig{}, nil)
 	req := httptest.NewRequest("GET", "/scope/package/1.0.0.json", nil)
@@ -383,21 +396,6 @@ func Test_InfoAction_PublishDateError_UsesCurrentTime(t *testing.T) {
 	if !publishTime.Equal(fixedTime.UTC()) {
 		t.Errorf("expected publishedAt %v, got %v", fixedTime.UTC(), publishTime)
 	}
-}
-
-// Mock types and implementations
-
-type MockInfoRepo struct {
-	MockRepo
-	exists         bool
-	metadata       map[string]any
-	metadataErr    error
-	signature      string
-	signatureErr   error
-	publishDate    time.Time
-	publishDateErr error
-	checksum       string
-	checksumErr    error
 }
 
 func (m *MockInfoRepo) Exists(ctx context.Context, element *models.UploadElement) bool {

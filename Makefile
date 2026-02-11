@@ -24,8 +24,8 @@ help:
 	@echo "  release       - Create a new release (Usage: make release VERSION=1.2.3)"
 	@echo "  changelog-unreleased - Show unreleased changes"
 	@echo "  test-integration - Run integration tests (requires Docker)"
-	@echo "  test-integration-up - Start Reposilite test server"
-	@echo "  test-integration-down - Stop Reposilite test server"
+	@echo "  test-integration-up - Start Nexus test server"
+	@echo "  test-integration-down - Stop Nexus test server"
 	@echo ""
 	@echo "Example usage:"
 	@echo "  make build              - Build the project"
@@ -101,38 +101,42 @@ changelog-unreleased:
 
 # Integration test targets
 test-integration-up:
-	@echo "Starting Reposilite test server..."
+	@echo "Starting Nexus test server..."
 	docker-compose -f docker-compose.test.yml up -d
-	@echo "Waiting for Reposilite to be ready (this may take up to 30 seconds)..."
-	@timeout=60; \
+	@echo "Waiting for Nexus to be ready (this may take 2-3 minutes)..."
+	@timeout=180; \
 	while [ $$timeout -gt 0 ]; do \
 		ready=0; \
 		if command -v curl > /dev/null 2>&1; then \
-			if curl -f http://localhost:8080/ > /dev/null 2>&1; then \
-				ready=1; \
-			fi; \
-		fi; \
-		if [ $$ready -eq 0 ]; then \
-			if docker inspect reposilite-test 2>/dev/null | grep -q '"Status": "running"'; then \
+			if curl -sf http://localhost:8081/service/rest/v1/status > /dev/null 2>&1; then \
 				ready=1; \
 			fi; \
 		fi; \
 		if [ $$ready -eq 1 ]; then \
-			echo "Reposilite is ready!"; \
+			echo "Nexus is ready!"; \
 			break; \
 		fi; \
-		sleep 2; \
-		timeout=$$((timeout - 2)); \
+		sleep 5; \
+		timeout=$$((timeout - 5)); \
 	done; \
 	if [ $$timeout -le 0 ]; then \
-		echo "Warning: Reposilite may not be fully ready yet. Check with: docker ps"; \
+		echo "Warning: Nexus may not be fully ready yet. Check with: docker ps"; \
+		exit 1; \
 	fi
+	@echo "Bootstrapping Nexus (create repo, set admin password)..."
+	@NEXUS_TEST_PASSWORD_FILE=.nexus-test-password bash scripts/nexus-bootstrap.sh
 
 test-integration-down:
-	@echo "Stopping Reposilite test server..."
+	@echo "Stopping Nexus test server..."
 	docker-compose -f docker-compose.test.yml down
 
 test-integration: test-integration-up
 	@echo "Running integration tests..."
-	@INTEGRATION_TESTS=1 MAVEN_REPO_URL=http://localhost:8080 go test -tags=integration -v ./repo/maven/... -run TestIntegration
+	@passfile=".nexus-test-password"; \
+	if [ -f "$$passfile" ]; then \
+	  MAVEN_REPO_PASSWORD=$$(cat "$$passfile"); \
+	else \
+	  MAVEN_REPO_PASSWORD=admin123; \
+	fi; \
+	INTEGRATION_TESTS=1 MAVEN_REPO_URL=http://localhost:8081/repository MAVEN_REPO_NAME=private MAVEN_REPO_USERNAME=admin MAVEN_REPO_PASSWORD="$$MAVEN_REPO_PASSWORD" go test -tags=integration -v ./repo/maven/... -run TestIntegration
 	@$(MAKE) test-integration-down

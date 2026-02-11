@@ -1,14 +1,15 @@
+# Nexus 3.68.1+ addresses critical security vulnerabilities (see Nexus UI warnings on 3.21.x).
+# Scripting must be enabled so the bootstrap script can create the Maven repo via Script API.
 services:
-  reposilite:
-    image: dzikoysk/reposilite:3.5.0
-    container_name: reposilite-test
+  nexus:
+    image: sonatype/nexus3:3.68.1
+    container_name: nexus-test
     ports:
-      - "8080:8080"
-    environment:
-      - REPOSILITE_OPTS=--working-directory=/app/data --token ${ADMIN_TOKEN:-admin:admin123}
+      - "8081:8081"
     volumes:
-      - ./maven-files:/app/data
-    # Health check is performed externally by the Makefile
+      - ./nexus-data:/nexus-data
+    environment:
+      - INSTALL4J_ADD_VM_PARAMS=-Djava.util.prefs.userRoot=/nexus-data/javaprefs -Dnexus.scripts.allowCreation=true
     networks:
       - test-network
 

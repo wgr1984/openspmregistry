@@ -24,6 +24,59 @@ type multipartPart struct {
 	content     []byte
 }
 
+type mockPublishRepo struct {
+	storedFiles map[string][]byte
+}
+
+type mockWriter struct {
+	buf      *bytes.Buffer
+	filename string
+	repo     *mockPublishRepo
+}
+
+type mockReader struct {
+	*bytes.Reader
+}
+
+type publishErrorWriter struct {
+	shouldFail bool
+}
+
+type publishWriteErrorRepo struct {
+	mockPublishRepo
+}
+
+type urlErrorRepo struct {
+	mockPublishRepo
+	element *models.UploadElement
+}
+
+type extractErrorRepo struct {
+	mockPublishRepo
+	shouldFailGetWriter bool
+}
+
+type writeErrorRepo struct {
+	mockPublishRepo
+}
+
+type publishWriteFailWriter struct {
+	shouldFail bool
+}
+
+// mockPublishRepoWithCleanupTracking tracks which files are stored and removed
+type mockPublishRepoWithCleanupTracking struct {
+	storedFiles       map[string][]byte
+	removedFiles      []string
+	existsPackageJson bool
+}
+
+type mockWriterWithCleanupTracking struct {
+	buf      *bytes.Buffer
+	filename string
+	repo     *mockPublishRepoWithCleanupTracking
+}
+
 func createMultipartRequest(t *testing.T, files map[string][]byte) *http.Request {
 	var b bytes.Buffer
 	w := multipart.NewWriter(&b)
@@ -437,12 +490,6 @@ func Test_PublishAction_WriteFailure_ReturnsInternalError(t *testing.T) {
 	}
 }
 
-// Mock types and implementations
-
-type mockPublishRepo struct {
-	storedFiles map[string][]byte
-}
-
 func (m *mockPublishRepo) Exists(ctx context.Context, element *models.UploadElement) bool {
 	_, exists := m.storedFiles[element.FileName()]
 	return exists
@@ -520,12 +567,6 @@ func (m *mockPublishRepo) List(ctx context.Context, scope, packageName string) (
 	return nil, nil
 }
 
-type mockWriter struct {
-	buf      *bytes.Buffer
-	filename string
-	repo     *mockPublishRepo
-}
-
 func (w *mockWriter) Write(p []byte) (n int, err error) {
 	return w.buf.Write(p)
 }
@@ -535,16 +576,8 @@ func (w *mockWriter) Close() error {
 	return nil
 }
 
-type mockReader struct {
-	*bytes.Reader
-}
-
 func (r *mockReader) Close() error {
 	return nil
-}
-
-type publishErrorWriter struct {
-	shouldFail bool
 }
 
 func (w *publishErrorWriter) Write(p []byte) (n int, err error) {
@@ -558,27 +591,13 @@ func (w *publishErrorWriter) Close() error {
 	return nil
 }
 
-type publishWriteErrorRepo struct {
-	mockPublishRepo
-}
-
 func (r *publishWriteErrorRepo) GetWriter(ctx context.Context, element *models.UploadElement) (io.WriteCloser, error) {
 	return &publishErrorWriter{shouldFail: true}, nil
-}
-
-type urlErrorRepo struct {
-	mockPublishRepo
-	element *models.UploadElement
 }
 
 func (r *urlErrorRepo) Exists(ctx context.Context, element *models.UploadElement) bool {
 	r.element = element
 	return false
-}
-
-type extractErrorRepo struct {
-	mockPublishRepo
-	shouldFailGetWriter bool
 }
 
 func (r *extractErrorRepo) GetWriter(ctx context.Context, element *models.UploadElement) (io.WriteCloser, error) {
@@ -588,16 +607,8 @@ func (r *extractErrorRepo) GetWriter(ctx context.Context, element *models.Upload
 	return &mockWriter{buf: &bytes.Buffer{}, filename: element.FileName(), repo: &r.mockPublishRepo}, nil
 }
 
-type writeErrorRepo struct {
-	mockPublishRepo
-}
-
 func (r *writeErrorRepo) GetWriter(ctx context.Context, element *models.UploadElement) (io.WriteCloser, error) {
 	return &publishWriteFailWriter{shouldFail: true}, nil
-}
-
-type publishWriteFailWriter struct {
-	shouldFail bool
 }
 
 func (w *publishWriteFailWriter) Write(p []byte) (n int, err error) {
@@ -710,13 +721,6 @@ func Test_PublishAction_RequirePackageJsonSucceeds_NoCleanup(t *testing.T) {
 	}
 }
 
-// mockPublishRepoWithCleanupTracking tracks which files are stored and removed
-type mockPublishRepoWithCleanupTracking struct {
-	storedFiles       map[string][]byte
-	removedFiles      []string
-	existsPackageJson bool
-}
-
 func (m *mockPublishRepoWithCleanupTracking) Exists(ctx context.Context, element *models.UploadElement) bool {
 	// Special handling for Package.json
 	if element.FileName() == "Package.json" {
@@ -798,12 +802,6 @@ func (m *mockPublishRepoWithCleanupTracking) LoadPackageJson(ctx context.Context
 
 func (m *mockPublishRepoWithCleanupTracking) List(ctx context.Context, scope, packageName string) ([]models.ListElement, error) {
 	return nil, nil
-}
-
-type mockWriterWithCleanupTracking struct {
-	buf      *bytes.Buffer
-	filename string
-	repo     *mockPublishRepoWithCleanupTracking
 }
 
 func (m *mockWriterWithCleanupTracking) Write(p []byte) (n int, err error) {

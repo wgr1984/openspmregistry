@@ -15,8 +15,6 @@ import (
 	"github.com/go-jose/go-jose/v4/jwt"
 )
 
-const csrfTokenValue = "csrf-token"
-
 // OidcAuthenticatorPassword is an authenticator that uses OpenID Connect with password grant
 type OidcAuthenticatorPassword interface {
 	OidcAuthenticator
@@ -28,6 +26,8 @@ type OidcAuthenticatorPasswordImpl struct {
 	signingKey          ed25519.PublicKey
 	privateKey          ed25519.PrivateKey
 }
+
+const csrfTokenValue = "csrf-token"
 
 // NewOIDCAuthenticatorPassword OidcAuthenticatorPassword creates a new OIDC authenticator
 // based on the provided configuration

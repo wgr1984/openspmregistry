@@ -1,10 +1,10 @@
 package controller
 
 import (
-	"context"
 	"OpenSPMRegistry/config"
 	"OpenSPMRegistry/mimetypes"
 	"OpenSPMRegistry/models"
+	"context"
 	"fmt"
 	"io"
 	"log/slog"
@@ -13,6 +13,25 @@ import (
 	"strings"
 	"testing"
 )
+
+type MockDownloadRepo struct {
+	MockRepo
+	exists       bool
+	checksum     string
+	checksumErr  error
+	signature    string
+	signatureErr error
+	reader       io.ReadSeeker
+	readerErr    error
+}
+
+type mockReadSeekCloser struct {
+	io.ReadSeeker
+}
+
+type errorCloser struct {
+	io.ReadSeeker
+}
 
 func Test_DownloadSourceArchiveAction_MissingAcceptHeader_ReturnsBadRequest(t *testing.T) {
 	c := NewController(config.ServerConfig{}, nil)
@@ -342,19 +361,6 @@ func Test_DownloadSourceArchiveAction_CloseError_LogsError(t *testing.T) {
 	}
 }
 
-// Mock types and implementations
-
-type MockDownloadRepo struct {
-	MockRepo
-	exists       bool
-	checksum     string
-	checksumErr  error
-	signature    string
-	signatureErr error
-	reader       io.ReadSeeker
-	readerErr    error
-}
-
 func (m *MockDownloadRepo) Exists(ctx context.Context, element *models.UploadElement) bool {
 	return m.exists
 }
@@ -377,16 +383,8 @@ func (m *MockDownloadRepo) GetReader(ctx context.Context, element *models.Upload
 	return &mockReadSeekCloser{m.reader}, nil
 }
 
-type mockReadSeekCloser struct {
-	io.ReadSeeker
-}
-
 func (m *mockReadSeekCloser) Close() error {
 	return nil
-}
-
-type errorCloser struct {
-	io.ReadSeeker
 }
 
 func (e *errorCloser) Close() error {

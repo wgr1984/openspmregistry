@@ -4,12 +4,13 @@ import (
 	"OpenSPMRegistry/config"
 	"context"
 	"encoding/base64"
+	"encoding/json"
 	"fmt"
 	"io"
 	"log/slog"
 	"net/http"
 	"net/url"
-	"regexp"
+	"sort"
 	"strings"
 	"time"
 )
@@ -20,6 +21,16 @@ type client struct {
 	baseURL    string
 	config     config.MavenConfig
 }
+
+// spmRegistryIndexResponse is the JSON structure of .spm-registry/index.json.
+type spmRegistryIndexResponse struct {
+	Scopes   []string            `json:"scopes"`
+	Packages map[string][]string `json:"packages,omitempty"`
+}
+
+// spmRegistryIndexPath is the well-known path for the SPM registry scope index (relative to repo base URL).
+// Uses Maven 2 layout (groupId/artifactId/version/file) so strict Maven repos (e.g. Nexus) accept PUT/GET.
+const spmRegistryIndexPath = "com/spm/registry/index/1/index-1.json"
 
 // newClient creates a new Maven HTTP client
 func newClient(cfg config.MavenConfig) (*client, error) {
@@ -64,9 +75,16 @@ func (c *client) buildBasicAuth(username, password string) string {
 
 // makeRequest creates an HTTP request with authentication
 func (c *client) makeRequest(ctx context.Context, method, path string, body io.Reader) (*http.Request, error) {
-	fullURL, err := url.JoinPath(c.baseURL, path)
-	if err != nil {
-		return nil, fmt.Errorf("failed to build URL: %w", err)
+	var fullURL string
+	if path == "" {
+		// Nexus requires a path segment after the repo key (e.g. .../repository/private/); use trailing slash
+		fullURL = strings.TrimSuffix(c.baseURL, "/") + "/"
+	} else {
+		var err error
+		fullURL, err = url.JoinPath(c.baseURL, path)
+		if err != nil {
+			return nil, fmt.Errorf("failed to build URL: %w", err)
+		}
 	}
 
 	req, err := http.NewRequestWithContext(ctx, method, fullURL, body)
@@ -124,49 +142,43 @@ func (c *client) GET(ctx context.Context, path string) (*http.Response, error) {
 	return c.doRequest(ctx, "GET", path, nil)
 }
 
-// hrefRegex matches href="..." in HTML (Apache-style directory listing)
-var hrefRegex = regexp.MustCompile(`href="([^"]+)"`)
-
-// listDirectory lists direct child directory names at path via HTTP GET.
-// Parses HTML response for links (e.g. href="name/" or href="name"). On GET failure or non-HTML, returns nil, nil (degradation).
-func (c *client) listDirectory(ctx context.Context, path string) ([]string, error) {
-	path = strings.TrimSuffix(path, "/")
-	if path != "" {
-		path = path + "/"
-	}
-	resp, err := c.GET(ctx, path)
+// getSPMRegistryIndexFull fetches .spm-registry/index.json and returns the full decoded index.
+// On 404 or non-200 status returns (nil, error). Missing or null scopes/packages are normalized to empty.
+func (c *client) getSPMRegistryIndexFull(ctx context.Context) (*spmRegistryIndexResponse, error) {
+	resp, err := c.GET(ctx, spmRegistryIndexPath)
 	if err != nil {
-		return []string{}, nil
+		return nil, err
 	}
 	defer func() { _ = resp.Body.Close() }()
+
 	if resp.StatusCode != http.StatusOK {
-		return []string{}, nil
+		return nil, fmt.Errorf("request failed with status %d: %s", resp.StatusCode, resp.Status)
 	}
-	ct := resp.Header.Get("Content-Type")
-	if ct != "" && !strings.Contains(ct, "text/html") {
-		return []string{}, nil
+
+	var index spmRegistryIndexResponse
+	if err := json.NewDecoder(resp.Body).Decode(&index); err != nil {
+		return nil, fmt.Errorf("failed to decode index.json: %w", err)
 	}
-	body, err := io.ReadAll(resp.Body)
+	if index.Scopes == nil {
+		index.Scopes = []string{}
+	}
+	if index.Packages == nil {
+		index.Packages = make(map[string][]string)
+	}
+	return &index, nil
+}
+
+// getSPMRegistryIndex fetches .spm-registry/index.json and returns the list of scopes, sorted.
+// On 404 or non-200 status it returns (nil, error). On 200 it decodes JSON and returns a sorted copy of scopes.
+func (c *client) getSPMRegistryIndex(ctx context.Context) ([]string, error) {
+	index, err := c.getSPMRegistryIndexFull(ctx)
 	if err != nil {
-		return []string{}, nil
+		return nil, err
 	}
-	var names []string
-	seen := make(map[string]bool)
-	for _, m := range hrefRegex.FindAllStringSubmatch(string(body), -1) {
-		if len(m) < 2 {
-			continue
-		}
-		name := strings.TrimSuffix(m[1], "/")
-		if name == "" || name == "." || name == ".." {
-			continue
-		}
-		if seen[name] {
-			continue
-		}
-		seen[name] = true
-		names = append(names, name)
-	}
-	return names, nil
+	out := make([]string, len(index.Scopes))
+	copy(out, index.Scopes)
+	sort.Strings(out)
+	return out, nil
 }
 
 // PUT performs a PUT request to upload artifacts

@@ -16,6 +16,32 @@ import (
 	"time"
 )
 
+// pathParamsKey is used as a key for the context
+type pathParamsKey struct{}
+
+// mockRepo is a mock implementation of the repository interface
+type mockRepo struct {
+	getReaderFunc               func(element *models.UploadElement) (io.ReadSeekCloser, error)
+	getAlternativeManifestsFunc func(element *models.UploadElement) ([]models.UploadElement, error)
+	publishDateFunc             func(element *models.UploadElement) (time.Time, error)
+	getSwiftToolVersionFunc     func(element *models.UploadElement) (string, error)
+}
+
+// mockTimeProvider is a mock implementation of the time provider
+type mockTimeProvider struct {
+	currentTime time.Time
+}
+
+// mockReaderWithCloseError is a mock reader that returns an error on Close
+type mockReaderWithCloseError struct {
+	*bytes.Reader
+}
+
+// mockReaderWithSeekError is a mock reader that returns an error on Seek
+type mockReaderWithSeekError struct {
+	*bytes.Reader
+}
+
 func newTestConfig(hostname string, port int, baseURL string) config.ServerConfig {
 	return config.ServerConfig{
 		Hostname:   hostname,
@@ -479,19 +505,6 @@ func TestFetchManifestAction_ServeContentError(t *testing.T) {
 	}
 }
 
-// Mock types and implementations
-
-// pathParamsKey is used as a key for the context
-type pathParamsKey struct{}
-
-// mockRepo is a mock implementation of the repository interface
-type mockRepo struct {
-	getReaderFunc               func(element *models.UploadElement) (io.ReadSeekCloser, error)
-	getAlternativeManifestsFunc func(element *models.UploadElement) ([]models.UploadElement, error)
-	publishDateFunc             func(element *models.UploadElement) (time.Time, error)
-	getSwiftToolVersionFunc     func(element *models.UploadElement) (string, error)
-}
-
 func (m *mockRepo) GetReader(ctx context.Context, element *models.UploadElement) (io.ReadSeekCloser, error) {
 	return m.getReaderFunc(element)
 }
@@ -566,27 +579,12 @@ func (m *mockRepo) LoadPackageJson(ctx context.Context, scope string, name strin
 	return nil, nil
 }
 
-// mockTimeProvider is a mock implementation of the time provider
-type mockTimeProvider struct {
-	currentTime time.Time
-}
-
 func (m *mockTimeProvider) Now() time.Time {
 	return m.currentTime
 }
 
-// mockReaderWithCloseError is a mock reader that returns an error on Close
-type mockReaderWithCloseError struct {
-	*bytes.Reader
-}
-
 func (m *mockReaderWithCloseError) Close() error {
 	return fmt.Errorf("mock close error")
-}
-
-// mockReaderWithSeekError is a mock reader that returns an error on Seek
-type mockReaderWithSeekError struct {
-	*bytes.Reader
 }
 
 func (m *mockReaderWithSeekError) Seek(offset int64, whence int) (int64, error) {

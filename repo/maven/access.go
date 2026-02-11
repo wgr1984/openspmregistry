@@ -7,10 +7,12 @@ import (
 	"bytes"
 	"context"
 	"crypto/sha256"
+	"encoding/json"
 	"fmt"
 	"io"
 	"log/slog"
 	"net/http"
+	"sort"
 	"sync"
 )
 
@@ -22,6 +24,20 @@ type access struct {
 	// metadataKeys serializes maven-metadata.xml updates per groupId/artifactId to prevent lost updates from concurrent uploads
 	metadataMu   sync.Mutex
 	metadataKeys map[string]*sync.Mutex
+	// indexMu serializes read-modify-write of SPM registry index so concurrent publishes don't overwrite each other
+	indexMu sync.Mutex
+}
+
+// mavenWriter implements io.WriteCloser and uploads data via PUT on Close()
+type mavenWriter struct {
+	client      *client
+	config      config.MavenConfig
+	access      *access
+	path        string
+	element     *models.UploadElement
+	contentType string
+	buffer      []byte
+	ctx         context.Context
 }
 
 // newAccess creates a new Maven access implementation
@@ -119,18 +135,6 @@ func (a *access) GetWriter(ctx context.Context, element *models.UploadElement) (
 	return newMavenWriter(a.client, a.config, a, path, element, ctx), nil
 }
 
-// mavenWriter implements io.WriteCloser and uploads data via PUT on Close()
-type mavenWriter struct {
-	client      *client
-	config      config.MavenConfig
-	access      *access
-	path        string
-	element     *models.UploadElement
-	contentType string
-	buffer      []byte
-	ctx         context.Context
-}
-
 func newMavenWriter(client *client, cfg config.MavenConfig, access *access, path string, element *models.UploadElement, ctx context.Context) *mavenWriter {
 	return &mavenWriter{
 		client:      client,
@@ -141,6 +145,63 @@ func newMavenWriter(client *client, cfg config.MavenConfig, access *access, path
 		contentType: element.MimeType,
 		buffer:      make([]byte, 0),
 		ctx:         ctx,
+	}
+}
+
+// updateSPMRegistryIndex GETs the SPM registry index (spmRegistryIndexPath), adds scope and packageName if not present, sorts, and PUTs back.
+// On 404 or invalid body the current list is treated as empty. Logs warnings on failure; does not fail the publish.
+func (a *access) updateSPMRegistryIndex(ctx context.Context, scope, packageName string) {
+	a.indexMu.Lock()
+	defer a.indexMu.Unlock()
+
+	var scopes []string
+	packages := make(map[string][]string)
+	resp, err := a.client.GET(ctx, spmRegistryIndexPath)
+	if err == nil && resp != nil {
+		if resp.StatusCode == http.StatusOK {
+			var index spmRegistryIndexResponse
+			if decErr := json.NewDecoder(resp.Body).Decode(&index); decErr == nil {
+				if index.Scopes != nil {
+					scopes = index.Scopes
+				}
+				if index.Packages != nil {
+					packages = index.Packages
+				}
+			}
+		}
+		_ = resp.Body.Close()
+	}
+	if packages == nil {
+		packages = make(map[string][]string)
+	}
+
+	scopeSeen := make(map[string]bool)
+	for _, s := range scopes {
+		scopeSeen[s] = true
+	}
+	if !scopeSeen[scope] {
+		scopes = append(scopes, scope)
+		sort.Strings(scopes)
+	}
+
+	pkgList := packages[scope]
+	pkgSeen := make(map[string]bool)
+	for _, p := range pkgList {
+		pkgSeen[p] = true
+	}
+	if !pkgSeen[packageName] {
+		pkgList = append(pkgList, packageName)
+		sort.Strings(pkgList)
+		packages[scope] = pkgList
+	}
+
+	body, err := json.Marshal(spmRegistryIndexResponse{Scopes: scopes, Packages: packages})
+	if err != nil {
+		slog.Warn("failed to marshal SPM registry index", "error", err)
+		return
+	}
+	if err := a.client.PUT(ctx, spmRegistryIndexPath, bytes.NewReader(body), "application/json"); err != nil {
+		slog.Warn("failed to update SPM registry index", "path", spmRegistryIndexPath, "error", err)
 	}
 }
 
@@ -200,6 +261,7 @@ func (w *mavenWriter) Close() error {
 				slog.Debug("Failed to update maven-metadata.xml", "error", err, "groupId", groupId, "artifactId", artifactId, "version", version)
 			}
 		}
+		w.access.updateSPMRegistryIndex(w.ctx, w.element.Scope, w.element.Name)
 	}
 
 	return nil

@@ -5,9 +5,11 @@ import (
 	"OpenSPMRegistry/mimetypes"
 	"OpenSPMRegistry/models"
 	"context"
+	"encoding/json"
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 )
 
@@ -576,4 +578,71 @@ func Test_GetWriter_ErrorBuildingPath_ReturnsError(t *testing.T) {
 		t.Errorf("expected writer, got nil")
 	}
 	_ = writer.Close()
+}
+
+func Test_mavenWriter_Close_UpdatesSPMRegistryIndexWithScopeAndPackage(t *testing.T) {
+	var indexPUTBody []byte
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		path := r.URL.Path
+		if r.Method == "GET" && strings.HasSuffix(path, "index-1.json") {
+			w.WriteHeader(http.StatusNotFound)
+			return
+		}
+		if r.Method == "PUT" {
+			if strings.HasSuffix(path, "index-1.json") {
+				indexPUTBody, _ = io.ReadAll(r.Body)
+			}
+			w.WriteHeader(http.StatusOK)
+		}
+	}))
+	defer server.Close()
+
+	cfg := config.MavenConfig{BaseURL: server.URL}
+	c, _ := newClient(cfg)
+	a := newAccess(c, cfg)
+
+	element := models.NewUploadElement("testScope", "my-package", "1.0.0", mimetypes.ApplicationZip, models.SourceArchive)
+	writer, err := a.GetWriter(context.Background(), element)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if _, err := writer.Write([]byte("zip")); err != nil {
+		t.Fatalf("unexpected error writing: %v", err)
+	}
+	if err := writer.Close(); err != nil {
+		t.Fatalf("unexpected error closing: %v", err)
+	}
+
+	if len(indexPUTBody) == 0 {
+		t.Fatal("expected index.json to be PUT, no body captured")
+	}
+	var index spmRegistryIndexResponse
+	if err := json.Unmarshal(indexPUTBody, &index); err != nil {
+		t.Fatalf("failed to decode index: %v", err)
+	}
+	hasScope := false
+	for _, s := range index.Scopes {
+		if s == "testScope" {
+			hasScope = true
+			break
+		}
+	}
+	if !hasScope {
+		t.Errorf("expected index.scopes to contain testScope, got %v", index.Scopes)
+	}
+	pkgs, ok := index.Packages["testScope"]
+	if !ok || len(pkgs) == 0 {
+		t.Errorf("expected index.packages[testScope] to contain my-package, got %v", index.Packages)
+	} else {
+		hasPkg := false
+		for _, p := range pkgs {
+			if p == "my-package" {
+				hasPkg = true
+				break
+			}
+		}
+		if !hasPkg {
+			t.Errorf("expected index.packages[testScope] to contain my-package, got %v", pkgs)
+		}
+	}
 }

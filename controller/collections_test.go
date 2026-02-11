@@ -14,6 +14,18 @@ import (
 	"OpenSPMRegistry/responses"
 )
 
+type collectionTestRepo struct {
+	MockRepo
+	listAll        []models.ListElement
+	listInScope    []models.ListElement
+	listAllErr     error
+	listInScopeErr error
+	packageJson    map[string]any
+	metadata       map[string]any
+	swiftVersion   string
+	publishDate    time.Time
+}
+
 func Test_GlobalCollectionAction_CollectionsDisabled_ReturnsNotFound(t *testing.T) {
 	c := &Controller{
 		config: config.ServerConfig{
@@ -196,18 +208,6 @@ func Test_ScopeCollectionAction_ReturnsScopeCollection(t *testing.T) {
 	if len(coll.Packages) != 1 {
 		t.Fatalf("expected 1 package, got %d", len(coll.Packages))
 	}
-}
-
-type collectionTestRepo struct {
-	MockRepo
-	listAll        []models.ListElement
-	listInScope    []models.ListElement
-	listAllErr     error
-	listInScopeErr error
-	packageJson    map[string]any
-	metadata       map[string]any
-	swiftVersion   string
-	publishDate    time.Time
 }
 
 func newCollectionTestRepo(elements []models.ListElement) *collectionTestRepo {

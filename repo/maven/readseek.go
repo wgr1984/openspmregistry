@@ -22,6 +22,12 @@ type rangeReadSeekCloser struct {
 	closed bool
 }
 
+// bufferedReadSeekCloser implements io.ReadSeekCloser by buffering the entire response
+type bufferedReadSeekCloser struct {
+	*bytes.Reader
+	closed bool
+}
+
 // newRangeReadSeekCloser creates a new range-based ReadSeekCloser
 func newRangeReadSeekCloser(client *client, url string, ctx context.Context) (*rangeReadSeekCloser, error) {
 	// First, get the size via HEAD request
@@ -188,12 +194,6 @@ func (r *rangeReadSeekCloser) Close() error {
 		return r.body.Close()
 	}
 	return nil
-}
-
-// bufferedReadSeekCloser implements io.ReadSeekCloser by buffering the entire response
-type bufferedReadSeekCloser struct {
-	*bytes.Reader
-	closed bool
 }
 
 // newBufferedReadSeekCloser creates a new buffered ReadSeekCloser
