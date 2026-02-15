@@ -91,15 +91,15 @@ The E2E sample package (`testdata/e2e/example.SamplePackage/`) includes:
 - **config.e2e.yml**: E2E server config (port 8082, HTTP, Maven repo `http://localhost:8081/repository/private`, auth to Nexus via admin/admin123).
 - **E2E_REGISTRY_URL**: Override registry URL (default: `http://127.0.0.1:8082`).
 
-### HTTPS E2E (optional)
+### HTTPS E2E
 
-The default E2E uses HTTP because Swift PM does not reliably use netrc or Keychain credentials in scripted/non-interactive runs. For manual HTTPS + auth testing:
+For HTTPS + auth testing, the script handles cert generation, keychain trust, and login automatically:
 
-1. Run `scripts/e2e-generate-certs.sh` to create `testdata/e2e/certs/`.
-2. Add cert to keychain: `security add-trusted-cert -d -r trustRoot -p ssl testdata/e2e/certs/server.crt`
-3. Enable TLS and auth in `config.e2e.yml`, set `E2E_REGISTRY_URL=https://127.0.0.1:8082`.
-4. Run `swift package-registry login https://127.0.0.1:8082 --username e2e --password e2e123 --no-confirm` (interactive).
-5. Run `make test-e2e-swift`.
+```bash
+E2E_REGISTRY_URL=https://127.0.0.1:8082 make test-e2e-swift
+```
+
+This uses `config.e2e.https.yml`, generates certs if needed, adds them to the keychain, starts the registry, runs `swift package-registry login` (while server is running), then publishes and resolves.
 
 ## Architecture
 

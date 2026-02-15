@@ -50,16 +50,19 @@ func newClient(cfg config.MavenConfig) (*client, error) {
 }
 
 // getAuthHeader retrieves the Authorization header from context (passthrough mode)
-// or builds it from configured credentials (config mode)
+// or builds it from configured credentials (config mode).
+// When authMode is "config", always use configured credentials for the Maven backend;
+// passthrough is only used when authMode is "passthrough".
 func (c *client) getAuthHeader(ctx context.Context) string {
-	// Check context first (passthrough mode)
-	if ctxAuth := ctx.Value(config.AuthHeaderContextKey); ctxAuth != nil {
-		if authHeader, ok := ctxAuth.(string); ok && authHeader != "" {
-			return authHeader
+	if c.config.AuthMode == "passthrough" {
+		if ctxAuth := ctx.Value(config.AuthHeaderContextKey); ctxAuth != nil {
+			if authHeader, ok := ctxAuth.(string); ok && authHeader != "" {
+				return authHeader
+			}
 		}
+		return ""
 	}
 
-	// Fall back to configured credentials (config mode)
 	if c.config.AuthMode == "config" || (c.config.AuthMode == "" && c.config.Username != "") {
 		return c.buildBasicAuth(c.config.Username, c.config.Password)
 	}

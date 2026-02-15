@@ -67,13 +67,28 @@ func Test_buildBasicAuth_ValidCredentials_ReturnsAuthHeader(t *testing.T) {
 	}
 }
 
-func Test_getAuthHeader_ContextAuth_ReturnsContextAuth(t *testing.T) {
-	cfg := config.MavenConfig{}
+func Test_getAuthHeader_PassthroughMode_ReturnsContextAuth(t *testing.T) {
+	cfg := config.MavenConfig{AuthMode: "passthrough"}
 	c, _ := newClient(cfg)
 	ctx := context.WithValue(context.Background(), config.AuthHeaderContextKey, "Bearer token123")
 	result := c.getAuthHeader(ctx)
 	if result != "Bearer token123" {
 		t.Errorf("expected 'Bearer token123', got '%s'", result)
+	}
+}
+
+func Test_getAuthHeader_ConfigMode_IgnoresContextAuth(t *testing.T) {
+	cfg := config.MavenConfig{
+		AuthMode: "config",
+		Username: "admin",
+		Password: "admin123",
+	}
+	c, _ := newClient(cfg)
+	ctx := context.WithValue(context.Background(), config.AuthHeaderContextKey, "Basic e2e:dXB3")
+	result := c.getAuthHeader(ctx)
+	expected := "Basic " + base64.StdEncoding.EncodeToString([]byte("admin:admin123"))
+	if result != expected {
+		t.Errorf("expected config auth, got '%s'", result)
 	}
 }
 
