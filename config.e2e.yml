@@ -1,0 +1,28 @@
+# E2E test config: OpenSPMRegistry with Maven backend (Nexus).
+# Run with: openspmregistry -config config.e2e.yml
+# Nexus must be running (make test-integration-up).
+# Uses HTTP: Swift PM does not reliably use netrc/Keychain credentials in scripted E2E.
+server:
+  hostname: 127.0.0.1
+  port: 8082
+  tlsEnabled: false
+  certs:
+    cert: server.crt
+    key: server.key
+  repo:
+    type: maven
+    maven:
+      baseURL: http://localhost:8081/repository/private
+      authMode: config
+      username: admin
+      password: admin123
+      timeout: 30
+  publish:
+    maxSize: 204800
+  auth:
+    enabled: false
+    # For HTTPS + auth: enable above, run scripts/e2e-generate-certs.sh, add cert to keychain,
+    # then: swift package-registry login https://127.0.0.1:8082 --username e2e --password e2e123 --no-confirm
+  packageCollections:
+    enabled: true
+    requirePackageJson: false

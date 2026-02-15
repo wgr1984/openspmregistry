@@ -154,12 +154,6 @@ func storeElements(w http.ResponseWriter, r *http.Request, name string, scope st
 		return element, fmt.Errorf("error storing file: %s", element.FileName())
 	}
 
-	defer func() {
-		if err := writer.Close(); err != nil {
-			slog.Error("Error closing writer:", "error", err)
-		}
-	}()
-
 	_, err1 := io.Copy(writer, part)
 	errs := []error{
 		err1,
@@ -170,9 +164,17 @@ func storeElements(w http.ResponseWriter, r *http.Request, name string, scope st
 		if err != nil {
 			slog.Error("Error", "msg", err)
 			writeError("upload failed, error storing file", w)
-			// return element so it get cleaned up
+			_ = writer.Close()
 			return element, fmt.Errorf("error storing file: %s", element.FileName())
 		}
+	}
+
+	// Close writer before ExtractManifestFiles so the backend (e.g. Maven) has the
+	// file available for GetReader when extracting Package.swift and Package.json.
+	if err := writer.Close(); err != nil {
+		slog.Error("Error closing writer:", "error", err)
+		writeError("upload failed, error storing file", w)
+		return element, fmt.Errorf("error closing writer: %w", err)
 	}
 
 	if err := c.repo.ExtractManifestFiles(ctx, element); err != nil {

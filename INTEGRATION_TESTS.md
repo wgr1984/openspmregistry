@@ -39,6 +39,68 @@ Run integration tests manually:
 INTEGRATION_TESTS=1 MAVEN_REPO_URL=http://localhost:8081/repository MAVEN_REPO_NAME=private MAVEN_REPO_USERNAME=admin MAVEN_REPO_PASSWORD=admin123 go test -tags=integration -v ./repo/maven/... -run TestIntegration
 ```
 
+## E2E Swift Publish and Resolve
+
+A real end-to-end test uses the Swift CLI to publish a package to OpenSPMRegistry (backed by Maven/Nexus) and resolve it from a consumer project.
+
+### Prerequisites
+
+- Nexus running (same as integration tests)
+- Swift toolchain installed (Swift 5.9+ recommended)
+- Python 3 (for Nexus cleanup script; optional, test still runs if cleanup fails)
+- Run from repository root
+
+### How to Run
+
+**Option 1 — Nexus already up** (e.g. after `make test-integration-up`):
+
+```bash
+make test-e2e-swift
+```
+
+**Option 2 — Start Nexus, run E2E, then tear down:**
+
+```bash
+make test-e2e-full
+```
+
+If Swift is not installed, `test-e2e-swift` exits successfully without failing (skip).
+
+### What It Does
+
+1. Cleans state: removes Consumer `Package.resolved` and `.build`, purges Swift PM cache, deletes `example.SamplePackage` from Nexus (via `scripts/e2e-clean-nexus.sh`).
+2. Builds OpenSPMRegistry and starts it with `config.e2e.yml` (HTTP on port 8082, Maven backend to Nexus).
+3. Prepares the sample package: generates `Package.json` (via `swift package dump-package`), uses `package-metadata.json` (description, author, license), and includes `Package@swift-5.8.swift` for manifest variants.
+4. Publishes `example.SamplePackage` version `1.0.0` via `swift package-registry publish`.
+5. Verifies package metadata (GET package info, checks `metadata.description`).
+6. Verifies alternative manifest (GET `Package.swift?swift-version=5.8`, checks `swift-tools-version:5.8`).
+7. In `testdata/e2e/Consumer/`, configures the registry and runs `swift package resolve`.
+8. Verifies that `Package.resolved` contains `example.SamplePackage`.
+
+### Sample Package Structure
+
+The E2E sample package (`testdata/e2e/example.SamplePackage/`) includes:
+
+- **Package.swift** (swift-tools-version:5.9): Base manifest
+- **Package@swift-5.8.swift**: Alternative manifest for Swift 5.8
+- **package-metadata.json**: Release metadata (description, author, licenseURL, repositoryURLs) per SPM Registry spec
+- **Package.json**: Generated at runtime via `swift package dump-package` (used for package collections)
+
+### Configuration
+
+- **config.e2e.yml**: E2E server config (port 8082, HTTP, Maven repo `http://localhost:8081/repository/private`, auth to Nexus via admin/admin123).
+- **E2E_REGISTRY_URL**: Override registry URL (default: `http://127.0.0.1:8082`).
+
+### HTTPS E2E (optional)
+
+The default E2E uses HTTP because Swift PM does not reliably use netrc or Keychain credentials in scripted/non-interactive runs. For manual HTTPS + auth testing:
+
+1. Run `scripts/e2e-generate-certs.sh` to create `testdata/e2e/certs/`.
+2. Add cert to keychain: `security add-trusted-cert -d -r trustRoot -p ssl testdata/e2e/certs/server.crt`
+3. Enable TLS and auth in `config.e2e.yml`, set `E2E_REGISTRY_URL=https://127.0.0.1:8082`.
+4. Run `swift package-registry login https://127.0.0.1:8082 --username e2e --password e2e123 --no-confirm` (interactive).
+5. Run `make test-e2e-swift`.
+
 ## Architecture
 
 ### Docker Compose

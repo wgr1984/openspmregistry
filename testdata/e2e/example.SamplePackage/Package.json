@@ -1,0 +1,60 @@
+{
+  "cLanguageStandard" : null,
+  "cxxLanguageStandard" : null,
+  "dependencies" : [
+
+  ],
+  "name" : "SamplePackage",
+  "packageKind" : {
+    "root" : [
+      "/Users/wolfgangreithmeier/GolandProjects/OpenSPMRegistry/testdata/e2e/example.SamplePackage"
+    ]
+  },
+  "pkgConfig" : null,
+  "platforms" : [
+
+  ],
+  "products" : [
+    {
+      "name" : "SamplePackage",
+      "settings" : [
+
+      ],
+      "targets" : [
+        "SamplePackage"
+      ],
+      "type" : {
+        "library" : [
+          "automatic"
+        ]
+      }
+    }
+  ],
+  "providers" : null,
+  "swiftLanguageVersions" : null,
+  "targets" : [
+    {
+      "dependencies" : [
+
+      ],
+      "exclude" : [
+
+      ],
+      "name" : "SamplePackage",
+      "packageAccess" : true,
+      "resources" : [
+
+      ],
+      "settings" : [
+
+      ],
+      "type" : "regular"
+    }
+  ],
+  "toolsVersion" : {
+    "_version" : "5.9.0"
+  },
+  "traits" : [
+
+  ]
+}

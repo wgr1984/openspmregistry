@@ -2,7 +2,7 @@ TAILWIND = npx tailwindcss -i ./static/input.css -o ./static/output.css
 VERSION ?= 0.0.0
 RELEASE_TYPE ?= patch
 
-.PHONY: help build clean build-docker run tailwind tailwind-watch lint staticcheck golangci-lint errcheck release changelog-unreleased test-integration test-integration-up test-integration-down
+.PHONY: help build clean build-docker run tailwind tailwind-watch lint staticcheck golangci-lint errcheck release changelog-unreleased test-integration test-integration-up test-integration-down test-e2e-generate-certs test-e2e-swift test-e2e-full
 
 # Default target when no arguments are given to make
 help:
@@ -26,6 +26,9 @@ help:
 	@echo "  test-integration - Run integration tests (requires Docker)"
 	@echo "  test-integration-up - Start Nexus test server"
 	@echo "  test-integration-down - Stop Nexus test server"
+	@echo "  test-e2e-generate-certs - Generate E2E HTTPS certs (for optional HTTPS testing)"
+	@echo "  test-e2e-swift - E2E: Swift publish + resolve (Nexus must be up; requires Swift)"
+	@echo "  test-e2e-full - Start Nexus, run E2E Swift test, then stop Nexus"
 	@echo ""
 	@echo "Example usage:"
 	@echo "  make build              - Build the project"
@@ -139,4 +142,18 @@ test-integration: test-integration-up
 	  MAVEN_REPO_PASSWORD=admin123; \
 	fi; \
 	INTEGRATION_TESTS=1 MAVEN_REPO_URL=http://localhost:8081/repository MAVEN_REPO_NAME=private MAVEN_REPO_USERNAME=admin MAVEN_REPO_PASSWORD="$$MAVEN_REPO_PASSWORD" go test -tags=integration -v ./repo/maven/... -run TestIntegration
+	@$(MAKE) test-integration-down
+
+# Generate E2E certs for optional HTTPS testing (testdata/e2e/certs/).
+test-e2e-generate-certs:
+	@bash scripts/e2e-generate-certs.sh
+
+# E2E Swift: publish package to OpenSPMRegistry (Maven-backed) and resolve from consumer.
+# test-e2e-swift: run E2E script only (start Nexus first with make test-integration-up).
+test-e2e-swift:
+	@bash scripts/e2e-swift-publish-resolve.sh
+
+# test-e2e-full: start Nexus, bootstrap, run E2E Swift test, then tear down.
+test-e2e-full: test-integration-up
+	@$(MAKE) test-e2e-swift
 	@$(MAKE) test-integration-down

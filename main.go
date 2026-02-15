@@ -22,16 +22,22 @@ import (
 )
 
 var (
-	verboseFlag bool
+	verboseFlag  bool
+	configPath   string
 )
 
 func loadServerConfig() (*config.ServerRoot, error) {
-	yamlData, err := os.ReadFile("config.local.yml")
-	if err != nil {
-		yamlData, err = os.ReadFile("config.yml")
-		if err != nil {
-			return nil, err
+	path := configPath
+	if path == "" {
+		if _, err := os.Stat("config.local.yml"); err == nil {
+			path = "config.local.yml"
+		} else {
+			path = "config.yml"
 		}
+	}
+	yamlData, err := os.ReadFile(path)
+	if err != nil {
+		return nil, err
 	}
 
 	serverRoot := &config.ServerRoot{
@@ -49,6 +55,7 @@ func loadServerConfig() (*config.ServerRoot, error) {
 
 func main() {
 	flag.BoolVar(&verboseFlag, "v", false, "show more information")
+	flag.StringVar(&configPath, "config", "", "path to config file (default: config.local.yml or config.yml)")
 	flag.Parse()
 
 	if verboseFlag {

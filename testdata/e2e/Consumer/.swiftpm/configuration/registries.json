@@ -1,0 +1,12 @@
+{
+  "authentication" : {
+
+  },
+  "registries" : {
+    "[default]" : {
+      "supportsAvailability" : false,
+      "url" : "http://127.0.0.1:8082"
+    }
+  },
+  "version" : 1
+}
