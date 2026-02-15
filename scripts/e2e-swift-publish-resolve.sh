@@ -16,8 +16,9 @@ E2E_USE_HTTPS=false
 E2E_USER="${E2E_REGISTRY_USER:-admin}"
 E2E_PASS="${E2E_REGISTRY_PASS:-admin123}"
 SCOPE="example"
-PACKAGE_NAME="SamplePackage"
-VERSION="1.0.0"
+# Packages: name -> directory
+# SamplePackage: 1.0.0, 1.1.0
+# UtilsPackage: 1.0.0, 1.1.0
 [ "$E2E_USE_HTTPS" = true ] && CONFIG_E2E="config.e2e.https.yml" || CONFIG_E2E="config.e2e.yml"
 SERVER_PID=""
 SERVER_BINARY=""
@@ -39,7 +40,7 @@ echo "Cleaning Consumer directory..."
 rm -f "$ROOT_DIR/testdata/e2e/Consumer/Package.resolved"
 rm -rf "$ROOT_DIR/testdata/e2e/Consumer/.build"
 
-echo "Cleaning example.SamplePackage from Nexus..."
+echo "Cleaning E2E packages (example.SamplePackage, example.UtilsPackage) from Nexus..."
 "$SCRIPT_DIR/e2e-clean-nexus.sh" 2>/dev/null || true
 
 if ! command -v swift >/dev/null 2>&1; then
@@ -110,20 +111,39 @@ if [ "$E2E_USE_HTTPS" = true ]; then
 	}
 fi
 
-PACKAGE_ID="${SCOPE}.${PACKAGE_NAME}"
-echo "Preparing sample package (Package.json, package-metadata.json, Package@swift-5.8.swift)..."
-cd "$ROOT_DIR/testdata/e2e/example.SamplePackage"
-swift package dump-package > Package.json 2>/dev/null || true
-
-echo "Publishing $PACKAGE_ID $VERSION (with metadata and manifest variants)..."
-PUBLISH_OPTS="--url $REGISTRY_URL"
-[ "$E2E_USE_HTTPS" = false ] && PUBLISH_OPTS="$PUBLISH_OPTS --allow-insecure-http"
-swift package-registry publish "$PACKAGE_ID" "$VERSION" $PUBLISH_OPTS
-
-echo "Verifying package metadata..."
 ACCEPT_JSON="Accept: application/vnd.swift.registry.v1+json"
 VERIFY_AUTH=""
 [ "$E2E_USE_HTTPS" = true ] && VERIFY_AUTH="-u ${E2E_USER}:${E2E_PASS}"
+PUBLISH_OPTS="--url $REGISTRY_URL"
+[ "$E2E_USE_HTTPS" = false ] && PUBLISH_OPTS="$PUBLISH_OPTS --allow-insecure-http"
+
+# Publish SamplePackage 1.0.0 and 1.1.0
+for VERSION in 1.0.0 1.1.0; do
+	PACKAGE_NAME="SamplePackage"
+	PACKAGE_ID="${SCOPE}.${PACKAGE_NAME}"
+	echo "Preparing $PACKAGE_ID (Package.json, package-metadata.json, Package@swift-5.8.swift)..."
+	cd "$ROOT_DIR/testdata/e2e/example.SamplePackage"
+	swift package dump-package > Package.json 2>/dev/null || true
+	echo "Publishing $PACKAGE_ID $VERSION..."
+	swift package-registry publish "$PACKAGE_ID" "$VERSION" $PUBLISH_OPTS
+done
+
+# Publish UtilsPackage 1.0.0 and 1.1.0
+for VERSION in 1.0.0 1.1.0; do
+	PACKAGE_NAME="UtilsPackage"
+	PACKAGE_ID="${SCOPE}.${PACKAGE_NAME}"
+	echo "Preparing $PACKAGE_ID..."
+	cd "$ROOT_DIR/testdata/e2e/example.UtilsPackage"
+	swift package dump-package > Package.json 2>/dev/null || true
+	echo "Publishing $PACKAGE_ID $VERSION..."
+	swift package-registry publish "$PACKAGE_ID" "$VERSION" $PUBLISH_OPTS
+done
+
+# Verify package metadata and manifest for SamplePackage 1.0.0
+PACKAGE_NAME="SamplePackage"
+VERSION="1.0.0"
+PACKAGE_ID="${SCOPE}.${PACKAGE_NAME}"
+echo "Verifying $PACKAGE_ID $VERSION metadata..."
 INFO_JSON=$(curl $CURL_OPTS $VERIFY_AUTH -H "$ACCEPT_JSON" "${REGISTRY_URL}/${SCOPE}/${PACKAGE_NAME}/${VERSION}")
 if ! echo "$INFO_JSON" | grep -q '"metadata"'; then
 	echo "Package info response missing metadata."
@@ -135,7 +155,7 @@ if ! echo "$INFO_JSON" | grep -q '"description"'; then
 fi
 echo "  OK: package metadata"
 
-echo "Verifying alternative manifest (Package@swift-5.8)..."
+echo "Verifying alternative manifest (Package@swift-5.8) for $PACKAGE_ID..."
 ACCEPT_SWIFT="Accept: application/vnd.swift.registry.v1+swift"
 MANIFEST_58=$(curl $CURL_OPTS $VERIFY_AUTH -H "$ACCEPT_SWIFT" "${REGISTRY_URL}/${SCOPE}/${PACKAGE_NAME}/${VERSION}/Package.swift?swift-version=5.8")
 if ! echo "$MANIFEST_58" | grep -q "swift-tools-version:5.8"; then
@@ -154,27 +174,33 @@ if ! echo "$COLLECTION_GLOBAL" | grep -q '"packages"'; then
 	echo "Global collection response missing packages array."
 	exit 1
 fi
-if ! echo "$COLLECTION_GLOBAL" | grep -q "\"${PACKAGE_ID}\""; then
-	echo "Global collection does not contain ${PACKAGE_ID}."
-	exit 1
-fi
+for PKG in example.SamplePackage example.UtilsPackage; do
+	if ! echo "$COLLECTION_GLOBAL" | grep -q "\"${PKG}\""; then
+		echo "Global collection does not contain ${PKG}."
+		exit 1
+	fi
+done
 if ! echo "$COLLECTION_GLOBAL" | grep -q '"generatedBy"'; then
 	echo "Global collection response missing generatedBy."
 	exit 1
 fi
-echo "  OK: global collection"
+echo "  OK: global collection (contains both packages)"
 
 echo "Verifying package collection (scope ${SCOPE})..."
 COLLECTION_SCOPE=$(curl $CURL_OPTS $VERIFY_AUTH -H "Accept: application/json" "${REGISTRY_URL}/collection/${SCOPE}")
-if ! echo "$COLLECTION_SCOPE" | grep -q "\"${PACKAGE_ID}\""; then
-	echo "Scope collection /collection/${SCOPE} does not contain ${PACKAGE_ID}."
-	exit 1
-fi
-if ! echo "$COLLECTION_SCOPE" | grep -q "\"${VERSION}\""; then
-	echo "Scope collection does not contain version ${VERSION}."
-	exit 1
-fi
-echo "  OK: scope collection"
+for PKG_ID in example.SamplePackage example.UtilsPackage; do
+	if ! echo "$COLLECTION_SCOPE" | grep -q "\"${PKG_ID}\""; then
+		echo "Scope collection /collection/${SCOPE} does not contain ${PKG_ID}."
+		exit 1
+	fi
+done
+for VER in 1.0.0 1.1.0; do
+	if ! echo "$COLLECTION_SCOPE" | grep -q "\"${VER}\""; then
+		echo "Scope collection does not contain version ${VER}."
+		exit 1
+	fi
+done
+echo "  OK: scope collection (both packages, multiple versions)"
 
 echo "Verifying package collection (non-existent scope returns 404)..."
 COLLECTION_404=$(curl $CURL_OPTS $VERIFY_AUTH -w "%{http_code}" -o /dev/null -H "Accept: application/json" "${REGISTRY_URL}/collection/nonexistentscope123")
@@ -234,11 +260,26 @@ if [ ! -f Package.resolved ]; then
 	echo "Package.resolved was not created; resolve may have failed."
 	exit 1
 fi
-if ! grep -q "example.SamplePackage" Package.resolved; then
-	echo "Package.resolved does not contain example.SamplePackage."
+for PKG in example.SamplePackage example.UtilsPackage; do
+	if ! grep -q "$PKG" Package.resolved; then
+		echo "Package.resolved does not contain $PKG."
+		exit 1
+	fi
+done
+echo "  OK: consumer resolve (both packages)"
+
+echo "Building and running Consumer..."
+swift build
+OUTPUT=$(swift run Consumer 2>&1)
+if ! echo "$OUTPUT" | grep -q "Resolved SamplePackage"; then
+	echo "Consumer output missing SamplePackage: $OUTPUT"
 	exit 1
 fi
-echo "  OK: consumer resolve"
+if ! echo "$OUTPUT" | grep -q "Resolved UtilsPackage"; then
+	echo "Consumer output missing UtilsPackage: $OUTPUT"
+	exit 1
+fi
+echo "  OK: consumer build and run"
 
 echo ""
 echo "E2E Swift publish and resolve: OK"
