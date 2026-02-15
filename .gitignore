@@ -43,4 +43,4 @@ CHANGELOG.md.tmp
 .vscode/**
 testdata/e2e/example.SamplePackage/.build
 testdata/e2e/Consumer/.build
-.swiftpm/**
+**/.swiftpm/**
