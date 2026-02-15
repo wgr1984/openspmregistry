@@ -104,8 +104,14 @@ func main() {
 	a.HandleFunc("PUT /{scope}/{package}/{version}", c.PublishAction)
 
 	// Package Collections endpoints (if enabled)
-	a.HandleFunc("GET /collection", c.GlobalCollectionAction)
-	a.HandleFunc("GET /collection/{scope}", c.ScopeCollectionAction)
+	// Use publicRead for unauthenticated access, or auth via ?auth=<base64(user:pass)> query param
+	if serverConfig.Server.PackageCollections.PublicRead {
+		router.HandleFunc("GET /collection", c.GlobalCollectionAction)
+		router.HandleFunc("GET /collection/{scope}", c.ScopeCollectionAction)
+	} else {
+		a.HandleFunc("GET /collection", c.GlobalCollectionAction)
+		a.HandleFunc("GET /collection/{scope}", c.ScopeCollectionAction)
+	}
 
 	// public routes
 	router.HandleFunc("GET /", c.MainAction)

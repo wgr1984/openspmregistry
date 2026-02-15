@@ -3,9 +3,11 @@ package middleware
 import (
 	"OpenSPMRegistry/authenticator"
 	"context"
+	"encoding/base64"
 	"fmt"
 	"log/slog"
 	"net/http"
+	"strings"
 )
 
 type Authentication struct {
@@ -50,6 +52,15 @@ func (a *Authentication) HandleFunc(pattern string, handler http.HandlerFunc) {
 // if the request is authorized, it calls the next handler
 func (a *Authentication) authenticate(next http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
+		// Promote auth query param to Authorization header for clients that cannot send headers
+		// (e.g. swift package-collection add). Expects ?auth=<base64(full Authorization value)>.
+		if r.Header.Get("Authorization") == "" {
+			if authParam := strings.TrimSpace(r.URL.Query().Get("auth")); authParam != "" {
+				if decoded, err := base64.StdEncoding.DecodeString(authParam); err == nil {
+					r.Header.Set("Authorization", string(decoded))
+				}
+			}
+		}
 		_, err := a.auth.Authenticate(w, r)
 		if err != nil {
 			writeAuthorizationHeaderError(w, err)

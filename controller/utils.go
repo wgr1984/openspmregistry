@@ -241,7 +241,16 @@ func printCallInfo(methodName string, r *http.Request) {
 				}
 			}
 		}
-		slog.Info("URL", "url", r.RequestURI)
+		logURI := r.RequestURI
+		if idx := strings.Index(logURI, "auth="); idx >= 0 {
+			end := strings.Index(logURI[idx:], "&")
+			if end < 0 {
+				logURI = logURI[:idx+5] + "***"
+			} else {
+				logURI = logURI[:idx+5] + "***" + logURI[idx+end:]
+			}
+		}
+		slog.Info("URL", "url", logURI)
 		slog.Info("Method", "method", r.Method)
 	}
 }

@@ -24,4 +24,4 @@ server:
   packageCollections:
     enabled: true
     requirePackageJson: false
-    # No publicRead: use ?auth=<base64(user:pass)> for swift package-collection add
+    publicRead: true   # Swift package-collection add fetches URL without credentials

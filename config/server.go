@@ -61,6 +61,9 @@ type User struct {
 type PackageCollectionsConfig struct {
 	Enabled            bool `yaml:"enabled"`
 	RequirePackageJson bool `yaml:"requirePackageJson"`
+	// PublicRead allows unauthenticated GET /collection and /collection/{scope}.
+	// Required for swift package-collection add, which fetches the URL without credentials.
+	PublicRead bool `yaml:"publicRead"`
 }
 
 const (

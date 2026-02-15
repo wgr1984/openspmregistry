@@ -77,6 +77,12 @@ echo "Building OpenSPMRegistry..."
 go build -o openspmregistry.e2e main.go
 SERVER_BINARY="$ROOT_DIR/openspmregistry.e2e"
 
+# Free port in case a previous run's server didn't exit cleanly
+if command -v lsof >/dev/null 2>&1; then
+	lsof -ti :8082 | xargs kill -9 2>/dev/null || true
+	sleep 1
+fi
+
 echo "Starting OpenSPMRegistry with $CONFIG_E2E..."
 "$SERVER_BINARY" -config "$CONFIG_E2E" -v &
 SERVER_PID=$!
@@ -127,6 +133,7 @@ if ! echo "$INFO_JSON" | grep -q '"description"'; then
 	echo "Package info metadata missing description."
 	exit 1
 fi
+echo "  OK: package metadata"
 
 echo "Verifying alternative manifest (Package@swift-5.8)..."
 ACCEPT_SWIFT="Accept: application/vnd.swift.registry.v1+swift"
@@ -135,6 +142,84 @@ if ! echo "$MANIFEST_58" | grep -q "swift-tools-version:5.8"; then
 	echo "Package@swift-5.8 manifest not found or wrong version."
 	exit 1
 fi
+echo "  OK: alternative manifest"
+
+echo "Verifying package collection (global)..."
+COLLECTION_GLOBAL=$(curl $CURL_OPTS $VERIFY_AUTH -H "Accept: application/json" "${REGISTRY_URL}/collection")
+if ! echo "$COLLECTION_GLOBAL" | grep -q '"formatVersion"'; then
+	echo "Global collection response missing formatVersion."
+	exit 1
+fi
+if ! echo "$COLLECTION_GLOBAL" | grep -q '"packages"'; then
+	echo "Global collection response missing packages array."
+	exit 1
+fi
+if ! echo "$COLLECTION_GLOBAL" | grep -q "\"${PACKAGE_ID}\""; then
+	echo "Global collection does not contain ${PACKAGE_ID}."
+	exit 1
+fi
+if ! echo "$COLLECTION_GLOBAL" | grep -q '"generatedBy"'; then
+	echo "Global collection response missing generatedBy."
+	exit 1
+fi
+echo "  OK: global collection"
+
+echo "Verifying package collection (scope ${SCOPE})..."
+COLLECTION_SCOPE=$(curl $CURL_OPTS $VERIFY_AUTH -H "Accept: application/json" "${REGISTRY_URL}/collection/${SCOPE}")
+if ! echo "$COLLECTION_SCOPE" | grep -q "\"${PACKAGE_ID}\""; then
+	echo "Scope collection /collection/${SCOPE} does not contain ${PACKAGE_ID}."
+	exit 1
+fi
+if ! echo "$COLLECTION_SCOPE" | grep -q "\"${VERSION}\""; then
+	echo "Scope collection does not contain version ${VERSION}."
+	exit 1
+fi
+echo "  OK: scope collection"
+
+echo "Verifying package collection (non-existent scope returns 404)..."
+COLLECTION_404=$(curl $CURL_OPTS $VERIFY_AUTH -w "%{http_code}" -o /dev/null -H "Accept: application/json" "${REGISTRY_URL}/collection/nonexistentscope123")
+if [ "$COLLECTION_404" != "404" ]; then
+	echo "Expected 404 for non-existent scope, got ${COLLECTION_404}."
+	exit 1
+fi
+echo "  OK: 404 for non-existent scope"
+
+echo "Verifying Swift package-collection CLI (add, list, describe)..."
+COLLECTION_FILE=$(mktemp)
+curl $CURL_OPTS $VERIFY_AUTH -H "Accept: application/json" "${REGISTRY_URL}/collection" -o "$COLLECTION_FILE"
+# Swift CLI only accepts https or file URLs; use file:// for HTTP, direct URL for HTTPS
+# For HTTPS with auth: use ?auth=<base64(full Authorization header)> since Swift cannot send headers
+if [ "$E2E_USE_HTTPS" = true ]; then
+	BASIC_HEADER="Basic $(echo -n "${E2E_USER}:${E2E_PASS}" | base64)"
+	AUTH_B64=$(echo -n "$BASIC_HEADER" | base64)
+	COLLECTION_ADD_URL="${REGISTRY_URL}/collection?auth=${AUTH_B64}"
+else
+	COLLECTION_ADD_URL="file://${COLLECTION_FILE}"
+fi
+# Remove if already added (from previous run)
+swift package-collection remove "$COLLECTION_ADD_URL" 2>/dev/null || true
+swift package-collection add "$COLLECTION_ADD_URL" --trust-unsigned || {
+	rm -f "$COLLECTION_FILE"
+	echo "swift package-collection add failed."
+	exit 1
+}
+echo "  OK: collection add"
+if ! swift package-collection list 2>/dev/null | grep -q "All Packages"; then
+	rm -f "$COLLECTION_FILE"
+	swift package-collection remove "$COLLECTION_ADD_URL" 2>/dev/null || true
+	echo "swift package-collection list: collection not found."
+	exit 1
+fi
+echo "  OK: collection list"
+if ! swift package-collection describe "$COLLECTION_ADD_URL" 2>/dev/null | grep -qi "example"; then
+	rm -f "$COLLECTION_FILE"
+	swift package-collection remove "$COLLECTION_ADD_URL" 2>/dev/null || true
+	echo "swift package-collection describe: package not found in collection."
+	exit 1
+fi
+echo "  OK: collection describe"
+swift package-collection remove "$COLLECTION_ADD_URL" 2>/dev/null || true
+rm -f "$COLLECTION_FILE"
 
 echo "Configuring consumer to use registry and resolving..."
 cd "$ROOT_DIR/testdata/e2e/Consumer"
@@ -153,5 +238,7 @@ if ! grep -q "example.SamplePackage" Package.resolved; then
 	echo "Package.resolved does not contain example.SamplePackage."
 	exit 1
 fi
+echo "  OK: consumer resolve"
 
+echo ""
 echo "E2E Swift publish and resolve: OK"

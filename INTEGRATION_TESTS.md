@@ -74,8 +74,13 @@ If Swift is not installed, `test-e2e-swift` exits successfully without failing (
 4. Publishes `example.SamplePackage` version `1.0.0` via `swift package-registry publish`.
 5. Verifies package metadata (GET package info, checks `metadata.description`).
 6. Verifies alternative manifest (GET `Package.swift?swift-version=5.8`, checks `swift-tools-version:5.8`).
-7. In `testdata/e2e/Consumer/`, configures the registry and runs `swift package resolve`.
-8. Verifies that `Package.resolved` contains `example.SamplePackage`.
+7. Verifies package collections (curl + Swift CLI):
+   - GET `/collection`: checks formatVersion, packages array, generatedBy, and that `example.SamplePackage` is included.
+   - GET `/collection/example`: checks scope-specific collection contains the package and version.
+   - GET `/collection/nonexistentscope123`: expects 404 for non-existent scope.
+   - Swift CLI: `swift package-collection add` (uses file:// for HTTP, direct URL for HTTPS), `list`, `describe`, then `remove`.
+8. In `testdata/e2e/Consumer/`, configures the registry and runs `swift package resolve`.
+9. Verifies that `Package.resolved` contains `example.SamplePackage`.
 
 ### Sample Package Structure
 

@@ -66,6 +66,13 @@ server:
   - `false` (default): Packages can be published without Package.json (they won't appear in collections)
   - `true`: Publishing fails if Package.json is not included in the archive
 
+- **publicRead** (boolean): Allow unauthenticated read access to collection endpoints
+  - `false` (default): Collections require auth when server auth is enabled
+  - `true`: `GET /collection` and `GET /collection/{scope}` are public
+
+When auth is required, you can pass credentials via the `auth` query parameter (for clients like `swift package-collection add` that cannot send headers):  
+`?auth=<base64(full Authorization value)>` — e.g. base64 of `Basic YWRtaW46YWRtaW4xMjM=` or `Bearer token`
+
 ## For Package Publishers
 
 ### Including Package.json in Your Package
