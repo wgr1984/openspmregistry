@@ -23,8 +23,9 @@ type client struct {
 }
 
 // spmRegistryIndexResponse is the JSON structure of .spm-registry/index.json.
+// Scopes are derived from packages keys when omitted; we only write packages.
 type spmRegistryIndexResponse struct {
-	Scopes   []string            `json:"scopes"`
+	Scopes   []string            `json:"scopes,omitempty"`
 	Packages map[string][]string `json:"packages,omitempty"`
 }
 
@@ -147,6 +148,7 @@ func (c *client) GET(ctx context.Context, path string) (*http.Response, error) {
 
 // getSPMRegistryIndexFull fetches .spm-registry/index.json and returns the full decoded index.
 // On 404 or non-200 status returns (nil, error). Missing or null scopes/packages are normalized to empty.
+// When scopes is omitted, scopes are derived from packages keys (sorted).
 func (c *client) getSPMRegistryIndexFull(ctx context.Context) (*spmRegistryIndexResponse, error) {
 	resp, err := c.GET(ctx, spmRegistryIndexPath)
 	if err != nil {
@@ -162,11 +164,15 @@ func (c *client) getSPMRegistryIndexFull(ctx context.Context) (*spmRegistryIndex
 	if err := json.NewDecoder(resp.Body).Decode(&index); err != nil {
 		return nil, fmt.Errorf("failed to decode index.json: %w", err)
 	}
-	if index.Scopes == nil {
-		index.Scopes = []string{}
-	}
 	if index.Packages == nil {
 		index.Packages = make(map[string][]string)
+	}
+	if len(index.Scopes) == 0 {
+		index.Scopes = make([]string, 0, len(index.Packages))
+		for s := range index.Packages {
+			index.Scopes = append(index.Scopes, s)
+		}
+		sort.Strings(index.Scopes)
 	}
 	return &index, nil
 }

@@ -150,38 +150,21 @@ func newMavenWriter(client *client, cfg config.MavenConfig, access *access, path
 
 // updateSPMRegistryIndex GETs the SPM registry index (spmRegistryIndexPath), adds scope and packageName if not present, sorts, and PUTs back.
 // On 404 or invalid body the current list is treated as empty. Logs warnings on failure; does not fail the publish.
+// Writes only packages (scopes are derived from packages keys when reading).
 func (a *access) updateSPMRegistryIndex(ctx context.Context, scope, packageName string) {
 	a.indexMu.Lock()
 	defer a.indexMu.Unlock()
 
-	var scopes []string
 	packages := make(map[string][]string)
 	resp, err := a.client.GET(ctx, spmRegistryIndexPath)
 	if err == nil && resp != nil {
 		if resp.StatusCode == http.StatusOK {
 			var index spmRegistryIndexResponse
-			if decErr := json.NewDecoder(resp.Body).Decode(&index); decErr == nil {
-				if index.Scopes != nil {
-					scopes = index.Scopes
-				}
-				if index.Packages != nil {
-					packages = index.Packages
-				}
+			if decErr := json.NewDecoder(resp.Body).Decode(&index); decErr == nil && index.Packages != nil {
+				packages = index.Packages
 			}
 		}
 		_ = resp.Body.Close()
-	}
-	if packages == nil {
-		packages = make(map[string][]string)
-	}
-
-	scopeSeen := make(map[string]bool)
-	for _, s := range scopes {
-		scopeSeen[s] = true
-	}
-	if !scopeSeen[scope] {
-		scopes = append(scopes, scope)
-		sort.Strings(scopes)
 	}
 
 	pkgList := packages[scope]
@@ -195,7 +178,7 @@ func (a *access) updateSPMRegistryIndex(ctx context.Context, scope, packageName 
 		packages[scope] = pkgList
 	}
 
-	body, err := json.Marshal(spmRegistryIndexResponse{Scopes: scopes, Packages: packages})
+	body, err := json.Marshal(spmRegistryIndexResponse{Packages: packages})
 	if err != nil {
 		slog.Warn("failed to marshal SPM registry index", "error", err)
 		return

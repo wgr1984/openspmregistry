@@ -620,16 +620,7 @@ func Test_mavenWriter_Close_UpdatesSPMRegistryIndexWithScopeAndPackage(t *testin
 	if err := json.Unmarshal(indexPUTBody, &index); err != nil {
 		t.Fatalf("failed to decode index: %v", err)
 	}
-	hasScope := false
-	for _, s := range index.Scopes {
-		if s == "testScope" {
-			hasScope = true
-			break
-		}
-	}
-	if !hasScope {
-		t.Errorf("expected index.scopes to contain testScope, got %v", index.Scopes)
-	}
+	// Index writes only packages; scopes are derived when reading
 	pkgs, ok := index.Packages["testScope"]
 	if !ok || len(pkgs) == 0 {
 		t.Errorf("expected index.packages[testScope] to contain my-package, got %v", index.Packages)

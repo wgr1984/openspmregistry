@@ -123,7 +123,7 @@ The script is idempotent (safe to run multiple times).
 
 ### Scope and package listing
 
-`ListScopes` and `ListInScope` use the SPM registry index only (path `com/spm/registry/index/1/index-1.json`, Maven 2 layout); there are no directory/HTML fallbacks. The index contains `scopes` (array) and `packages` (map from scope to package names). If the file is missing or invalid, or a scope has no packages in the index, the respective call returns an empty list. Publishing from this codebase updates both `scopes` and `packages` in the index so it stays in sync.
+`ListScopes` and `ListInScope` use the SPM registry index only (path `com/spm/registry/index/1/index-1.json`, Maven 2 layout); there are no directory/HTML fallbacks. The index contains `packages` (map from scope to package names). Scopes are derived from `packages` keys when reading. If the file is missing or invalid, or a scope has no packages in the index, the respective call returns an empty list. Publishing from this codebase updates `packages` in the index so it stays in sync.
 
 ### Integration Test Helper
 

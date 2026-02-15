@@ -452,6 +452,42 @@ func Test_getSPMRegistryIndexFull_WithPackages_ReturnsFullIndex(t *testing.T) {
 	}
 }
 
+func Test_getSPMRegistryIndexFull_PackagesOnly_DerivesScopes(t *testing.T) {
+	body := `{"packages":{"s2":["pkgC"],"s1":["pkgA","pkgB"]}}`
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if strings.HasSuffix(r.URL.Path, "index-1.json") {
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusOK)
+			_, _ = w.Write([]byte(body))
+		} else {
+			w.WriteHeader(http.StatusNotFound)
+		}
+	}))
+	defer server.Close()
+
+	cfg := config.MavenConfig{BaseURL: server.URL}
+	c, err := newClient(cfg)
+	if err != nil {
+		t.Fatalf("failed to create client: %v", err)
+	}
+
+	index, err := c.getSPMRegistryIndexFull(context.Background())
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	// Scopes derived from packages keys, sorted
+	if len(index.Scopes) != 2 || index.Scopes[0] != "s1" || index.Scopes[1] != "s2" {
+		t.Errorf("expected scopes [s1 s2] derived from packages, got %v", index.Scopes)
+	}
+	scopes, err := c.getSPMRegistryIndex(context.Background())
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(scopes) != 2 || scopes[0] != "s1" || scopes[1] != "s2" {
+		t.Errorf("expected getSPMRegistryIndex to return sorted scopes [s1 s2], got %v", scopes)
+	}
+}
+
 func Test_getSPMRegistryIndexFull_OnlyScopes_PackagesEmpty(t *testing.T) {
 	body := `{"scopes":["test"]}`
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
