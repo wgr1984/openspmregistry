@@ -149,9 +149,15 @@ test-e2e-generate-certs:
 	@bash scripts/e2e-generate-certs.sh
 
 # E2E Swift: publish package to OpenSPMRegistry (Maven-backed) and resolve from consumer.
-# test-e2e-swift: run E2E script only (start Nexus first with make test-integration-up).
+# test-e2e-swift: run E2E test only (start Nexus first with make test-integration-up).
 test-e2e-swift:
-	@bash scripts/e2e-swift-publish-resolve.sh
+	@passfile=".nexus-test-password"; \
+	if [ -f "$$passfile" ]; then \
+	  MAVEN_REPO_PASSWORD=$$(cat "$$passfile"); \
+	else \
+	  MAVEN_REPO_PASSWORD=admin123; \
+	fi; \
+	E2E_TESTS=1 MAVEN_REPO_USERNAME=admin MAVEN_REPO_PASSWORD="$$MAVEN_REPO_PASSWORD" go test -tags=e2e -v ./e2e/... -run TestSwiftPublishResolve
 
 # test-e2e-full: start Nexus, bootstrap, run E2E Swift test, then tear down.
 test-e2e-full: test-integration-up
