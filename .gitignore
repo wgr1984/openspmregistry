@@ -41,6 +41,6 @@ cover.out
 SPM-Registry-Spec.md
 CHANGELOG.md.tmp
 .vscode/**
-testdata/e2e/example.SamplePackage/.build
-testdata/e2e/Consumer/.build
+**/.build
+**/.build
 **/.swiftpm/**

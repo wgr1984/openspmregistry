@@ -12,6 +12,7 @@ type ServerConfig struct {
 	Port               int                      `yaml:"port"`
 	Certs              Certs                    `yaml:"certs"`
 	Repo               Repo                     `yaml:"repo"`
+	ListPageSize       int                      `yaml:"listPageSize"` // When >0, list endpoint paginates with ?page=N (spec 4.1). Default 10.
 	Publish            PublishConfig            `yaml:"publish"`
 	Auth               AuthConfig               `yaml:"auth"`
 	TlsEnabled         bool                     `yaml:"tlsEnabled"`
