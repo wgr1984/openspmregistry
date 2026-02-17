@@ -18,6 +18,7 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
+	"mime"
 	"net/http"
 	"path/filepath"
 	"strings"
@@ -51,7 +52,8 @@ func NewMavenRepo(cfg config.MavenConfig) (*MavenRepo, error) {
 
 // ExtractManifestFiles extracts Package.swift and Package.json from source archive
 func (m *MavenRepo) ExtractManifestFiles(ctx context.Context, element *models.UploadElement) error {
-	if element.MimeType != mimetypes.ApplicationZip {
+	mediaType, _, _ := mime.ParseMediaType(element.MimeType)
+	if mediaType != mimetypes.ApplicationZip {
 		return errors.New("unsupported mime type")
 	}
 
@@ -265,7 +267,9 @@ func (m *MavenRepo) Checksum(ctx context.Context, element *models.UploadElement)
 	return fmt.Sprintf("%x", hash.Sum(nil)), nil
 }
 
-// GetAlternativeManifests returns alternative Package.swift versions from maven-metadata.xml.
+// GetAlternativeManifests returns manifest variants suitable for Link rel=alternate (same-version
+// swift-version only, e.g. Package@swift-5.8.swift). From maven-metadata we only get other package
+// versions, each with default Package.swift; those are not Link alternates, so we return none.
 func (m *MavenRepo) GetAlternativeManifests(ctx context.Context, element *models.UploadElement) ([]models.UploadElement, error) {
 	groupId := buildGroupId(element.Scope, m.config)
 	artifactId := buildArtifactId(element.Name)
@@ -279,7 +283,10 @@ func (m *MavenRepo) GetAlternativeManifests(ctx context.Context, element *models
 			continue
 		}
 		manifest := models.NewUploadElement(element.Scope, element.Name, v, mimetypes.TextXSwift, models.Manifest).SetFilenameOverwrite("Package")
-		out = append(out, *manifest)
+		// Only include entries that are Link-eligible (swift-version variants, not default Package.swift).
+		if manifest.FileName() != "Package.swift" {
+			out = append(out, *manifest)
+		}
 	}
 	return out, nil
 }

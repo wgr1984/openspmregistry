@@ -102,7 +102,9 @@ func Test_List_NoMetadata_ReturnsEmptyList(t *testing.T) {
 	}
 }
 
-func Test_GetAlternativeManifests_ValidMetadata_ReturnsOtherVersions(t *testing.T) {
+// GetAlternativeManifests returns only Link-eligible variants (FileName() != "Package.swift").
+// Maven only has other versions with default Package.swift, so the filter yields empty.
+func Test_GetAlternativeManifests_ValidMetadata_ReturnsEmpty_OnlyPackageSwift(t *testing.T) {
 	xmlData := `<?xml version="1.0" encoding="UTF-8"?>
 <metadata>
 	<groupId>test</groupId>
@@ -137,18 +139,8 @@ func Test_GetAlternativeManifests_ValidMetadata_ReturnsOtherVersions(t *testing.
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	if len(manifests) != 2 {
-		t.Errorf("expected 2 alternative manifests (1.1.0, 2.0.0), got %d", len(manifests))
-	}
-	versions := make(map[string]bool)
-	for _, m := range manifests {
-		if m.Scope != "test" || m.Name != "TestPackage" {
-			t.Errorf("expected scope=test name=TestPackage, got scope=%s name=%s", m.Scope, m.Name)
-		}
-		versions[m.Version] = true
-	}
-	if !versions["1.1.0"] || !versions["2.0.0"] {
-		t.Errorf("expected versions 1.1.0 and 2.0.0, got %v", versions)
+	if len(manifests) != 0 {
+		t.Errorf("expected 0 (other versions have Package.swift only, filtered out for Link), got %d", len(manifests))
 	}
 }
 

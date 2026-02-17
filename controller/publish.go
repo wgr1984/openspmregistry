@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
+	"mime"
 	"mime/multipart"
 	"net/http"
 	"net/url"
@@ -73,6 +74,9 @@ func (c *Controller) PublishAction(w http.ResponseWriter, r *http.Request) {
 		}
 
 		mimeType := part.Header.Get("Content-Type")
+		if parsed, _, err := mime.ParseMediaType(mimeType); err == nil {
+			mimeType = parsed
+		}
 
 		// currently we support only source archive storing
 		element, err := storeElements(w, r, name, scope, packageName, version, mimeType, c, part)
@@ -177,9 +181,12 @@ func storeElements(w http.ResponseWriter, r *http.Request, name string, scope st
 		return element, fmt.Errorf("error closing writer: %w", err)
 	}
 
-	if err := c.repo.ExtractManifestFiles(ctx, element); err != nil {
-		slog.Error("Error extracting manifest files:", "error", err)
-		// Continue even if extraction fails
+	// Only extract Package.swift and Package.json from the source archive, not from metadata/signature parts
+	if uploadType == models.SourceArchive {
+		if err := c.repo.ExtractManifestFiles(ctx, element); err != nil {
+			slog.Error("Error extracting manifest files:", "error", err)
+			// Continue even if extraction fails
+		}
 	}
 
 	return element, nil

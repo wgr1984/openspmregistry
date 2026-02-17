@@ -2,7 +2,7 @@ TAILWIND = npx tailwindcss -i ./static/input.css -o ./static/output.css
 VERSION ?= 0.0.0
 RELEASE_TYPE ?= patch
 
-.PHONY: help build clean build-docker run tailwind tailwind-watch lint staticcheck golangci-lint errcheck release changelog-unreleased test-integration test-integration-up test-integration-down test-e2e-generate-certs test-e2e-swift test-e2e-full
+.PHONY: help build clean build-docker run tailwind tailwind-watch lint staticcheck golangci-lint errcheck release changelog-unreleased test-integration test-integration-up test-integration-down test-e2e-generate-certs test-e2e-swift test-e2e-maven test-e2e-full
 
 # Default target when no arguments are given to make
 help:
@@ -28,7 +28,8 @@ help:
 	@echo "  test-integration-down - Stop Nexus test server"
 	@echo "  test-e2e-generate-certs - Generate E2E HTTPS certs (for optional HTTPS testing)"
 	@echo "  test-e2e-swift - E2E: Swift publish + resolve (Nexus must be up; requires Swift)"
-	@echo "  test-e2e-full - Start Nexus, run E2E Swift test, then stop Nexus"
+	@echo "  test-e2e-maven - E2E: Maven-backed registry via HTTP API (Nexus must be up; no Swift required)"
+	@echo "  test-e2e-full - Start Nexus, run E2E Swift and Maven tests, then stop Nexus"
 	@echo ""
 	@echo "Example usage:"
 	@echo "  make build              - Build the project"
@@ -157,9 +158,21 @@ test-e2e-swift:
 	else \
 	  MAVEN_REPO_PASSWORD=admin123; \
 	fi; \
-	E2E_TESTS=1 MAVEN_REPO_USERNAME=admin MAVEN_REPO_PASSWORD="$$MAVEN_REPO_PASSWORD" go test -tags=e2e -v ./e2e/... -run TestSwiftPublishResolve
+	E2E_TESTS=1 MAVEN_REPO_USERNAME=admin MAVEN_REPO_PASSWORD="$$MAVEN_REPO_PASSWORD" go test -tags=e2e -v -count=1 ./e2e/... -run TestSwiftPublishResolve
 
-# test-e2e-full: start Nexus, bootstrap, run E2E Swift test, then tear down.
+# E2E Maven: exercise Maven-backed registry via HTTP API only (no Swift required).
+# test-e2e-maven: run E2E test only (start Nexus first with make test-integration-up).
+test-e2e-maven:
+	@passfile=".nexus-test-password"; \
+	if [ -f "$$passfile" ]; then \
+	  MAVEN_REPO_PASSWORD=$$(cat "$$passfile"); \
+	else \
+	  MAVEN_REPO_PASSWORD=admin123; \
+	fi; \
+	E2E_TESTS=1 MAVEN_REPO_USERNAME=admin MAVEN_REPO_PASSWORD="$$MAVEN_REPO_PASSWORD" go test -tags=e2e -v -count=1 ./e2e/... -run TestMavenRegistryE2E
+
+# test-e2e-full: start Nexus, bootstrap, run E2E Swift and Maven tests, then tear down.
 test-e2e-full: test-integration-up
 	@$(MAKE) test-e2e-swift
+	@$(MAKE) test-e2e-maven
 	@$(MAKE) test-integration-down

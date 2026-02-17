@@ -56,12 +56,10 @@ func (c *Controller) FetchManifestAction(w http.ResponseWriter, r *http.Request)
 	header := w.Header()
 
 	if len(swiftVersion) == 0 {
-		// check if alternative versions of Package.swift are present
 		manifests, err := c.repo.GetAlternativeManifests(ctx, element)
 		if err != nil {
 			slog.Info("Alternative manifests not found:", "error", err)
-		} else {
-			// add alternative versions to header
+		} else if len(manifests) > 0 {
 			header.Set("Link", c.manifestsToString(r, manifests))
 		}
 	}
@@ -111,12 +109,12 @@ func (c *Controller) manifestsToString(r *http.Request, manifests []models.Uploa
 		)
 
 		if err == nil {
-			location := fmt.Sprintf("%s?swift-version=%s", location, version)
+			locationWithQuery := fmt.Sprintf("%s?swift-version=%s", location, version)
 
 			if i != 0 {
 				result += ", "
 			}
-			result += fmt.Sprintf("<%s>; rel=\"alternative\"; filename=\"%s\"", location, manifestFileName)
+			result += fmt.Sprintf("<%s>; rel=\"alternate\"; filename=\"%s\"", locationWithQuery, manifestFileName)
 
 			swiftToolVersion, err2 := c.repo.GetSwiftToolVersion(ctx, &manifest)
 			if err2 != nil {

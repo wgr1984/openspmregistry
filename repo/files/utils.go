@@ -24,15 +24,17 @@ func ExtractManifestFilesFromZipReader(element *models.UploadElement, zipReader 
 		ext := path.Ext(base)
 		scope := element.Scope
 		name := element.Name
+		version := element.Version
 		id := fmt.Sprintf("%s.%s", scope, name)
 
-		// Only consider manifests at the archive root or within a single top-level directory
-		// whose name starts with the scope (e.g., "ext.RxSwift/Package.swift").
-		if !strings.HasPrefix(dir, id) {
-			continue
-		}
-		// Disallow further nesting (e.g., "ext.RxSwift/Tests/Package.swift")
-		if strings.Contains(strings.TrimPrefix(strings.ToLower(dir), strings.ToLower(id)), "/") {
+		// Accept manifests at archive root or in a single top-level directory.
+		// Official SPM (swift package archive-source / package-registry publish) uses scope.name as top-level dir
+		// (e.g. example.UtilsPackage/Package.swift). We also accept root and "Name-version" as fallbacks for
+		// other clients or SPM versions; the Registry spec does not mandate zip layout.
+		atRoot := dir == "." || dir == ""
+		singleTopLevel := dir == id || dir == name+"-"+version
+		nestedUnderId := strings.HasPrefix(dir, id) && !strings.Contains(strings.TrimPrefix(strings.ToLower(dir), strings.ToLower(id)), "/")
+		if !atRoot && !singleTopLevel && !nestedUnderId {
 			continue
 		}
 

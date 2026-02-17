@@ -236,7 +236,7 @@ func TestFetchManifestAction_WithAlternativeManifests(t *testing.T) {
 		t.Errorf("expected Content-Version %s, got %s", "1", contentVersion)
 	}
 
-	expectedLink := fmt.Sprintf("<%s/scope/package/1.0.0/Package.swift?swift-version=5.8>; rel=\"alternative\"; filename=\"Package@swift-5.8.swift\"; swift-tools-version=\"5.8\"", utils.BaseUrl(newTestConfig("localhost", 8080, "https://example.com")))
+	expectedLink := fmt.Sprintf("<%s/scope/package/1.0.0/Package.swift?swift-version=5.8>; rel=\"alternate\"; filename=\"Package@swift-5.8.swift\"; swift-tools-version=\"5.8\"", utils.BaseUrl(newTestConfig("localhost", 8080, "https://example.com")))
 	if link := w.Header().Get("Link"); link != expectedLink {
 		t.Errorf("expected Link header to be '%s', got '%s'", expectedLink, link)
 	}
