@@ -2,7 +2,12 @@ TAILWIND = npx tailwindcss -i ./static/input.css -o ./static/output.css
 VERSION ?= 0.0.0
 RELEASE_TYPE ?= patch
 
-.PHONY: help build clean build-docker run tailwind tailwind-watch lint staticcheck golangci-lint errcheck release changelog-unreleased test-integration test-integration-up test-integration-down test-e2e-generate-certs test-e2e-swift test-e2e-registry test-e2e-full
+# E2E with HTTPS: set E2E_HTTPS=1 or use test-e2e-*-https targets. Requires certs (make test-e2e-generate-certs).
+ifdef E2E_HTTPS
+E2E_REGISTRY_URL := https://127.0.0.1:8082
+endif
+
+.PHONY: help build clean build-docker run tailwind tailwind-watch lint staticcheck golangci-lint errcheck release changelog-unreleased test-integration test-integration-up test-integration-down test-e2e-generate-certs test-e2e-swift test-e2e-registry test-e2e-full test-e2e-swift-https test-e2e-registry-https test-e2e-full-https
 
 # Default target when no arguments are given to make
 help:
@@ -30,6 +35,11 @@ help:
 	@echo "  test-e2e-swift - E2E: Swift publish + resolve (Nexus must be up; requires Swift)"
 	@echo "  test-e2e-registry - E2E: Registry HTTP API against file and Maven backends (Nexus required for Maven)"
 	@echo "  test-e2e-full - Start Nexus, run E2E Swift and registry tests, then stop Nexus"
+	@echo "  test-e2e-swift-https - E2E Swift over HTTPS (requires certs: make test-e2e-generate-certs)"
+	@echo "  test-e2e-registry-https - E2E registry API over HTTPS (requires certs)"
+	@echo "  test-e2e-full-https - Full E2E over HTTPS (Nexus + certs required)"
+	@echo ""
+	@echo "E2E HTTPS: use E2E_HTTPS=1 (e.g. make test-e2e-registry E2E_HTTPS=1) or the -https targets above."
 	@echo ""
 	@echo "Example usage:"
 	@echo "  make build              - Build the project"
@@ -158,7 +168,7 @@ test-e2e-swift:
 	else \
 	  MAVEN_REPO_PASSWORD=admin123; \
 	fi; \
-	E2E_TESTS=1 MAVEN_REPO_USERNAME=admin MAVEN_REPO_PASSWORD="$$MAVEN_REPO_PASSWORD" go test -tags=e2e -v -count=1 ./e2e/... -run TestSwiftPublishResolve
+	E2E_TESTS=1 E2E_REGISTRY_URL="$(E2E_REGISTRY_URL)" MAVEN_REPO_USERNAME=admin MAVEN_REPO_PASSWORD="$$MAVEN_REPO_PASSWORD" go test -tags=e2e -v -count=1 ./e2e/... -run TestSwiftPublishResolve
 
 # E2E registry: exercise registry HTTP API against file and Maven backends (no Swift required).
 # test-e2e-registry: run E2E test only (start Nexus first with make test-integration-up for Maven backend).
@@ -169,10 +179,21 @@ test-e2e-registry:
 	else \
 	  MAVEN_REPO_PASSWORD=admin123; \
 	fi; \
-	E2E_TESTS=1 MAVEN_REPO_USERNAME=admin MAVEN_REPO_PASSWORD="$$MAVEN_REPO_PASSWORD" go test -tags=e2e -v -count=1 ./e2e/... -run TestRegistryE2E
+	E2E_TESTS=1 E2E_REGISTRY_URL="$(E2E_REGISTRY_URL)" MAVEN_REPO_USERNAME=admin MAVEN_REPO_PASSWORD="$$MAVEN_REPO_PASSWORD" go test -tags=e2e -v -count=1 ./e2e/... -run TestRegistryE2E
 
 # test-e2e-full: start Nexus, bootstrap, run E2E Swift and registry tests, then tear down.
 test-e2e-full: test-integration-up
 	@$(MAKE) test-e2e-swift
 	@$(MAKE) test-e2e-registry
+	@$(MAKE) test-integration-down
+
+test-e2e-swift-https:
+	@$(MAKE) test-e2e-swift E2E_HTTPS=1
+
+test-e2e-registry-https:
+	@$(MAKE) test-e2e-registry E2E_HTTPS=1
+
+test-e2e-full-https: test-integration-up
+	@$(MAKE) test-e2e-swift E2E_HTTPS=1
+	@$(MAKE) test-e2e-registry E2E_HTTPS=1
 	@$(MAKE) test-integration-down

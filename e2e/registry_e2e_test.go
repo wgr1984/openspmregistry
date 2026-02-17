@@ -772,6 +772,9 @@ func TestRegistryE2E(t *testing.T) {
 		os.RemoveAll(fileRepoPath)
 		defer os.RemoveAll(fileRepoPath)
 		env.configPath = filepath.Join(env.rootDir, "config.e2e.file.yml")
+		if env.useHTTPS {
+			env.configPath = filepath.Join(env.rootDir, "config.e2e.file.https.yml")
+		}
 		defer startRegistryServer(t, env)()
 		time.Sleep(500 * time.Millisecond)
 		runRegistryE2ETestBody(t, env, zip1, metadataBody, false)
