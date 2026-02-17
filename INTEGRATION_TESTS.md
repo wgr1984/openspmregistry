@@ -68,7 +68,7 @@ If Swift is not installed, `test-e2e-swift` exits successfully without failing (
 
 ### What It Does
 
-1. Cleans state: removes Consumer `Package.resolved` and `.build`, purges Swift PM cache, deletes `example.SamplePackage` from Nexus (via `scripts/e2e-clean-nexus.sh`).
+1. Cleans state: removes Consumer `Package.resolved` and `.build`, purges Swift PM cache, deletes `example.SamplePackage` from Nexus (via `go run ./cmd/e2e-clean-nexus` or in-test cleanup).
 2. Builds OpenSPMRegistry and starts it with `config.e2e.yml` (HTTP on port 8082, Maven backend to Nexus).
 3. Prepares the sample package: generates `Package.json` (via `swift package dump-package`), uses `package-metadata.json` (description, author, license), and includes `Package@swift-5.8.swift` for manifest variants.
 4. Publishes `example.SamplePackage` version `1.0.0` via `swift package-registry publish`.
@@ -117,9 +117,9 @@ The `docker-compose.test.yml` file defines:
   - Image: `sonatype/nexus3:3.68.1` (security-hardened; scripting enabled via `INSTALL4J_ADD_VM_PARAMS` for bootstrap)
   - Container name: `nexus-test`
 
-### Bootstrap Script
+### Bootstrap
 
-After Nexus is ready, `scripts/nexus-bootstrap.sh`:
+After Nexus is ready, `go run ./cmd/nexus-bootstrap`:
 - Reads the initial admin password from the container (`/nexus-data/admin.password`) if present
 - Creates a Maven hosted repository named `private` via the Nexus Script API
 - Sets the admin password to `admin123` so tests can use fixed credentials
@@ -186,16 +186,16 @@ func TestMyIntegrationTest(t *testing.T) {
 ### Nexus OSS Defaults
 
 - URL: http://localhost:8081/repository/private (base + repo name)
-- Default repository: `private` (created by `scripts/nexus-bootstrap.sh`)
+- Default repository: `private` (created by `cmd/nexus-bootstrap`)
 - Default credentials: `admin` / `admin123` (password set by bootstrap)
 - Data directory: `./nexus-data/` (host); `/nexus-data` in container
 - Image: `sonatype/nexus3:3.68.1` (scripting enabled via env for repo creation)
 
 The integration tests append the repository name to the base URL if not already present. Customize via `MAVEN_REPO_NAME`.
 
-### Bootstrap Script Environment
+### Bootstrap Environment
 
-The script `scripts/nexus-bootstrap.sh` accepts:
+`cmd/nexus-bootstrap` accepts:
 - `NEXUS_URL`: Base URL (default: `http://localhost:8081`)
 - `NEXUS_CONTAINER`: Container name (default: `nexus-test`)
 - `NEXUS_REPO_KEY`: Repository key to create (default: `private`)

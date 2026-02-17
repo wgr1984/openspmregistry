@@ -46,3 +46,6 @@ CHANGELOG.md.tmp
 **/.build
 **/.build
 **/.swiftpm/**
+
+# cmds
+/e2e-generate-certs

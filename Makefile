@@ -128,7 +128,7 @@ test-integration-up:
 		exit 1; \
 	fi
 	@echo "Bootstrapping Nexus (create repo, set admin password)..."
-	@NEXUS_TEST_PASSWORD_FILE=.nexus-test-password bash scripts/nexus-bootstrap.sh
+	@NEXUS_TEST_PASSWORD_FILE=.nexus-test-password go run ./cmd/nexus-bootstrap
 
 test-integration-down:
 	@echo "Stopping Nexus test server..."
@@ -147,7 +147,7 @@ test-integration: test-integration-up
 
 # Generate E2E certs for optional HTTPS testing (testdata/e2e/certs/).
 test-e2e-generate-certs:
-	@bash scripts/e2e-generate-certs.sh
+	@go run ./cmd/e2e-generate-certs
 
 # E2E Swift: publish package to OpenSPMRegistry (Maven-backed) and resolve from consumer.
 # test-e2e-swift: run E2E test only (start Nexus first with make test-integration-up).

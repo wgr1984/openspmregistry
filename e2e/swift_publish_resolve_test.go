@@ -21,6 +21,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"OpenSPMRegistry/internal/e2ecerts"
 )
 
 const (
@@ -293,10 +295,7 @@ func TestSwiftPublishResolve(t *testing.T) {
 	if env.useHTTPS {
 		certsDir := filepath.Join(env.rootDir, "testdata", "e2e", "certs")
 		if _, err := os.Stat(filepath.Join(certsDir, "server.crt")); err != nil {
-			// Generate certs
-			genCmd := exec.Command("bash", filepath.Join(env.rootDir, "scripts", "e2e-generate-certs.sh"))
-			genCmd.Dir = env.rootDir
-			if err := genCmd.Run(); err != nil {
+			if err := e2ecerts.Generate(certsDir); err != nil {
 				t.Fatalf("generate E2E certs: %v", err)
 			}
 		}
