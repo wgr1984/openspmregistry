@@ -111,9 +111,10 @@ func listElements(w http.ResponseWriter, c *Controller, r *http.Request, scope s
 		writeError(fmt.Sprintf("error listing package %s.%s", scope, packageName), w)
 		return nil, err
 	}
-	if elements == nil {
+	// Spec 4.1: "Otherwise, a server SHOULD respond with 404 (Not Found)" when package has no releases
+	if len(elements) == 0 {
 		writeErrorWithStatusCode(fmt.Sprintf("error package %s.%s was not found", scope, packageName), w, http.StatusNotFound)
-		return make([]models.ListElement, 0), nil
+		return nil, fmt.Errorf("package %s.%s not found", scope, packageName)
 	}
 
 	slices.SortFunc(elements, func(a models.ListElement, b models.ListElement) int {

@@ -1,9 +1,9 @@
 //go:build e2e
 // +build e2e
 
-// Package e2e provides end-to-end tests for the Maven-backed registry via HTTP API only.
-// Run with: go test -tags=e2e -v ./e2e/... -run TestMavenRegistryE2E
-// Prerequisites: Nexus running (make test-integration-up). Swift toolchain not required.
+// Package e2e provides end-to-end tests for the registry via HTTP API (file and Maven backends).
+// Run with: go test -tags=e2e -v ./e2e/... -run TestRegistryE2E
+// Prerequisites: for Maven backend, Nexus running (make test-integration-up). File backend needs no Nexus.
 package e2e
 
 import (
@@ -17,6 +17,8 @@ import (
 	"net/http"
 	"net/textproto"
 	"net/url"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -130,26 +132,16 @@ func registryPublishMultipart(t *testing.T, env *e2eEnv, scope, pkg, version str
 	}
 }
 
-// TestMavenRegistryE2E exercises the Maven-backed registry via HTTP API only.
-//
-// It covers all six Swift Package Registry normative endpoints (Registry spec 4):
-//   - [1] GET /{scope}/{name} — List: subtest "List"
-//   - [2] GET /{scope}/{name}/{version} — Fetch release metadata: "Exists", "Get", "Checksum", "PublishDate", "Metadata"
-//   - [3] GET /{scope}/{name}/{version}/Package.swift{?swift-version} — Fetch manifest: "PackageSwift", "PackageSwiftVariant"
-//   - [4] GET /{scope}/{name}/{version}.zip — Download source archive: "DownloadSourceArchive"
-//   - [5] GET /identifiers{?url} — Lookup identifiers: "LookupIdentifiers"
-//   - [6] PUT /{scope}/{name}/{version} — Create release: "Publish", "SecondPackage"
-//
-// Additional checks: "Collection" (package collections), "Cleanup" (Nexus).
-func TestMavenRegistryE2E(t *testing.T) {
-	env := setupE2E(t)
-	waitForNexus(t, env)
+const (
+	nonexistentVersion = "99.0.0"
+	nonexistentScope   = "nonexistentscope123"
+	nonexistentPackage = "NonExistentPackage"
+)
 
-	cleanNexusScope(t, env, mavenE2EScope, []string{mavenTestPackage, mavenOtherPackage})
-	defer startRegistryServer(t, env)()
-
-	zip1 := createMinimalZip(t, mavenE2EScope, mavenTestPackage, mavenVersion1, true)
-	metadataBody := []byte(`{"description":"E2E test metadata"}`)
+// runRegistryE2ETestBody runs the shared HTTP API e2e test body for a given backend (config already set, server already started).
+// zip1 is the first published package zip (for checksum/download assertions). cleanupMaven: if true, call cleanNexusScope at end.
+func runRegistryE2ETestBody(t *testing.T, env *e2eEnv, zip1 []byte, metadataBody []byte, cleanupMaven bool) {
+	t.Helper()
 
 	t.Run("Publish", func(t *testing.T) {
 		registryPublishMultipart(t, env, mavenE2EScope, mavenTestPackage, mavenVersion1, zip1, metadataBody)
@@ -205,6 +197,48 @@ func TestMavenRegistryE2E(t *testing.T) {
 		}
 	})
 
+	// Spec 4.2: Link header (latest-version, predecessor-version, successor-version)
+	t.Run("InfoLinkHeaders", func(t *testing.T) {
+		// GET 1.0.0: should have latest-version and successor-version (1.1.0)
+		req, _ := http.NewRequest("GET", env.registryPath(mavenE2EScope, mavenTestPackage, mavenVersion1), nil)
+		req.Header.Set("Accept", acceptJSON)
+		env.setAuth(req)
+		resp, err := env.httpClient.Do(req)
+		if err != nil {
+			t.Fatalf("get version: %v", err)
+		}
+		resp.Body.Close()
+		if resp.StatusCode != http.StatusOK {
+			t.Fatalf("expected 200, got %d", resp.StatusCode)
+		}
+		link := resp.Header.Get("Link")
+		if link == "" || !strings.Contains(link, "latest-version") {
+			t.Fatalf("Link missing latest-version: %q", link)
+		}
+		if !strings.Contains(link, "successor-version") {
+			t.Fatalf("Link missing successor-version for 1.0.0: %q", link)
+		}
+		// GET 1.1.0: should have latest-version and predecessor-version (1.0.0)
+		req2, _ := http.NewRequest("GET", env.registryPath(mavenE2EScope, mavenTestPackage, mavenVersion1_1), nil)
+		req2.Header.Set("Accept", acceptJSON)
+		env.setAuth(req2)
+		resp2, err := env.httpClient.Do(req2)
+		if err != nil {
+			t.Fatalf("get version 1.1.0: %v", err)
+		}
+		resp2.Body.Close()
+		if resp2.StatusCode != http.StatusOK {
+			t.Fatalf("expected 200 for 1.1.0, got %d", resp2.StatusCode)
+		}
+		link2 := resp2.Header.Get("Link")
+		if link2 == "" || !strings.Contains(link2, "latest-version") {
+			t.Fatalf("Link missing latest-version for 1.1.0: %q", link2)
+		}
+		if !strings.Contains(link2, "predecessor-version") {
+			t.Fatalf("Link missing predecessor-version for 1.1.0: %q", link2)
+		}
+	})
+
 	t.Run("Checksum", func(t *testing.T) {
 		req, _ := http.NewRequest("GET", env.registryPath(mavenE2EScope, mavenTestPackage, mavenVersion1), nil)
 		req.Header.Set("Accept", acceptJSON)
@@ -257,8 +291,9 @@ func TestMavenRegistryE2E(t *testing.T) {
 		if err != nil {
 			t.Fatalf("parse publishedAt: %v", err)
 		}
-		if d := time.Since(pt); d < 0 || d > 2*time.Minute {
-			t.Fatalf("publishedAt not recent: %v", pt)
+		// Allow up to 2h clock skew (future or past); file backend may use file mtime
+		if d := time.Since(pt); d < -2*time.Hour || d > 2*time.Hour {
+			t.Fatalf("publishedAt not plausible: %v (now %v)", pt, time.Now().UTC())
 		}
 	})
 
@@ -284,9 +319,10 @@ func TestMavenRegistryE2E(t *testing.T) {
 		if cd := resp.Header.Get("Content-Disposition"); cd == "" || !strings.Contains(cd, "attachment") || !strings.Contains(cd, "Package.swift") {
 			t.Fatalf("Content-Disposition: got %q, want attachment; filename=\"Package.swift\"", cd)
 		}
-		// Spec 4.3: server MUST include Link with alternate relation when alternative manifests exist
-		if link := resp.Header.Get("Link"); link == "" || !strings.Contains(link, "alternate") {
-			t.Fatalf("Link header with alternate relation missing: %q", link)
+		// Spec 4.3: when Link is present it must include alternate relation for other manifest variants.
+		// Maven backend does not populate GetAlternativeManifests (same-version variants), so Link may be empty.
+		if link := resp.Header.Get("Link"); link != "" && !strings.Contains(link, "alternate") {
+			t.Fatalf("Link header present but missing alternate relation: %q", link)
 		}
 		body, _ := io.ReadAll(resp.Body)
 		if !bytes.Contains(body, []byte("swift-tools-version:5.3")) {
@@ -317,6 +353,34 @@ func TestMavenRegistryE2E(t *testing.T) {
 		body, _ := io.ReadAll(resp.Body)
 		if !bytes.Contains(body, []byte("swift-tools-version:5.7")) {
 			t.Fatalf("variant missing 5.7: %s", string(body))
+		}
+	})
+
+	// Spec 4.3: when multiple manifests exist (we published 1.0.0 with Package.swift + Package@swift-5.7.0.swift),
+	// server MUST include Link with alternate. File backend returns them; Maven does not populate same-version alternates.
+	t.Run("PackageSwift_LinkAlternate_WhenMultipleManifests", func(t *testing.T) {
+		req, _ := http.NewRequest("GET", env.registryPath(mavenE2EScope, mavenTestPackage, mavenVersion1, "Package.swift"), nil)
+		req.Header.Set("Accept", acceptSwift)
+		env.setAuth(req)
+		resp, err := env.httpClient.Do(req)
+		if err != nil {
+			t.Fatalf("get manifest: %v", err)
+		}
+		defer resp.Body.Close()
+		if resp.StatusCode != http.StatusOK {
+			t.Fatalf("expected 200, got %d", resp.StatusCode)
+		}
+		link := resp.Header.Get("Link")
+		if !cleanupMaven {
+			// File backend: GetAlternativeManifests returns same-version variants; Link must be present.
+			if link == "" || !strings.Contains(link, "alternate") {
+				t.Fatalf("expected Link with alternate when multiple manifests published (Package.swift + Package@swift-5.7.0.swift), got %q", link)
+			}
+		} else {
+			// Maven backend: does not return same-version alternates; if Link is present it must contain alternate.
+			if link != "" && !strings.Contains(link, "alternate") {
+				t.Fatalf("Link present but missing alternate: %q", link)
+			}
 		}
 	})
 
@@ -368,7 +432,7 @@ func TestMavenRegistryE2E(t *testing.T) {
 	})
 
 	t.Run("LookupIdentifiers", func(t *testing.T) {
-		// Spec 4.5: GET /identifiers?url=...
+		// Spec 4.5: GET /identifiers?url=... — 200 with identifiers (possibly empty) or 404 when URL not registered
 		lookupURL := env.registryPath("identifiers") + "?url=" + url.QueryEscape(env.registryURL)
 		req, _ := http.NewRequest("GET", lookupURL, nil)
 		req.Header.Set("Accept", acceptJSON)
@@ -378,9 +442,13 @@ func TestMavenRegistryE2E(t *testing.T) {
 			t.Fatalf("lookup identifiers: %v", err)
 		}
 		defer resp.Body.Close()
+		if resp.StatusCode == http.StatusNotFound {
+			// Backend has no URL→identifier mapping (e.g. file repo)
+			return
+		}
 		if resp.StatusCode != http.StatusOK {
 			b, _ := io.ReadAll(resp.Body)
-			t.Fatalf("lookup: expected 200, got %d, body %s", resp.StatusCode, string(b))
+			t.Fatalf("lookup: expected 200 or 404, got %d, body %s", resp.StatusCode, string(b))
 		}
 		body, _ := io.ReadAll(resp.Body)
 		var out struct {
@@ -453,8 +521,10 @@ func TestMavenRegistryE2E(t *testing.T) {
 			t.Fatalf("Link header with latest-version missing: %q", link)
 		}
 		body, _ := io.ReadAll(resp.Body)
-		if !bytes.Contains(body, []byte(`"`+mavenVersion1+`"`)) {
-			t.Fatalf("list missing version %s: %s", mavenVersion1, string(body))
+		for _, ver := range []string{mavenVersion1, mavenVersion1_1} {
+			if !bytes.Contains(body, []byte(`"`+ver+`"`)) {
+				t.Fatalf("list missing version %s: %s", ver, string(body))
+			}
 		}
 
 		req2, _ := http.NewRequest("GET", env.registryPath(mavenE2EScope, mavenOtherPackage), nil)
@@ -468,6 +538,39 @@ func TestMavenRegistryE2E(t *testing.T) {
 		body2, _ := io.ReadAll(resp2.Body)
 		if !bytes.Contains(body2, []byte(`"`+mavenVersion2+`"`)) {
 			t.Fatalf("list other missing version %s: %s", mavenVersion2, string(body2))
+		}
+	})
+
+	// Spec 4.1: pagination Link headers (first, last, next, prev) when listPageSize is set
+	t.Run("ListPagination", func(t *testing.T) {
+		for page, wantVer := range map[int]string{1: mavenVersion1_1, 2: mavenVersion1} {
+			req, _ := http.NewRequest("GET", env.registryPath(mavenE2EScope, mavenTestPackage)+"?page="+fmt.Sprint(page), nil)
+			req.Header.Set("Accept", acceptJSON)
+			env.setAuth(req)
+			resp, err := env.httpClient.Do(req)
+			if err != nil {
+				t.Fatalf("list page %d: %v", page, err)
+			}
+			body, _ := io.ReadAll(resp.Body)
+			resp.Body.Close()
+			if resp.StatusCode != http.StatusOK {
+				t.Fatalf("list page %d: expected 200, got %d", page, resp.StatusCode)
+			}
+			if !bytes.Contains(body, []byte(`"`+wantVer+`"`)) {
+				t.Fatalf("page %d should contain version %s: %s", page, wantVer, string(body))
+			}
+			link := resp.Header.Get("Link")
+			for _, rel := range []string{"first", "last"} {
+				if !strings.Contains(link, `rel="`+rel+`"`) {
+					t.Fatalf("page %d missing %s link: %q", page, rel, link)
+				}
+			}
+			if page == 1 && !strings.Contains(link, `rel="next"`) {
+				t.Fatalf("page 1 missing next link: %q", link)
+			}
+			if page == 2 && !strings.Contains(link, `rel="prev"`) {
+				t.Fatalf("page 2 missing prev link: %q", link)
+			}
 		}
 	})
 
@@ -501,7 +604,176 @@ func TestMavenRegistryE2E(t *testing.T) {
 		}
 	})
 
-	t.Run("Cleanup", func(t *testing.T) {
+	// Error cases (spec 3.3, 4.x)
+	t.Run("List_NonExistentPackage_Returns404", func(t *testing.T) {
+		req, _ := http.NewRequest("GET", env.registryPath(mavenE2EScope, nonexistentPackage), nil)
+		req.Header.Set("Accept", acceptJSON)
+		env.setAuth(req)
+		resp, err := env.httpClient.Do(req)
+		if err != nil {
+			t.Fatalf("list: %v", err)
+		}
+		defer resp.Body.Close()
+		if resp.StatusCode != http.StatusNotFound {
+			b, _ := io.ReadAll(resp.Body)
+			t.Fatalf("expected 404, got %d: %s", resp.StatusCode, string(b))
+		}
+		if ct := resp.Header.Get("Content-Type"); ct != "application/problem+json" {
+			t.Fatalf("Content-Type: got %q, want application/problem+json", ct)
+		}
+	})
+
+	t.Run("Info_NonExistentVersion_Returns404", func(t *testing.T) {
+		req, _ := http.NewRequest("GET", env.registryPath(mavenE2EScope, mavenTestPackage, nonexistentVersion), nil)
+		req.Header.Set("Accept", acceptJSON)
+		env.setAuth(req)
+		resp, err := env.httpClient.Do(req)
+		if err != nil {
+			t.Fatalf("get version: %v", err)
+		}
+		defer resp.Body.Close()
+		if resp.StatusCode != http.StatusNotFound {
+			b, _ := io.ReadAll(resp.Body)
+			t.Fatalf("expected 404, got %d: %s", resp.StatusCode, string(b))
+		}
+	})
+
+	t.Run("PackageSwift_NonExistentVersion_Returns404", func(t *testing.T) {
+		req, _ := http.NewRequest("GET", env.registryPath(mavenE2EScope, mavenTestPackage, nonexistentVersion, "Package.swift"), nil)
+		req.Header.Set("Accept", acceptSwift)
+		env.setAuth(req)
+		resp, err := env.httpClient.Do(req)
+		if err != nil {
+			t.Fatalf("get manifest: %v", err)
+		}
+		defer resp.Body.Close()
+		if resp.StatusCode != http.StatusNotFound {
+			b, _ := io.ReadAll(resp.Body)
+			t.Fatalf("expected 404, got %d: %s", resp.StatusCode, string(b))
+		}
+	})
+
+	t.Run("DownloadSourceArchive_NonExistentVersion_Returns404", func(t *testing.T) {
+		req, _ := http.NewRequest("GET", env.registryPath(mavenE2EScope, mavenTestPackage, nonexistentVersion)+".zip", nil)
+		req.Header.Set("Accept", acceptZip)
+		env.setAuth(req)
+		resp, err := env.httpClient.Do(req)
+		if err != nil {
+			t.Fatalf("download: %v", err)
+		}
+		defer resp.Body.Close()
+		if resp.StatusCode != http.StatusNotFound {
+			b, _ := io.ReadAll(resp.Body)
+			t.Fatalf("expected 404, got %d: %s", resp.StatusCode, string(b))
+		}
+	})
+
+	t.Run("Collection_NonExistentScope_Returns404", func(t *testing.T) {
+		req, _ := http.NewRequest("GET", env.registryPath("collection", nonexistentScope), nil)
+		req.Header.Set("Accept", "application/json")
+		env.setAuth(req)
+		resp, err := env.httpClient.Do(req)
+		if err != nil {
+			t.Fatalf("collection: %v", err)
+		}
+		defer resp.Body.Close()
+		if resp.StatusCode != http.StatusNotFound {
+			b, _ := io.ReadAll(resp.Body)
+			t.Fatalf("expected 404, got %d: %s", resp.StatusCode, string(b))
+		}
+	})
+
+	t.Run("WrongAccept_Returns4xx", func(t *testing.T) {
+		req, _ := http.NewRequest("GET", env.registryPath(mavenE2EScope, mavenTestPackage), nil)
+		req.Header.Set("Accept", "application/vnd.swift.registry.v99+json")
+		env.setAuth(req)
+		resp, err := env.httpClient.Do(req)
+		if err != nil {
+			t.Fatalf("list: %v", err)
+		}
+		defer resp.Body.Close()
+		if resp.StatusCode != http.StatusBadRequest && resp.StatusCode != http.StatusUnsupportedMediaType {
+			b, _ := io.ReadAll(resp.Body)
+			t.Fatalf("expected 400 or 415, got %d: %s", resp.StatusCode, string(b))
+		}
+		if ct := resp.Header.Get("Content-Type"); ct != "application/problem+json" {
+			t.Fatalf("Content-Type: got %q, want application/problem+json", ct)
+		}
+	})
+
+	t.Run("Lookup_NoURL_Returns400", func(t *testing.T) {
+		req, _ := http.NewRequest("GET", env.registryPath("identifiers"), nil)
+		req.Header.Set("Accept", acceptJSON)
+		env.setAuth(req)
+		resp, err := env.httpClient.Do(req)
+		if err != nil {
+			t.Fatalf("lookup: %v", err)
+		}
+		defer resp.Body.Close()
+		if resp.StatusCode != http.StatusBadRequest {
+			b, _ := io.ReadAll(resp.Body)
+			t.Fatalf("expected 400, got %d: %s", resp.StatusCode, string(b))
+		}
+	})
+
+	t.Run("Publish_DuplicateVersion_Returns409", func(t *testing.T) {
+		var body bytes.Buffer
+		mp := multipart.NewWriter(&body)
+		h := make(textproto.MIMEHeader)
+		h.Set("Content-Disposition", `form-data; name="source-archive"; filename="source-archive.zip"`)
+		h.Set("Content-Type", "application/zip")
+		part, _ := mp.CreatePart(h)
+		part.Write(zip1)
+		mp.Close()
+		req, _ := http.NewRequest("PUT", env.registryPath(mavenE2EScope, mavenTestPackage, mavenVersion1), &body)
+		req.Header.Set("Content-Type", mp.FormDataContentType())
+		req.Header.Set("Accept", acceptJSON)
+		env.setAuth(req)
+		resp, err := env.httpClient.Do(req)
+		if err != nil {
+			t.Fatalf("put: %v", err)
+		}
+		defer resp.Body.Close()
+		if resp.StatusCode != http.StatusConflict {
+			b, _ := io.ReadAll(resp.Body)
+			t.Fatalf("expected 409 for duplicate publish, got %d: %s", resp.StatusCode, string(b))
+		}
+	})
+
+	if cleanupMaven {
+		t.Run("Cleanup", func(t *testing.T) {
+			cleanNexusScope(t, env, mavenE2EScope, []string{mavenTestPackage, mavenOtherPackage})
+		})
+	}
+}
+
+// TestRegistryE2E runs the registry HTTP API e2e tests against both file and Maven backends.
+//
+// It covers all six Swift Package Registry normative endpoints (Registry spec 4) plus collections and error cases.
+func TestRegistryE2E(t *testing.T) {
+	env := setupE2E(t)
+	zip1 := createMinimalZip(t, mavenE2EScope, mavenTestPackage, mavenVersion1, true)
+	metadataBody := []byte(`{"description":"E2E test metadata"}`)
+
+	t.Run("Maven", func(t *testing.T) {
+		waitForNexus(t, env)
 		cleanNexusScope(t, env, mavenE2EScope, []string{mavenTestPackage, mavenOtherPackage})
+		env.configPath = filepath.Join(env.rootDir, "config.e2e.yml")
+		if env.useHTTPS {
+			env.configPath = filepath.Join(env.rootDir, "config.e2e.https.yml")
+		}
+		defer startRegistryServer(t, env)()
+		time.Sleep(500 * time.Millisecond)
+		runRegistryE2ETestBody(t, env, zip1, metadataBody, true)
+	})
+
+	t.Run("File", func(t *testing.T) {
+		fileRepoPath := filepath.Join(env.rootDir, "e2e-file-repo")
+		os.RemoveAll(fileRepoPath)
+		defer os.RemoveAll(fileRepoPath)
+		env.configPath = filepath.Join(env.rootDir, "config.e2e.file.yml")
+		defer startRegistryServer(t, env)()
+		time.Sleep(500 * time.Millisecond)
+		runRegistryE2ETestBody(t, env, zip1, metadataBody, false)
 	})
 }

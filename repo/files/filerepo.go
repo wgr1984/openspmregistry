@@ -65,8 +65,9 @@ func (f *FileRepo) ExtractManifestFiles(ctx context.Context, element *models.Upl
 func (f *FileRepo) List(ctx context.Context, scope string, name string) ([]models.ListElement, error) {
 	path := filepath.Join(f.path, scope, name)
 	_, err := f.osModule.Stat(path)
+	// Spec 4.1: "Otherwise, a server SHOULD respond with 404 (Not Found)" — return empty list so controller returns 404
 	if errors.Is(err, os.ErrNotExist) {
-		return nil, err
+		return []models.ListElement{}, nil
 	}
 	if err != nil {
 		return nil, err

@@ -36,6 +36,7 @@ go.work.sum
 **/.DS_Store
 openspmregistry
 openspmregistry.e2e
+e2e-file-repo
 testdata/e2e/Consumer/Package.resolved
 # Leftover from swift package archive-source in fixture dirs (e2e uses package-registry publish)
 testdata/e2e/**/*.zip
