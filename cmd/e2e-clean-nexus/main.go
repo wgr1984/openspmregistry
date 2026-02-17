@@ -19,6 +19,11 @@ import (
 	"strings"
 )
 
+type searchResponse struct {
+	Items             []struct{ ID string } `json:"items"`
+	ContinuationToken string                `json:"continuationToken"`
+}
+
 func main() {
 	nexusURL := getEnv("NEXUS_URL", "http://localhost:8081")
 	repo := getEnv("MAVEN_REPO_NAME", "private")
@@ -79,11 +84,6 @@ func getEnv(key, defaultVal string) string {
 	return defaultVal
 }
 
-type searchResponse struct {
-	Items             []struct{ ID string } `json:"items"`
-	ContinuationToken string                `json:"continuationToken"`
-}
-
 func cleanPackage(client *http.Client, nexusURL, repo, pkgName, auth string) (int, error) {
 	baseURL := fmt.Sprintf("%s/service/rest/v1/search?repository=%s&group=example&name=%s",
 		nexusURL, repo, pkgName)
@@ -105,7 +105,7 @@ func cleanPackage(client *http.Client, nexusURL, repo, pkgName, auth string) (in
 			return deleted, err
 		}
 		body, err := io.ReadAll(resp.Body)
-		resp.Body.Close()
+		_ = resp.Body.Close()
 		if err != nil {
 			return deleted, err
 		}
@@ -130,7 +130,7 @@ func cleanPackage(client *http.Client, nexusURL, repo, pkgName, auth string) (in
 			delReq, _ := http.NewRequest(http.MethodDelete, delURL, nil)
 			delReq.Header.Set("Authorization", "Basic "+auth)
 			if r, err := client.Do(delReq); err == nil {
-				r.Body.Close()
+				_ = r.Body.Close()
 				if r.StatusCode >= 200 && r.StatusCode < 300 {
 					deleted++
 				}

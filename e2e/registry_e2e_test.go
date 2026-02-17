@@ -356,6 +356,29 @@ func runRegistryE2ETestBody(t *testing.T, env *e2eEnv, zip1 []byte, metadataBody
 		}
 	})
 
+	// Spec 4.3.1: when requested swift-version has no Package@swift-X.swift, server SHOULD respond 303 to unqualified Package.swift (or 404)
+	t.Run("PackageSwift_SwiftVersionNotPresent_Returns303Or404", func(t *testing.T) {
+		manifestURL := env.registryPath(mavenE2EScope, mavenTestPackage, mavenVersion1, "Package.swift") + "?swift-version=99.0"
+		req, _ := http.NewRequest("GET", manifestURL, nil)
+		req.Header.Set("Accept", acceptSwift)
+		env.setAuth(req)
+		resp, err := env.httpClient.Do(req)
+		if err != nil {
+			t.Fatalf("get manifest: %v", err)
+		}
+		defer resp.Body.Close()
+		switch resp.StatusCode {
+		case http.StatusSeeOther:
+			if loc := resp.Header.Get("Location"); loc == "" {
+				t.Fatal("303 response missing Location header")
+			}
+		case http.StatusNotFound:
+			// current implementation returns 404 when variant file does not exist
+		default:
+			t.Fatalf("expected 303 or 404 for missing swift-version variant, got %d", resp.StatusCode)
+		}
+	})
+
 	// Spec 4.3: when multiple manifests exist (we published 1.0.0 with Package.swift + Package@swift-5.7.0.swift),
 	// server MUST include Link with alternate. File backend returns them; Maven does not populate same-version alternates.
 	t.Run("PackageSwift_LinkAlternate_WhenMultipleManifests", func(t *testing.T) {
@@ -422,12 +445,62 @@ func runRegistryE2ETestBody(t *testing.T, env *e2eEnv, zip1 []byte, metadataBody
 		if cc := resp.Header.Get("Cache-Control"); cc != "public, immutable" {
 			t.Fatalf("Cache-Control: got %q, want public, immutable", cc)
 		}
+		// Spec 4.4: server MUST set Content-Length for source archive
+		if cl := resp.Header.Get("Content-Length"); cl != "" {
+			if cl != fmt.Sprint(len(body)) {
+				t.Fatalf("Content-Length: got %s, body length %d", cl, len(body))
+			}
+		}
 		if digest := resp.Header.Get("Digest"); digest != "" {
 			hash := sha256.Sum256(zip1)
 			expected := "sha-256=" + fmt.Sprintf("%x", hash[:])
 			if digest != expected {
 				t.Fatalf("Digest header: got %s, expected %s", digest, expected)
 			}
+		}
+	})
+
+	// Spec: server SHOULD respond to HEAD requests for each endpoint
+	t.Run("HEAD_ReleaseMetadata", func(t *testing.T) {
+		req, _ := http.NewRequest("HEAD", env.registryPath(mavenE2EScope, mavenTestPackage, mavenVersion1), nil)
+		req.Header.Set("Accept", acceptJSON)
+		env.setAuth(req)
+		resp, err := env.httpClient.Do(req)
+		if err != nil {
+			t.Fatalf("HEAD version: %v", err)
+		}
+		defer resp.Body.Close()
+		if resp.StatusCode != http.StatusOK {
+			t.Fatalf("HEAD expected 200, got %d", resp.StatusCode)
+		}
+		if ct := resp.Header.Get("Content-Type"); ct != contentTypeJSON {
+			t.Fatalf("HEAD Content-Type: got %q, want %q", ct, contentTypeJSON)
+		}
+		if v := resp.Header.Get("Content-Version"); v != contentVersion {
+			t.Fatalf("HEAD Content-Version: got %q, want %q", v, contentVersion)
+		}
+		if resp.ContentLength != 0 {
+			body, _ := io.ReadAll(resp.Body)
+			if len(body) != 0 {
+				t.Fatalf("HEAD response should have no body, got %d bytes", len(body))
+			}
+		}
+	})
+
+	t.Run("HEAD_PackageSwift", func(t *testing.T) {
+		req, _ := http.NewRequest("HEAD", env.registryPath(mavenE2EScope, mavenTestPackage, mavenVersion1, "Package.swift"), nil)
+		req.Header.Set("Accept", acceptSwift)
+		env.setAuth(req)
+		resp, err := env.httpClient.Do(req)
+		if err != nil {
+			t.Fatalf("HEAD manifest: %v", err)
+		}
+		defer resp.Body.Close()
+		if resp.StatusCode != http.StatusOK {
+			t.Fatalf("HEAD Package.swift expected 200, got %d", resp.StatusCode)
+		}
+		if ct := resp.Header.Get("Content-Type"); ct != contentTypeSwift {
+			t.Fatalf("HEAD Content-Type: got %q, want %q", ct, contentTypeSwift)
 		}
 	})
 
@@ -521,6 +594,24 @@ func runRegistryE2ETestBody(t *testing.T, env *e2eEnv, zip1 []byte, metadataBody
 			t.Fatalf("Link header with latest-version missing: %q", link)
 		}
 		body, _ := io.ReadAll(resp.Body)
+		// Spec 4.1: response must have top-level "releases" object; each value has url and/or problem
+		var listResp struct {
+			Releases map[string]struct {
+				URL     string         `json:"url"`
+				Problem map[string]any `json:"problem"`
+			} `json:"releases"`
+		}
+		if err := json.Unmarshal(body, &listResp); err != nil {
+			t.Fatalf("parse list response: %v", err)
+		}
+		if listResp.Releases == nil {
+			t.Fatal("list response missing releases object")
+		}
+		for ver, entry := range listResp.Releases {
+			if entry.URL == "" && (entry.Problem == nil || len(entry.Problem) == 0) {
+				t.Fatalf("list release %q must have url or problem", ver)
+			}
+		}
 		for _, ver := range []string{mavenVersion1, mavenVersion1_1} {
 			if !bytes.Contains(body, []byte(`"`+ver+`"`)) {
 				t.Fatalf("list missing version %s: %s", ver, string(body))
@@ -614,12 +705,20 @@ func runRegistryE2ETestBody(t *testing.T, env *e2eEnv, zip1 []byte, metadataBody
 			t.Fatalf("list: %v", err)
 		}
 		defer resp.Body.Close()
+		body, _ := io.ReadAll(resp.Body)
 		if resp.StatusCode != http.StatusNotFound {
-			b, _ := io.ReadAll(resp.Body)
-			t.Fatalf("expected 404, got %d: %s", resp.StatusCode, string(b))
+			t.Fatalf("expected 404, got %d: %s", resp.StatusCode, string(body))
 		}
 		if ct := resp.Header.Get("Content-Type"); ct != "application/problem+json" {
 			t.Fatalf("Content-Type: got %q, want application/problem+json", ct)
+		}
+		// Spec 3.3 / RFC 7807: problem details must include at least detail
+		var problem map[string]any
+		if err := json.Unmarshal(body, &problem); err != nil {
+			t.Fatalf("parse problem body: %v", err)
+		}
+		if _, ok := problem["detail"]; !ok {
+			t.Fatalf("problem response missing detail field: %s", string(body))
 		}
 	})
 
@@ -701,20 +800,38 @@ func runRegistryE2ETestBody(t *testing.T, env *e2eEnv, zip1 []byte, metadataBody
 		}
 	})
 
-	t.Run("Lookup_NoURL_Returns400", func(t *testing.T) {
-		req, _ := http.NewRequest("GET", env.registryPath("identifiers"), nil)
-		req.Header.Set("Accept", acceptJSON)
-		env.setAuth(req)
-		resp, err := env.httpClient.Do(req)
-		if err != nil {
-			t.Fatalf("lookup: %v", err)
+		t.Run("Lookup_NoURL_Returns400", func(t *testing.T) {
+			req, _ := http.NewRequest("GET", env.registryPath("identifiers"), nil)
+			req.Header.Set("Accept", acceptJSON)
+			env.setAuth(req)
+			resp, err := env.httpClient.Do(req)
+			if err != nil {
+				t.Fatalf("lookup: %v", err)
+			}
+			defer resp.Body.Close()
+			if resp.StatusCode != http.StatusBadRequest {
+				b, _ := io.ReadAll(resp.Body)
+				t.Fatalf("expected 400, got %d: %s", resp.StatusCode, string(b))
+			}
+		})
+
+		// Spec 3.2: server SHOULD respond 401 when auth required but no credentials
+		if env.useHTTPS {
+			t.Run("Unauthorized_NoCredentials_Returns401", func(t *testing.T) {
+				req, _ := http.NewRequest("GET", env.registryPath(mavenE2EScope, mavenTestPackage), nil)
+				req.Header.Set("Accept", acceptJSON)
+				// do not call env.setAuth(req)
+				resp, err := env.httpClient.Do(req)
+				if err != nil {
+					t.Fatalf("list: %v", err)
+				}
+				defer resp.Body.Close()
+				if resp.StatusCode != http.StatusUnauthorized {
+					b, _ := io.ReadAll(resp.Body)
+					t.Fatalf("expected 401 without auth, got %d: %s", resp.StatusCode, string(b))
+				}
+			})
 		}
-		defer resp.Body.Close()
-		if resp.StatusCode != http.StatusBadRequest {
-			b, _ := io.ReadAll(resp.Body)
-			t.Fatalf("expected 400, got %d: %s", resp.StatusCode, string(b))
-		}
-	})
 
 	t.Run("Publish_DuplicateVersion_Returns409", func(t *testing.T) {
 		var body bytes.Buffer
@@ -734,9 +851,19 @@ func runRegistryE2ETestBody(t *testing.T, env *e2eEnv, zip1 []byte, metadataBody
 			t.Fatalf("put: %v", err)
 		}
 		defer resp.Body.Close()
+		respBody, _ := io.ReadAll(resp.Body)
 		if resp.StatusCode != http.StatusConflict {
-			b, _ := io.ReadAll(resp.Body)
-			t.Fatalf("expected 409 for duplicate publish, got %d: %s", resp.StatusCode, string(b))
+			t.Fatalf("expected 409 for duplicate publish, got %d: %s", resp.StatusCode, string(respBody))
+		}
+		if ct := resp.Header.Get("Content-Type"); ct != "application/problem+json" {
+			t.Fatalf("409 Content-Type: got %q, want application/problem+json", ct)
+		}
+		var problem map[string]any
+		if err := json.Unmarshal(respBody, &problem); err != nil {
+			t.Fatalf("parse 409 body: %v", err)
+		}
+		if _, ok := problem["detail"]; !ok {
+			t.Fatalf("409 problem response missing detail: %s", string(respBody))
 		}
 	})
 

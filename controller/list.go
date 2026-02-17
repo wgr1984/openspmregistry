@@ -10,6 +10,9 @@ import (
 	"strconv"
 )
 
+// defaultListPageSize is used when listPageSize is not set in config.
+const defaultListPageSize = 10
+
 func (c *Controller) ListAction(w http.ResponseWriter, r *http.Request) {
 
 	printCallInfo("List", r)
@@ -56,9 +59,6 @@ func (c *Controller) ListAction(w http.ResponseWriter, r *http.Request) {
 		slog.Error("Error encoding JSON:", "error", err)
 	}
 }
-
-// defaultListPageSize is used when listPageSize is not set in config.
-const defaultListPageSize = 10
 
 // parseListPagination reads page from query. Returns (page, perPage); perPage 0 means no pagination.
 // The Swift Registry spec (4.1) exemplifies ?page=N in Link URLs but does not define query params.

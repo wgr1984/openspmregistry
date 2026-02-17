@@ -21,10 +21,19 @@ import (
 	"syscall"
 )
 
+// headResponseWriter discards the response body so HEAD returns same headers as GET but no body.
+type headResponseWriter struct {
+	http.ResponseWriter
+}
+
 var (
 	verboseFlag  bool
 	configPath   string
 )
+
+func (h *headResponseWriter) Write(b []byte) (int, error) {
+	return len(b), nil
+}
 
 func loadServerConfig() (*config.ServerRoot, error) {
 	path := configPath
@@ -89,9 +98,18 @@ func main() {
 	a := middleware.NewAuthentication(authenticator.CreateAuthenticator(serverConfig.Server), router)
 	c := controller.NewController(serverConfig.Server, r)
 
+	// headNoBody wraps w to discard the response body. Only used for HEAD routes (same headers as GET, no body).
+	headNoBody := func(h http.HandlerFunc) http.HandlerFunc {
+		return func(w http.ResponseWriter, r *http.Request) {
+			w = &headResponseWriter{ResponseWriter: w}
+			h(w, r)
+		}
+	}
+
 	// authorized routes
 	a.HandleFunc("POST /login", c.LoginAction)
 	a.HandleFunc("GET /{scope}/{package}", c.ListAction)
+	a.HandleFunc("HEAD /{scope}/{package}", headNoBody(c.ListAction))
 	a.HandleFunc("GET /{scope}/{package}/{version}", func(w http.ResponseWriter, r *http.Request) {
 		if strings.HasSuffix(r.URL.Path, ".zip") {
 			c.DownloadSourceArchiveAction(w, r)
@@ -99,8 +117,17 @@ func main() {
 			c.InfoAction(w, r)
 		}
 	})
+	a.HandleFunc("HEAD /{scope}/{package}/{version}", headNoBody(func(w http.ResponseWriter, r *http.Request) {
+		if strings.HasSuffix(r.URL.Path, ".zip") {
+			c.DownloadSourceArchiveAction(w, r)
+		} else {
+			c.InfoAction(w, r)
+		}
+	}))
 	a.HandleFunc("GET /{scope}/{package}/{version}/Package.swift", c.FetchManifestAction)
+	a.HandleFunc("HEAD /{scope}/{package}/{version}/Package.swift", headNoBody(c.FetchManifestAction))
 	a.HandleFunc("GET /identifiers", c.LookupAction)
+	a.HandleFunc("HEAD /identifiers", headNoBody(c.LookupAction))
 	a.HandleFunc("PUT /{scope}/{package}/{version}", c.PublishAction)
 
 	// Package Collections endpoints (if enabled)

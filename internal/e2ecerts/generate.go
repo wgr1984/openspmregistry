@@ -71,7 +71,7 @@ func writeKey(path string, key *rsa.PrivateKey) error {
 	if err != nil {
 		return err
 	}
-	defer f.Close()
+	defer func() { _ = f.Close() }()
 	return pem.Encode(f, &pem.Block{Type: "RSA PRIVATE KEY", Bytes: x509.MarshalPKCS1PrivateKey(key)})
 }
 
@@ -80,6 +80,6 @@ func writeCert(path string, der []byte) error {
 	if err != nil {
 		return err
 	}
-	defer f.Close()
+	defer func() { _ = f.Close() }()
 	return pem.Encode(f, &pem.Block{Type: "CERTIFICATE", Bytes: der})
 }

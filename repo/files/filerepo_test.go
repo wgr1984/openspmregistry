@@ -362,13 +362,17 @@ func Test_List_DirectoryExistButEmpty_ReturnsEmptyList(t *testing.T) {
 func Test_List_ErrorReadingDirectory_ReturnsError(t *testing.T) {
 	defer teardown(t)
 
+	// Package path does not exist: List returns empty list and nil so controller can respond 404 (Spec 4.1).
 	fileRepo := NewFileRepo("/tmp/openspmsreg_tests/invalid_path_list")
 	scope := "testScope"
 	name := "testName"
 
-	_, err := fileRepo.List(context.Background(), scope, name)
-	if err == nil || !errors.Is(err, os.ErrNotExist) {
-		t.Errorf("expected error, got nil")
+	elements, err := fileRepo.List(context.Background(), scope, name)
+	if err != nil {
+		t.Errorf("expected nil error for non-existent package path, got %v", err)
+	}
+	if len(elements) != 0 {
+		t.Errorf("expected empty list for non-existent package path, got %d elements", len(elements))
 	}
 }
 

@@ -110,7 +110,7 @@ func uploadScript(client *http.Client, baseURL, user, pass, name, content string
 	if err != nil {
 		return err
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	b, _ := io.ReadAll(resp.Body)
 	switch resp.StatusCode {
 	case 200, 201, 204:
@@ -143,7 +143,7 @@ func runScript(client *http.Client, baseURL, user, pass, name string) error {
 	if err != nil {
 		return err
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	b, _ := io.ReadAll(resp.Body)
 	if resp.StatusCode == 200 {
 		return nil
@@ -167,7 +167,7 @@ func changePassword(client *http.Client, baseURL, user, currentPass, newPass str
 	if err != nil {
 		return err
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	if resp.StatusCode >= 200 && resp.StatusCode < 300 {
 		return nil
 	}
