@@ -46,6 +46,11 @@ func (a *Authentication) HandleFunc(pattern string, handler http.HandlerFunc) {
 	a.muxer.HandleFunc(pattern, a.authenticate(handler))
 }
 
+// WrapHandler returns the handler wrapped with authentication (for use on another mux).
+func (a *Authentication) WrapHandler(h http.HandlerFunc) http.HandlerFunc {
+	return a.authenticate(h)
+}
+
 // authenticate is a middleware that checks if the request is authorized
 // based on the provided authenticator
 // if the request is not authorized, it returns a 401 status code

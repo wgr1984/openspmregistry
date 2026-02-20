@@ -11,7 +11,6 @@ import (
 	"context"
 	"flag"
 	"fmt"
-	"gopkg.in/yaml.v3"
 	"log"
 	"log/slog"
 	"net/http"
@@ -19,6 +18,8 @@ import (
 	"os/signal"
 	"strings"
 	"syscall"
+
+	"gopkg.in/yaml.v3"
 )
 
 // headResponseWriter discards the response body so HEAD returns same headers as GET but no body.
@@ -27,8 +28,8 @@ type headResponseWriter struct {
 }
 
 var (
-	verboseFlag  bool
-	configPath   string
+	verboseFlag bool
+	configPath  string
 )
 
 func (h *headResponseWriter) Write(b []byte) (int, error) {
@@ -78,7 +79,8 @@ func main() {
 		log.Fatal(err)
 	}
 
-	router := http.NewServeMux()
+	registryMux := http.NewServeMux()
+	collectionMux := http.NewServeMux()
 
 	repoConfig := serverConfig.Server.Repo
 
@@ -95,7 +97,7 @@ func main() {
 	default:
 		log.Fatalf("Unsupported repo type: %s", repoConfig.Type)
 	}
-	a := middleware.NewAuthentication(authenticator.CreateAuthenticator(serverConfig.Server), router)
+	a := middleware.NewAuthentication(authenticator.CreateAuthenticator(serverConfig.Server), registryMux)
 	c := controller.NewController(serverConfig.Server, r)
 
 	// headNoBody wraps w to discard the response body. Only used for HEAD routes (same headers as GET, no body).
@@ -106,7 +108,22 @@ func main() {
 		}
 	}
 
-	// authorized routes
+	// Package Collections on a separate mux so Go 1.22+ ServeMux does not conflict with /{scope}/{package}.
+	if serverConfig.Server.PackageCollections.Enabled {
+		if serverConfig.Server.PackageCollections.PublicRead {
+			collectionMux.HandleFunc("GET /collection", c.GlobalCollectionAction)
+			collectionMux.HandleFunc("HEAD /collection", headNoBody(c.GlobalCollectionAction))
+			collectionMux.HandleFunc("GET /collection/{scope}", c.ScopeCollectionAction)
+			collectionMux.HandleFunc("HEAD /collection/{scope}", headNoBody(c.ScopeCollectionAction))
+		} else {
+			collectionMux.HandleFunc("GET /collection", a.WrapHandler(c.GlobalCollectionAction))
+			collectionMux.HandleFunc("HEAD /collection", headNoBody(a.WrapHandler(c.GlobalCollectionAction)))
+			collectionMux.HandleFunc("GET /collection/{scope}", a.WrapHandler(c.ScopeCollectionAction))
+			collectionMux.HandleFunc("HEAD /collection/{scope}", headNoBody(a.WrapHandler(c.ScopeCollectionAction)))
+		}
+	}
+
+	// authorized routes (registry only)
 	a.HandleFunc("POST /login", c.LoginAction)
 	a.HandleFunc("GET /{scope}/{package}", c.ListAction)
 	a.HandleFunc("HEAD /{scope}/{package}", headNoBody(c.ListAction))
@@ -130,27 +147,28 @@ func main() {
 	a.HandleFunc("HEAD /identifiers", headNoBody(c.LookupAction))
 	a.HandleFunc("PUT /{scope}/{package}/{version}", c.PublishAction)
 
-	// Package Collections endpoints (if enabled)
-	// Use publicRead for unauthenticated access, or auth via ?auth=<base64(user:pass)> query param
-	if serverConfig.Server.PackageCollections.PublicRead {
-		router.HandleFunc("GET /collection", c.GlobalCollectionAction)
-		router.HandleFunc("GET /collection/{scope}", c.ScopeCollectionAction)
-	} else {
-		a.HandleFunc("GET /collection", c.GlobalCollectionAction)
-		a.HandleFunc("GET /collection/{scope}", c.ScopeCollectionAction)
+	// public and static routes on registry mux
+	registryMux.HandleFunc("GET /", c.MainAction)
+	registryMux.HandleFunc("GET /favicon.ico", c.StaticAction)
+	registryMux.HandleFunc("GET /favicon.svg", c.StaticAction)
+	registryMux.HandleFunc("GET /output.css", c.StaticAction)
+
+	// Path dispatcher: /collection* -> collectionMux, else -> auth-wrapped registryMux.
+	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if strings.HasPrefix(r.URL.Path, "/collection") {
+			collectionMux.ServeHTTP(w, r)
+		} else {
+			a.ServeHTTP(w, r)
+		}
+	})
+
+	addr := fmt.Sprintf(":%d", serverConfig.Server.Port)
+	if serverConfig.Server.Hostname != "" {
+		addr = fmt.Sprintf("%s:%d", serverConfig.Server.Hostname, serverConfig.Server.Port)
 	}
-
-	// public routes
-	router.HandleFunc("GET /", c.MainAction)
-
-	// static routes
-	router.HandleFunc("GET /favicon.ico", c.StaticAction)
-	router.HandleFunc("GET /favicon.svg", c.StaticAction)
-	router.HandleFunc("GET /output.css", c.StaticAction)
-
 	srv := &http.Server{
-		Addr:    fmt.Sprintf(":%d", serverConfig.Server.Port),
-		Handler: a,
+		Addr:    addr,
+		Handler: handler,
 	}
 
 	sigChannel := make(chan os.Signal, 1)

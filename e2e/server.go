@@ -41,6 +41,19 @@ func startRegistryServer(t *testing.T, env *e2eEnv) (cleanup func()) {
 		t.Fatalf("start server: %v", err)
 	}
 
+	// If the process exits within 2s, fail with server log so we see why (e.g. config error, Fatal).
+	done := make(chan struct{})
+	go func() {
+		_ = cmd.Wait()
+		close(done)
+	}()
+	select {
+	case <-done:
+		t.Fatalf("registry process exited before ready. Server log:\n%s", serverLog.String())
+	case <-time.After(2 * time.Second):
+		// Process still running, continue to waitForRegistry
+	}
+
 	waitForRegistry(t, env)
 
 	return func() {

@@ -213,7 +213,7 @@ func validateUploadType(name string) (models.UploadElementType, error) {
 //   - version: Package version
 func cleanupStoredElements(c *Controller, r *http.Request, storedElements []*models.UploadElement, scope, packageName, version string) {
 	ctx := requestContext(r)
-	
+
 	// Remove all stored elements (metadata, signatures, source archive)
 	for _, element := range storedElements {
 		if err := c.repo.Remove(ctx, element); err != nil {

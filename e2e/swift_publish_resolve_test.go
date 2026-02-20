@@ -208,10 +208,11 @@ func cleanNexusScope(t *testing.T, env *e2eEnv, group string, packageNames []str
 	}
 }
 
-// cleanNexus removes example.SamplePackage and example.UtilsPackage from Nexus via REST API.
+// cleanNexus removes example.SamplePackage, example.UtilsPackage, and example.SignedPkg from Nexus via REST API.
+// SignedPkg is cleaned so PublishSignedPackageViaHTTP and ConsumerResolve start from a clean state.
 func cleanNexus(t *testing.T, env *e2eEnv) {
 	t.Helper()
-	cleanNexusScope(t, env, "example", []string{"SamplePackage", "UtilsPackage"})
+	cleanNexusScope(t, env, "example", []string{"SamplePackage", "UtilsPackage", "SignedPkg"})
 }
 
 // waitForNexus checks that Nexus is reachable.
@@ -356,6 +357,208 @@ func TestSwiftPublishResolve(t *testing.T) {
 		}
 		if !bytes.Contains(body, []byte(`"description"`)) {
 			t.Fatalf("package info missing description")
+		}
+	})
+
+	// Publish signed package via HTTP and verify signing metadata
+	t.Run("PublishSignedPackageViaHTTP", func(t *testing.T) {
+		// Create minimal zip for signed package
+		signedPkgZip := createMinimalZip(t, scope, "SignedPkg", "1.0.0", false)
+		// Dummy signature: 32 bytes of test data
+		dummySignature := make([]byte, 32)
+		for i := range dummySignature {
+			dummySignature[i] = byte(i + 100) // Different pattern than registry_e2e test
+		}
+		// Publish with signature
+		registryPublishMultipart(t, env, scope, "SignedPkg", "1.0.0", signedPkgZip, nil, dummySignature)
+
+		// Verify release metadata contains signing
+		req, _ := http.NewRequest("GET", env.registryPath(scope, "SignedPkg", "1.0.0"), nil)
+		req.Header.Set("Accept", acceptJSON)
+		env.setAuth(req)
+		resp, err := env.httpClient.Do(req)
+		if err != nil {
+			t.Fatalf("get signed package metadata: %v", err)
+		}
+		defer resp.Body.Close()
+		if resp.StatusCode != http.StatusOK {
+			b, _ := io.ReadAll(resp.Body)
+			t.Fatalf("expected 200, got %d: %s", resp.StatusCode, string(b))
+		}
+		body, _ := io.ReadAll(resp.Body)
+		var info map[string]any
+		if err := json.Unmarshal(body, &info); err != nil {
+			t.Fatalf("parse version info: %v", err)
+		}
+		resources, _ := info["resources"].([]any)
+		if len(resources) == 0 {
+			t.Fatal("no resources")
+		}
+		r0, _ := resources[0].(map[string]any)
+		signing, _ := r0["signing"].(map[string]any)
+		if signing == nil {
+			t.Fatal("signing object missing in release metadata")
+		}
+		signatureBase64Encoded, _ := signing["signatureBase64Encoded"].(string)
+		if signatureBase64Encoded == "" {
+			t.Fatal("signatureBase64Encoded missing or empty")
+		}
+		signatureFormat, _ := signing["signatureFormat"].(string)
+		if signatureFormat != "cms-1.0.0" {
+			t.Fatalf("signatureFormat: got %q, want cms-1.0.0", signatureFormat)
+		}
+
+		// Verify download headers
+		url := env.registryPath(scope, "SignedPkg", "1.0.0") + ".zip"
+		req2, _ := http.NewRequest("GET", url, nil)
+		req2.Header.Set("Accept", acceptZip)
+		env.setAuth(req2)
+		resp2, err := env.httpClient.Do(req2)
+		if err != nil {
+			t.Fatalf("download signed package: %v", err)
+		}
+		defer resp2.Body.Close()
+		if resp2.StatusCode != http.StatusOK {
+			b, _ := io.ReadAll(resp2.Body)
+			t.Fatalf("download: expected 200, got %d, body %s", resp2.StatusCode, string(b))
+		}
+		signatureFormatHeader := resp2.Header.Get("X-Swift-Package-Signature-Format")
+		if signatureFormatHeader != "cms-1.0.0" {
+			t.Fatalf("X-Swift-Package-Signature-Format: got %q, want cms-1.0.0", signatureFormatHeader)
+		}
+		signatureHeader := resp2.Header.Get("X-Swift-Package-Signature")
+		if signatureHeader == "" {
+			t.Fatal("X-Swift-Package-Signature header missing")
+		}
+	})
+
+	// Optional: Test Swift CLI signing and publishing
+	t.Run("PublishWithSwiftSigning", func(t *testing.T) {
+		signingIdentity := os.Getenv("E2E_SWIFT_SIGNING_IDENTITY")
+		if signingIdentity == "" {
+			t.Skip("E2E_SWIFT_SIGNING_IDENTITY not set; skipping Swift CLI signing test. Set E2E_SWIFT_SIGNING_IDENTITY to a keychain identity name or certificate path to test Swift CLI signing.")
+		}
+
+		// Use a dedicated package for this test to avoid conflicts
+		swiftSignedPkgID := scope + ".SwiftSignedPkg"
+		swiftSignedVersion := "1.0.0"
+
+		// Create a minimal Swift package directory for SwiftSignedPkg
+		swiftSignedPkgDir := filepath.Join(env.rootDir, "testdata", "e2e", "example.SwiftSignedPkg")
+		os.MkdirAll(swiftSignedPkgDir, 0755)
+		defer os.RemoveAll(swiftSignedPkgDir)
+
+		// Create Package.swift
+		packageSwift := `// swift-tools-version:5.3
+import PackageDescription
+
+let package = Package(
+    name: "SwiftSignedPkg",
+    products: [
+        .library(name: "SwiftSignedPkg", targets: ["SwiftSignedPkg"])
+    ],
+    targets: [
+        .target(name: "SwiftSignedPkg")
+    ]
+)
+`
+		if err := os.WriteFile(filepath.Join(swiftSignedPkgDir, "Package.swift"), []byte(packageSwift), 0644); err != nil {
+			t.Fatalf("create Package.swift: %v", err)
+		}
+
+		// Create Sources directory and a simple source file
+		sourcesDir := filepath.Join(swiftSignedPkgDir, "Sources", "SwiftSignedPkg")
+		os.MkdirAll(sourcesDir, 0755)
+		sourceFile := `public struct SwiftSignedPkg {
+    public init() {}
+}
+`
+		if err := os.WriteFile(filepath.Join(sourcesDir, "SwiftSignedPkg.swift"), []byte(sourceFile), 0644); err != nil {
+			t.Fatalf("create SwiftSignedPkg.swift: %v", err)
+		}
+
+		// Clean build artifacts
+		os.RemoveAll(filepath.Join(swiftSignedPkgDir, ".build"))
+		os.RemoveAll(filepath.Join(swiftSignedPkgDir, ".swiftpm"))
+
+		// Prepare Package.json
+		if out, err := runSwift(t, swiftSignedPkgDir, "package", "dump-package"); err == nil {
+			os.WriteFile(filepath.Join(swiftSignedPkgDir, "Package.json"), []byte(out), 0644)
+		}
+
+		// Publish with signing
+		publishOpts := []string{"--url", env.registryURL, "--signing-identity", signingIdentity}
+		if !env.useHTTPS {
+			publishOpts = append(publishOpts, "--allow-insecure-http")
+		}
+		out, err := runSwift(t, swiftSignedPkgDir, append([]string{"package-registry", "publish", swiftSignedPkgID, swiftSignedVersion}, publishOpts...)...)
+		if err != nil {
+			t.Fatalf("publish %s %s with signing: %v\n%s", swiftSignedPkgID, swiftSignedVersion, err, out)
+		}
+
+		time.Sleep(500 * time.Millisecond)
+
+		// Verify release metadata contains signing
+		req, _ := http.NewRequest("GET", env.registryPath(scope, "SwiftSignedPkg", swiftSignedVersion), nil)
+		req.Header.Set("Accept", acceptJSON)
+		env.setAuth(req)
+		resp, err := env.httpClient.Do(req)
+		if err != nil {
+			t.Fatalf("get SwiftSignedPkg metadata: %v", err)
+		}
+		defer resp.Body.Close()
+		if resp.StatusCode != http.StatusOK {
+			b, _ := io.ReadAll(resp.Body)
+			t.Fatalf("expected 200, got %d: %s", resp.StatusCode, string(b))
+		}
+		body, _ := io.ReadAll(resp.Body)
+		var info map[string]any
+		if err := json.Unmarshal(body, &info); err != nil {
+			t.Fatalf("parse version info: %v", err)
+		}
+		resources, _ := info["resources"].([]any)
+		if len(resources) == 0 {
+			t.Fatal("no resources")
+		}
+		r0, _ := resources[0].(map[string]any)
+		signing, _ := r0["signing"].(map[string]any)
+		if signing == nil {
+			t.Fatal("signing object missing in release metadata")
+		}
+		signatureBase64Encoded, _ := signing["signatureBase64Encoded"].(string)
+		if signatureBase64Encoded == "" {
+			t.Fatal("signatureBase64Encoded missing or empty")
+		}
+		signatureFormat, _ := signing["signatureFormat"].(string)
+		if signatureFormat != "cms-1.0.0" {
+			t.Fatalf("signatureFormat: got %q, want cms-1.0.0", signatureFormat)
+		}
+
+		// Verify download headers
+		url := env.registryPath(scope, "SwiftSignedPkg", swiftSignedVersion) + ".zip"
+		req2, _ := http.NewRequest("GET", url, nil)
+		req2.Header.Set("Accept", acceptZip)
+		env.setAuth(req2)
+		resp2, err := env.httpClient.Do(req2)
+		if err != nil {
+			t.Fatalf("download SwiftSignedPkg: %v", err)
+		}
+		defer resp2.Body.Close()
+		if resp2.StatusCode != http.StatusOK {
+			b, _ := io.ReadAll(resp2.Body)
+			t.Fatalf("download: expected 200, got %d, body %s", resp2.StatusCode, string(b))
+		}
+		signatureFormatHeader := resp2.Header.Get("X-Swift-Package-Signature-Format")
+		if signatureFormatHeader != "cms-1.0.0" {
+			t.Fatalf("X-Swift-Package-Signature-Format: got %q, want cms-1.0.0", signatureFormatHeader)
+		}
+		signatureHeader := resp2.Header.Get("X-Swift-Package-Signature")
+		if signatureHeader == "" {
+			t.Fatal("X-Swift-Package-Signature header missing")
+		}
+		// Verify signature in header matches the one in metadata
+		if signatureHeader != signatureBase64Encoded {
+			t.Fatalf("X-Swift-Package-Signature header does not match metadata signature")
 		}
 	})
 
@@ -610,7 +813,7 @@ func TestSwiftPublishResolve(t *testing.T) {
 			t.Fatalf("Package.resolved was not created")
 		}
 		content, _ := os.ReadFile(resolvedPath)
-		for _, pkg := range []string{"example.SamplePackage", "example.UtilsPackage"} {
+		for _, pkg := range []string{"example.SamplePackage", "example.UtilsPackage", "example.SignedPkg"} {
 			if !bytes.Contains(content, []byte(pkg)) {
 				t.Fatalf("Package.resolved does not contain %s", pkg)
 			}
@@ -633,6 +836,9 @@ func TestSwiftPublishResolve(t *testing.T) {
 		}
 		if !strings.Contains(out, "Resolved UtilsPackage") {
 			t.Fatalf("consumer output missing UtilsPackage: %s", out)
+		}
+		if !strings.Contains(out, "Resolved SignedPkg") {
+			t.Fatalf("consumer output missing SignedPkg: %s", out)
 		}
 	})
 }

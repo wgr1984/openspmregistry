@@ -10,6 +10,7 @@ import (
 	"archive/zip"
 	"bytes"
 	"crypto/sha256"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -32,6 +33,10 @@ const (
 	mavenVersion1_1   = "1.1.0" // second version so GET Package.swift returns Link with alternate(s)
 	mavenVersion2     = "2.0.0"
 
+	signedE2EScope    = "e2esign"
+	signedE2EPackage  = "SignedPkg"
+	signedE2EVersion  = "1.0.0"
+
 	// Swift Package Registry spec 3.5: server MUST set these response headers
 	contentTypeJSON  = "application/json"
 	contentTypeSwift = "text/x-swift"
@@ -49,7 +54,20 @@ func createMinimalZip(t *testing.T, scope, name, version string, withVariant boo
 	dirPrefix := scope + "." + name + "/"
 
 	swift, _ := w.Create(dirPrefix + "Package.swift")
-	swift.Write([]byte("// swift-tools-version:5.3\nlet package = Package(name: \"test\")"))
+	packageSwift := fmt.Sprintf(`// swift-tools-version:5.3
+import PackageDescription
+
+let package = Package(
+    name: "%s",
+    products: [
+        .library(name: "%s", targets: ["%s"]),
+    ],
+    targets: [
+        .target(name: "%s"),
+    ]
+)
+`, name, name, name, name)
+	swift.Write([]byte(packageSwift))
 
 	packageJSON := fmt.Sprintf(`{"name":"%s","version":"%s"}`, name, version)
 	pj, _ := w.Create(dirPrefix + "Package.json")
@@ -70,8 +88,9 @@ func createMinimalZip(t *testing.T, scope, name, version string, withVariant boo
 }
 
 // registryPublishMultipart uploads a package via the registry PUT publish endpoint.
-// Parts: source-archive (required), optional metadata (metadata.json), optional metadata-signature.
-func registryPublishMultipart(t *testing.T, env *e2eEnv, scope, pkg, version string, sourceZip []byte, metadataJSON []byte) {
+// Parts: source-archive (required), optional metadata (metadata.json), optional metadata-signature,
+// optional source-archive-signature.
+func registryPublishMultipart(t *testing.T, env *e2eEnv, scope, pkg, version string, sourceZip []byte, metadataJSON []byte, sourceArchiveSignature []byte) {
 	t.Helper()
 	var body bytes.Buffer
 	mp := multipart.NewWriter(&body)
@@ -98,6 +117,19 @@ func registryPublishMultipart(t *testing.T, env *e2eEnv, scope, pkg, version str
 		}
 		if _, err := part2.Write(metadataJSON); err != nil {
 			t.Fatalf("write metadata: %v", err)
+		}
+	}
+
+	if len(sourceArchiveSignature) > 0 {
+		h3 := make(textproto.MIMEHeader)
+		h3.Set("Content-Disposition", `form-data; name="source-archive-signature"; filename="source-archive.sig"`)
+		h3.Set("Content-Type", "application/octet-stream")
+		part3, err := mp.CreatePart(h3)
+		if err != nil {
+			t.Fatalf("create source-archive-signature part: %v", err)
+		}
+		if _, err := part3.Write(sourceArchiveSignature); err != nil {
+			t.Fatalf("write source-archive-signature: %v", err)
 		}
 	}
 
@@ -144,7 +176,7 @@ func runRegistryE2ETestBody(t *testing.T, env *e2eEnv, zip1 []byte, metadataBody
 	t.Helper()
 
 	t.Run("Publish", func(t *testing.T) {
-		registryPublishMultipart(t, env, mavenE2EScope, mavenTestPackage, mavenVersion1, zip1, metadataBody)
+		registryPublishMultipart(t, env, mavenE2EScope, mavenTestPackage, mavenVersion1, zip1, metadataBody, nil)
 	})
 
 	time.Sleep(500 * time.Millisecond)
@@ -152,7 +184,7 @@ func runRegistryE2ETestBody(t *testing.T, env *e2eEnv, zip1 []byte, metadataBody
 	// Publish second version of TestPackage so GET Package.swift returns Link header with alternate(s)
 	t.Run("PublishSecondVersion", func(t *testing.T) {
 		zip1_1 := createMinimalZip(t, mavenE2EScope, mavenTestPackage, mavenVersion1_1, false)
-		registryPublishMultipart(t, env, mavenE2EScope, mavenTestPackage, mavenVersion1_1, zip1_1, metadataBody)
+		registryPublishMultipart(t, env, mavenE2EScope, mavenTestPackage, mavenVersion1_1, zip1_1, metadataBody, nil)
 	})
 
 	time.Sleep(500 * time.Millisecond)
@@ -568,7 +600,7 @@ func runRegistryE2ETestBody(t *testing.T, env *e2eEnv, zip1 []byte, metadataBody
 
 	t.Run("SecondPackage", func(t *testing.T) {
 		zip2 := createMinimalZip(t, mavenE2EScope, mavenOtherPackage, mavenVersion2, false)
-		registryPublishMultipart(t, env, mavenE2EScope, mavenOtherPackage, mavenVersion2, zip2, nil)
+		registryPublishMultipart(t, env, mavenE2EScope, mavenOtherPackage, mavenVersion2, zip2, nil, nil)
 	})
 
 	t.Run("List", func(t *testing.T) {
@@ -906,4 +938,141 @@ func TestRegistryE2E(t *testing.T) {
 		time.Sleep(500 * time.Millisecond)
 		runRegistryE2ETestBody(t, env, zip1, metadataBody, false)
 	})
+}
+
+// TestRegistryE2ESignedPackages tests signed package publishing and retrieval for both File and Maven backends.
+//
+// It verifies that:
+// - Publishing with source-archive-signature stores the signature correctly
+// - GET release metadata includes signing object with signatureBase64Encoded and signatureFormat
+// - GET .zip download includes X-Swift-Package-Signature and X-Swift-Package-Signature-Format headers
+func TestRegistryE2ESignedPackages(t *testing.T) {
+	env := setupE2E(t)
+	zip1 := createMinimalZip(t, signedE2EScope, signedE2EPackage, signedE2EVersion, false)
+	// Dummy signature: 32 bytes of test data (not a real CMS signature, but sufficient for E2E)
+	dummySignature := make([]byte, 32)
+	for i := range dummySignature {
+		dummySignature[i] = byte(i)
+	}
+
+	t.Run("Maven", func(t *testing.T) {
+		waitForNexus(t, env)
+		cleanNexusScope(t, env, signedE2EScope, []string{signedE2EPackage})
+		env.configPath = filepath.Join(env.rootDir, "config.e2e.yml")
+		if env.useHTTPS {
+			env.configPath = filepath.Join(env.rootDir, "config.e2e.https.yml")
+		}
+		defer startRegistryServer(t, env)()
+		time.Sleep(500 * time.Millisecond)
+		runSignedPackageTestBody(t, env, zip1, dummySignature, true)
+	})
+
+	t.Run("File", func(t *testing.T) {
+		fileRepoPath := filepath.Join(env.rootDir, "e2e-file-repo-signed")
+		os.RemoveAll(fileRepoPath)
+		defer os.RemoveAll(fileRepoPath)
+		env.configPath = filepath.Join(env.rootDir, "config.e2e.file.yml")
+		if env.useHTTPS {
+			env.configPath = filepath.Join(env.rootDir, "config.e2e.file.https.yml")
+		}
+		defer startRegistryServer(t, env)()
+		time.Sleep(500 * time.Millisecond)
+		runSignedPackageTestBody(t, env, zip1, dummySignature, false)
+	})
+}
+
+// runSignedPackageTestBody runs the signed package test body for a given backend.
+func runSignedPackageTestBody(t *testing.T, env *e2eEnv, zip1 []byte, signature []byte, cleanupMaven bool) {
+	t.Helper()
+
+	t.Run("PublishSigned", func(t *testing.T) {
+		registryPublishMultipart(t, env, signedE2EScope, signedE2EPackage, signedE2EVersion, zip1, nil, signature)
+	})
+
+	time.Sleep(500 * time.Millisecond)
+
+	t.Run("VerifyReleaseMetadataSigning", func(t *testing.T) {
+		req, _ := http.NewRequest("GET", env.registryPath(signedE2EScope, signedE2EPackage, signedE2EVersion), nil)
+		req.Header.Set("Accept", acceptJSON)
+		env.setAuth(req)
+		resp, err := env.httpClient.Do(req)
+		if err != nil {
+			t.Fatalf("get version: %v", err)
+		}
+		defer resp.Body.Close()
+		if resp.StatusCode != http.StatusOK {
+			b, _ := io.ReadAll(resp.Body)
+			t.Fatalf("expected 200, got %d: %s", resp.StatusCode, string(b))
+		}
+		body, _ := io.ReadAll(resp.Body)
+		var info map[string]any
+		if err := json.Unmarshal(body, &info); err != nil {
+			t.Fatalf("parse version info: %v", err)
+		}
+		resources, _ := info["resources"].([]any)
+		if len(resources) == 0 {
+			t.Fatal("no resources")
+		}
+		r0, _ := resources[0].(map[string]any)
+		signing, _ := r0["signing"].(map[string]any)
+		if signing == nil {
+			t.Fatal("signing object missing in release metadata")
+		}
+		signatureBase64Encoded, _ := signing["signatureBase64Encoded"].(string)
+		if signatureBase64Encoded == "" {
+			t.Fatal("signatureBase64Encoded missing or empty")
+		}
+		// Verify the signature matches what we published (base64 encoded)
+		expectedSignatureBase64 := base64.StdEncoding.EncodeToString(signature)
+		if signatureBase64Encoded != expectedSignatureBase64 {
+			t.Fatalf("signatureBase64Encoded: got %q, expected %q", signatureBase64Encoded, expectedSignatureBase64)
+		}
+		signatureFormat, _ := signing["signatureFormat"].(string)
+		if signatureFormat != "cms-1.0.0" {
+			t.Fatalf("signatureFormat: got %q, want cms-1.0.0", signatureFormat)
+		}
+	})
+
+	t.Run("VerifyDownloadHeaders", func(t *testing.T) {
+		url := env.registryPath(signedE2EScope, signedE2EPackage, signedE2EVersion) + ".zip"
+		req, _ := http.NewRequest("GET", url, nil)
+		req.Header.Set("Accept", acceptZip)
+		env.setAuth(req)
+		resp, err := env.httpClient.Do(req)
+		if err != nil {
+			t.Fatalf("download source archive: %v", err)
+		}
+		defer resp.Body.Close()
+		if resp.StatusCode != http.StatusOK {
+			b, _ := io.ReadAll(resp.Body)
+			t.Fatalf("download: expected 200, got %d, body %s", resp.StatusCode, string(b))
+		}
+		signatureFormat := resp.Header.Get("X-Swift-Package-Signature-Format")
+		if signatureFormat != "cms-1.0.0" {
+			t.Fatalf("X-Swift-Package-Signature-Format: got %q, want cms-1.0.0", signatureFormat)
+		}
+		signatureHeader := resp.Header.Get("X-Swift-Package-Signature")
+		if signatureHeader == "" {
+			t.Fatal("X-Swift-Package-Signature header missing")
+		}
+		// Verify the signature in header matches what we published
+		expectedSignatureBase64 := base64.StdEncoding.EncodeToString(signature)
+		if signatureHeader != expectedSignatureBase64 {
+			t.Fatalf("X-Swift-Package-Signature: got %q, expected %q", signatureHeader, expectedSignatureBase64)
+		}
+		// Verify the zip content matches
+		body, err := io.ReadAll(resp.Body)
+		if err != nil {
+			t.Fatalf("read download body: %v", err)
+		}
+		if !bytes.Equal(body, zip1) {
+			t.Fatal("download content does not match published zip")
+		}
+	})
+
+	if cleanupMaven {
+		t.Run("Cleanup", func(t *testing.T) {
+			cleanNexusScope(t, env, signedE2EScope, []string{signedE2EPackage})
+		})
+	}
 }
