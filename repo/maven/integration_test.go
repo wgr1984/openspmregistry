@@ -135,14 +135,14 @@ func createTestZipWithManifests(t *testing.T, scope, name string) []byte {
 	if err != nil {
 		t.Fatalf("Failed to create Package.swift in zip: %v", err)
 	}
-	packageSwift.Write([]byte("// swift-tools-version:5.3\nlet package = Package(name: \"test\")"))
+	packageSwift.Write([]byte("// swift-tools-version:6.0\nlet package = Package(name: \"test\", products: [.library(name: \"test\", targets: [\"test\"])], targets: [.target(name: \"test\")])"))
 
 	// Add Package@swift-5.7.0.swift variant
 	packageSwift57, err := zipWriter.Create(dirPrefix + "Package@swift-5.7.0.swift")
 	if err != nil {
 		t.Fatalf("Failed to create Package@swift-5.7.0.swift in zip: %v", err)
 	}
-	packageSwift57.Write([]byte("// swift-tools-version:5.7.0\nlet package = Package(name: \"test\")"))
+	packageSwift57.Write([]byte("// swift-tools-version:5.7.0\nimport PackageDescription\nlet package = Package(name: \"test\", products: [.library(name: \"test\", targets: [\"test\"])], targets: [.target(name: \"test\")])"))
 
 	// Add a source file
 	sourceFile, err := zipWriter.Create(dirPrefix + "Sources/TestPackage/TestPackage.swift")
@@ -407,7 +407,7 @@ func TestIntegration_PublishAndGet_RealServer(t *testing.T) {
 	t.Run("PublishPackageSwift", func(t *testing.T) {
 		manifestElement := models.NewUploadElement(scope, name, version, mimetypes.TextXSwift, models.Manifest)
 
-		packageSwiftContent := []byte("// swift-tools-version:5.3\nlet package = Package(name: \"test\")")
+		packageSwiftContent := []byte("// swift-tools-version:6.0\nlet package = Package(name: \"test\", products: [.library(name: \"test\", targets: [\"test\"])], targets: [.target(name: \"test\")])")
 
 		writer, err := repo.GetWriter(ctx, manifestElement)
 		if err != nil {
@@ -465,7 +465,7 @@ func TestIntegration_PublishAndGet_RealServer(t *testing.T) {
 		variantElement := models.NewUploadElement(scope, name, version, mimetypes.TextXSwift, models.Manifest)
 		variantElement.SetFilenameOverwrite("Package@swift-5.7.0")
 
-		variantContent := []byte("// swift-tools-version:5.7.0\nlet package = Package(name: \"test\")")
+		variantContent := []byte("// swift-tools-version:5.7.0\nimport PackageDescription\nlet package = Package(name: \"test\", products: [.library(name: \"test\", targets: [\"test\"])], targets: [.target(name: \"test\")])")
 
 		writer, err := repo.GetWriter(ctx, variantElement)
 		if err != nil {

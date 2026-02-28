@@ -654,7 +654,7 @@ func Test_Checksum_FileDoesNotExist_ReturnsError(t *testing.T) {
 }
 
 func Test_GetSwiftToolVersion_ValidManifest_ReturnsVersion(t *testing.T) {
-	manifestContent := "// swift-tools-version:5.7\nlet package = Package(name: \"test\")"
+	manifestContent := "// swift-tools-version:6.0\nlet package = Package(name: \"test\", products: [.library(name: \"test\", targets: [\"test\"])], targets: [.target(name: \"test\")])"
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Method == "HEAD" {
 			w.WriteHeader(http.StatusOK)
@@ -888,14 +888,14 @@ func Test_ExtractManifestFiles_ValidZip_ExtractsFiles(t *testing.T) {
 
 	// Add Package.swift - directory must match scope.name format
 	packageSwift, _ := zipWriter.Create("testScope.my-package/Package.swift")
-	_, _ = packageSwift.Write([]byte("// swift-tools-version:5.3\nlet package = Package(name: \"test\")"))
+	_, _ = packageSwift.Write([]byte("// swift-tools-version:6.0\nlet package = Package(name: \"test\", products: [.library(name: \"test\", targets: [\"test\"])], targets: [.target(name: \"test\")])"))
 
 	// Add alternative Package.swift files (should also be extracted)
 	packageSwift57, _ := zipWriter.Create("testScope.my-package/Package@swift-5.7.0.swift")
-	_, _ = packageSwift57.Write([]byte("// swift-tools-version:5.7.0\nlet package = Package(name: \"test\")"))
+	_, _ = packageSwift57.Write([]byte("// swift-tools-version:5.7.0\nimport PackageDescription\nlet package = Package(name: \"test\", products: [.library(name: \"test\", targets: [\"test\"])], targets: [.target(name: \"test\")])"))
 
 	packageSwift5, _ := zipWriter.Create("testScope.my-package/Package@swift-5.swift")
-	_, _ = packageSwift5.Write([]byte("// swift-tools-version:5.0\nlet package = Package(name: \"test\")"))
+	_, _ = packageSwift5.Write([]byte("// swift-tools-version:6.0\nlet package = Package(name: \"test\", products: [.library(name: \"test\", targets: [\"test\"])], targets: [.target(name: \"test\")])"))
 
 	// Add Package.json - directory must match scope.name format
 	packageJson, _ := zipWriter.Create("testScope.my-package/Package.json")

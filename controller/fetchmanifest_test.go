@@ -56,7 +56,7 @@ func newTestConfig(hostname string, port int, baseURL string) config.ServerConfi
 
 func TestFetchManifestAction_Success(t *testing.T) {
 	// Setup mock data
-	manifestContent := []byte("// swift-tools-version: 5.7\nlet package = Package(name: \"test\")")
+	manifestContent := []byte("// swift-tools-version: 6.0\nlet package = Package(name: \"test\")")
 	mockTime := time.Date(2024, 3, 14, 12, 0, 0, 0, time.UTC)
 
 	repo := &mockRepo{
@@ -302,7 +302,7 @@ func TestFetchManifestAction_InvalidHeaders(t *testing.T) {
 
 func TestFetchManifestAction_ReaderCloseError(t *testing.T) {
 	// Setup mock data
-	manifestContent := []byte("// swift-tools-version: 5.7\nlet package = Package(name: \"test\")")
+	manifestContent := []byte("// swift-tools-version: 6.0\nlet package = Package(name: \"test\")")
 	mockTime := time.Date(2024, 3, 14, 12, 0, 0, 0, time.UTC)
 
 	repo := &mockRepo{
@@ -346,7 +346,7 @@ func TestFetchManifestAction_ReaderCloseError(t *testing.T) {
 
 func TestFetchManifestAction_PublishDateError(t *testing.T) {
 	// Setup mock data
-	manifestContent := []byte("// swift-tools-version: 5.7\nlet package = Package(name: \"test\")")
+	manifestContent := []byte("// swift-tools-version: 6.0\nlet package = Package(name: \"test\")")
 	mockTime := time.Date(2024, 3, 14, 12, 0, 0, 0, time.UTC)
 
 	repo := &mockRepo{
@@ -390,7 +390,7 @@ func TestFetchManifestAction_PublishDateError(t *testing.T) {
 
 func TestFetchManifestAction_GetAlternativeManifestsError(t *testing.T) {
 	// Setup mock data
-	manifestContent := []byte("// swift-tools-version: 5.7\nlet package = Package(name: \"test\")")
+	manifestContent := []byte("// swift-tools-version: 6.0\nlet package = Package(name: \"test\")")
 	mockTime := time.Date(2024, 3, 14, 12, 0, 0, 0, time.UTC)
 
 	repo := &mockRepo{
@@ -441,7 +441,7 @@ func TestFetchManifestAction_GetAlternativeManifestsError(t *testing.T) {
 
 func TestFetchManifestAction_ServeContentError(t *testing.T) {
 	// Setup mock data
-	manifestContent := []byte("// swift-tools-version: 5.7\nlet package = Package(name: \"test\")")
+	manifestContent := []byte("// swift-tools-version: 6.0\nlet package = Package(name: \"test\")")
 	mockTime := time.Date(2024, 3, 14, 12, 0, 0, 0, time.UTC)
 
 	repo := &mockRepo{

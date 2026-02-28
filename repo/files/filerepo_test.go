@@ -155,7 +155,7 @@ func Test_ExtractManifestFiles_ValidZipFile_ExtractsFiles(t *testing.T) {
 		t.Fatalf("failed to create Package.swift file: %v", err)
 	}
 	_, err = packageSwift.Write([]byte(`
-// swift-tools-version:5.3
+// swift-tools-version:6.0
 import PackageDescription
 
 let package = Package(
@@ -890,7 +890,7 @@ func Test_GetSwiftToolVersion_ValidManifest_ReturnsVersion(t *testing.T) {
 	if err != nil {
 		t.Fatalf("failed to create file: %v", err)
 	}
-	_, err = file.WriteString("// swift-tools-version:5.3\n")
+	_, err = file.WriteString("// swift-tools-version:6.0\n")
 	if err != nil {
 		t.Fatalf("failed to write to file: %v", err)
 	}
@@ -987,7 +987,7 @@ func Test_Lookup_ValidURL_ReturnsMatchingIDs(t *testing.T) {
 	_ = file.Close()
 
 	packagePath := filepath.Join(path, "Package.swift")
-	err = os.WriteFile(packagePath, []byte(`// swift-tools-version:5.3
+	err = os.WriteFile(packagePath, []byte(`// swift-tools-version:6.0
 	import PackageDescription
 
 	let package = Package(

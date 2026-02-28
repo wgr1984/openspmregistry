@@ -1,13 +1,14 @@
-// swift-tools-version:5.9
+// swift-tools-version:6.0
 
 import PackageDescription
 
 let package = Package(
     name: "Consumer",
+    platforms: [.macOS(.v12)],
     dependencies: [
         .package(id: "example.SamplePackage", from: "1.0.0"),
         .package(id: "example.UtilsPackage", from: "1.0.0"),
-        .package(id: "example.SignedPkg", from: "1.0.0"),
+        .package(id: "example.SwiftSignedPkg", from: "1.0.0"),
     ],
     targets: [
         .executableTarget(
@@ -15,7 +16,7 @@ let package = Package(
             dependencies: [
                 .product(name: "SamplePackage", package: "example.SamplePackage"),
                 .product(name: "UtilsPackage", package: "example.UtilsPackage"),
-                .product(name: "SignedPkg", package: "example.SignedPkg"),
+                .product(name: "SwiftSignedPkg", package: "example.SwiftSignedPkg"),
             ]
         ),
     ]

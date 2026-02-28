@@ -54,7 +54,7 @@ func createMinimalZip(t *testing.T, scope, name, version string, withVariant boo
 	dirPrefix := scope + "." + name + "/"
 
 	swift, _ := w.Create(dirPrefix + "Package.swift")
-	packageSwift := fmt.Sprintf(`// swift-tools-version:5.3
+	packageSwift := fmt.Sprintf(`// swift-tools-version:6.0
 import PackageDescription
 
 let package = Package(
@@ -69,13 +69,14 @@ let package = Package(
 `, name, name, name, name)
 	swift.Write([]byte(packageSwift))
 
-	packageJSON := fmt.Sprintf(`{"name":"%s","version":"%s"}`, name, version)
+	// Package.json must include products and targets so collection manifest (convertPackageJsonToManifest) and swift package-collection add validation succeed.
+	packageJSON := fmt.Sprintf(`{"name":"%s","version":"%s","targets":[{"name":"%s","type":"regular"}],"products":[{"name":"%s","targets":["%s"],"type":{"library":["automatic"]}}]}`, name, version, name, name, name)
 	pj, _ := w.Create(dirPrefix + "Package.json")
 	pj.Write([]byte(packageJSON))
 
 	if withVariant {
 		variant, _ := w.Create(dirPrefix + "Package@swift-5.7.0.swift")
-		variant.Write([]byte("// swift-tools-version:5.7.0\nlet package = Package(name: \"test\")"))
+		variant.Write([]byte("// swift-tools-version:5.7.0\nimport PackageDescription\nlet package = Package(name: \"test\", products: [.library(name: \"test\", targets: [\"test\"])], targets: [.target(name: \"test\")])"))
 	}
 
 	src, _ := w.Create(dirPrefix + "Sources/" + name + "/" + name + ".swift")
@@ -357,8 +358,8 @@ func runRegistryE2ETestBody(t *testing.T, env *e2eEnv, zip1 []byte, metadataBody
 			t.Fatalf("Link header present but missing alternate relation: %q", link)
 		}
 		body, _ := io.ReadAll(resp.Body)
-		if !bytes.Contains(body, []byte("swift-tools-version:5.3")) {
-			t.Fatalf("manifest missing swift-tools-version:5.3: %s", string(body))
+		if !bytes.Contains(body, []byte("swift-tools-version:6.0")) {
+			t.Fatalf("manifest missing swift-tools-version:6.0: %s", string(body))
 		}
 	})
 

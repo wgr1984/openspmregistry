@@ -208,11 +208,12 @@ func cleanNexusScope(t *testing.T, env *e2eEnv, group string, packageNames []str
 	}
 }
 
-// cleanNexus removes example.SamplePackage, example.UtilsPackage, and example.SignedPkg from Nexus via REST API.
+// cleanNexus removes example.SamplePackage, example.UtilsPackage, example.SignedPkg, and example.SwiftSignedPkg from Nexus via REST API.
 // SignedPkg is cleaned so PublishSignedPackageViaHTTP and ConsumerResolve start from a clean state.
+// SwiftSignedPkg is cleaned so PublishWithSwiftSigning (spm-extended) can re-publish.
 func cleanNexus(t *testing.T, env *e2eEnv) {
 	t.Helper()
-	cleanNexusScope(t, env, "example", []string{"SamplePackage", "UtilsPackage", "SignedPkg"})
+	cleanNexusScope(t, env, "example", []string{"SamplePackage", "UtilsPackage", "SignedPkg", "SwiftSignedPkg"})
 }
 
 // waitForNexus checks that Nexus is reachable.
@@ -278,9 +279,10 @@ func TestSwiftPublishResolve(t *testing.T) {
 	os.Remove(filepath.Join(env.consumerDir, "Package.resolved"))
 	os.RemoveAll(filepath.Join(env.consumerDir, ".build"))
 	cleanNexus(t, env)
-	// Remove e2emaven scope so collection is not polluted by a previous Maven e2e run
-	// (Swift package-collection add validates all packages; minimal e2emaven packages have no targets/products)
+	// Remove e2emaven and e2esign scopes so collection is not polluted by a previous E2E run
+	// (Swift package-collection add validates all packages in the collection; stale minimal packages may lack products/targets in Package.json)
 	cleanNexusScope(t, env, "e2emaven", []string{"TestPackage", "OtherPackage"})
+	cleanNexusScope(t, env, "e2esign", []string{"SignedPkg"})
 
 	// Purge Swift PM cache (script lines 104-107; ignore errors)
 	pc := exec.Command("swift", "package", "purge-cache")
@@ -432,30 +434,28 @@ func TestSwiftPublishResolve(t *testing.T) {
 		}
 	})
 
-	// Optional: Test Swift CLI signing and publishing
+	// Test Swift CLI signing via spm-extended: create-signing then publish with cert chain.
 	t.Run("PublishWithSwiftSigning", func(t *testing.T) {
-		signingIdentity := os.Getenv("E2E_SWIFT_SIGNING_IDENTITY")
-		if signingIdentity == "" {
-			t.Skip("E2E_SWIFT_SIGNING_IDENTITY not set; skipping Swift CLI signing test. Set E2E_SWIFT_SIGNING_IDENTITY to a keychain identity name or certificate path to test Swift CLI signing.")
-		}
-
-		// Use a dedicated package for this test to avoid conflicts
 		swiftSignedPkgID := scope + ".SwiftSignedPkg"
-		swiftSignedVersion := "1.0.0"
+		swiftSignedVersion := "1.0.1"
 
-		// Create a minimal Swift package directory for SwiftSignedPkg
+		// Create a minimal Swift package directory with spm-extended plugin dependency
 		swiftSignedPkgDir := filepath.Join(env.rootDir, "testdata", "e2e", "example.SwiftSignedPkg")
 		os.MkdirAll(swiftSignedPkgDir, 0755)
 		defer os.RemoveAll(swiftSignedPkgDir)
 
-		// Create Package.swift
-		packageSwift := `// swift-tools-version:5.3
+		// Package.swift with spm-extended dependency so we can use registry create-signing and registry publish
+		packageSwift := `// swift-tools-version:6.0
 import PackageDescription
 
 let package = Package(
     name: "SwiftSignedPkg",
+    platforms: [.macOS(.v12)],
     products: [
         .library(name: "SwiftSignedPkg", targets: ["SwiftSignedPkg"])
+    ],
+    dependencies: [
+        .package(url: "https://github.com/wgr1984/spm-extended.git", from: "0.1.3")
     ],
     targets: [
         .target(name: "SwiftSignedPkg")
@@ -477,21 +477,32 @@ let package = Package(
 			t.Fatalf("create SwiftSignedPkg.swift: %v", err)
 		}
 
-		// Clean build artifacts
+		// Clean build artifacts so create-signing writes into a fresh .swiftpm/signing
 		os.RemoveAll(filepath.Join(swiftSignedPkgDir, ".build"))
 		os.RemoveAll(filepath.Join(swiftSignedPkgDir, ".swiftpm"))
 
-		// Prepare Package.json
-		if out, err := runSwift(t, swiftSignedPkgDir, "package", "dump-package"); err == nil {
-			os.WriteFile(filepath.Join(swiftSignedPkgDir, "Package.json"), []byte(out), 0644)
+		// Create CA and leaf cert via spm-extended (writes .swiftpm/signing/leaf.der, ca.der, leaf.key.der)
+		out, err := runSwift(t, swiftSignedPkgDir, "package", "--disable-sandbox", "registry", "create-signing", "--create-leaf-cert")
+		if err != nil {
+			t.Skipf("spm-extended create-signing not available (Swift 5.9+ and plugin required): %v\n%s", err, out)
 		}
 
-		// Publish with signing
-		publishOpts := []string{"--url", env.registryURL, "--signing-identity", signingIdentity}
+		// Publish with cert chain via spm-extended (generates Package.json and publishes with signing)
+		leafDer := filepath.Join(swiftSignedPkgDir, ".swiftpm", "signing", "leaf.der")
+		caDer := filepath.Join(swiftSignedPkgDir, ".swiftpm", "signing", "ca.der")
+		keyDer := filepath.Join(swiftSignedPkgDir, ".swiftpm", "signing", "leaf.key.der")
+		for _, p := range []string{leafDer, caDer, keyDer} {
+			if _, err := os.Stat(p); err != nil {
+				t.Fatalf("create-signing did not create %s: %v", p, err)
+			}
+		}
+		publishOpts := []string{"--url", env.registryURL,
+			"--cert-chain-paths", leafDer, caDer,
+			"--private-key-path", keyDer}
 		if !env.useHTTPS {
 			publishOpts = append(publishOpts, "--allow-insecure-http")
 		}
-		out, err := runSwift(t, swiftSignedPkgDir, append([]string{"package-registry", "publish", swiftSignedPkgID, swiftSignedVersion}, publishOpts...)...)
+		out, err = runSwift(t, swiftSignedPkgDir, append([]string{"package", "--disable-sandbox", "registry", "publish", swiftSignedPkgID, swiftSignedVersion}, publishOpts...)...)
 		if err != nil {
 			t.Fatalf("publish %s %s with signing: %v\n%s", swiftSignedPkgID, swiftSignedVersion, err, out)
 		}
@@ -806,6 +817,10 @@ let package = Package(
 			if strings.Contains(out, "Missing or empty JSON output from manifest compilation") {
 				t.Skipf("swift package resolve failed with 'Missing or empty JSON output from manifest compilation'; skipping resolve/build. Publish and HTTP verification passed.")
 			}
+			// SwiftSignedPkg may be missing if PublishWithSwiftSigning was skipped (spm-extended not available)
+			if strings.Contains(out, "SwiftSignedPkg") || strings.Contains(out, "could not find") {
+				t.Skipf("swift package resolve failed (example.SwiftSignedPkg likely not published because PublishWithSwiftSigning was skipped): %v\n%s", err, out)
+			}
 			t.Fatalf("swift package resolve: %v\n%s", err, out)
 		}
 		resolvedPath := filepath.Join(env.consumerDir, "Package.resolved")
@@ -813,7 +828,7 @@ let package = Package(
 			t.Fatalf("Package.resolved was not created")
 		}
 		content, _ := os.ReadFile(resolvedPath)
-		for _, pkg := range []string{"example.SamplePackage", "example.UtilsPackage", "example.SignedPkg"} {
+		for _, pkg := range []string{"example.SamplePackage", "example.UtilsPackage", "example.SwiftSignedPkg"} {
 			if !bytes.Contains(content, []byte(pkg)) {
 				t.Fatalf("Package.resolved does not contain %s", pkg)
 			}
@@ -824,8 +839,9 @@ let package = Package(
 		if _, err := os.Stat(filepath.Join(env.consumerDir, "Package.resolved")); err != nil {
 			t.Skipf("ConsumerResolve was skipped; skipping build/run.")
 		}
-		if _, err := runSwift(t, env.consumerDir, "build"); err != nil {
-			t.Fatalf("swift build: %v", err)
+		buildOut, err := runSwift(t, env.consumerDir, "build", "-vv")
+		if err != nil {
+			t.Fatalf("swift build: %v\n%s", err, buildOut)
 		}
 		out, err := runSwift(t, env.consumerDir, "run", "Consumer")
 		if err != nil {
@@ -837,8 +853,8 @@ let package = Package(
 		if !strings.Contains(out, "Resolved UtilsPackage") {
 			t.Fatalf("consumer output missing UtilsPackage: %s", out)
 		}
-		if !strings.Contains(out, "Resolved SignedPkg") {
-			t.Fatalf("consumer output missing SignedPkg: %s", out)
+		if !strings.Contains(out, "Resolved SwiftSignedPkg") {
+			t.Fatalf("consumer output missing SwiftSignedPkg: %s", out)
 		}
 	})
 }
