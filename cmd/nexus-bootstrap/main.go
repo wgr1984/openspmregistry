@@ -1,7 +1,7 @@
 // nexus-bootstrap configures Nexus after startup: reads initial admin password (from container),
 // creates Maven repo "private" via Script API, configures repo (strictContentTypeValidation=false,
-// writePolicy=ALLOW), sets admin password to a fixed value, and optionally writes the password to a file.
-// Idempotent: safe to run multiple times.
+// writePolicy=ALLOW), disables anonymous access so the repo is not browsable without auth, sets admin
+// password to a fixed value, and optionally writes the password to a file. Idempotent: safe to run multiple times.
 //
 // Environment: NEXUS_URL, NEXUS_CONTAINER, NEXUS_REPO_KEY, NEXUS_TARGET_PASSWORD, NEXUS_TEST_PASSWORD_FILE.
 //
@@ -53,6 +53,18 @@ func main() {
 		slog.Warn("run configure-repo script", "err", err)
 	} else {
 		slog.Info("repo configured", "repo", repoKey)
+	}
+
+	// Disable anonymous access so the repo is not browsable without authentication.
+	disableAnonymousScript := "disable-anonymous"
+	disableAnonymousGroovy := "security.setAnonymousAccess(false); return 'ok';"
+	if err := uploadScript(client, nexusURL, "admin", adminPass, disableAnonymousScript, disableAnonymousGroovy); err != nil {
+		slog.Warn("upload disable-anonymous script", "err", err)
+	}
+	if err := runScript(client, nexusURL, "admin", adminPass, disableAnonymousScript); err != nil {
+		slog.Warn("run disable-anonymous script", "err", err)
+	} else {
+		slog.Info("anonymous access disabled")
 	}
 
 	effectivePass := adminPass
