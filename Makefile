@@ -117,8 +117,9 @@ changelog-unreleased:
 test-integration-up:
 	@echo "Starting Nexus test server..."
 	docker-compose -f docker-compose.test.yml up -d
-	@echo "Waiting for Nexus to be ready (this may take 2-3 minutes)..."
-	@timeout=180; \
+	@echo "Waiting for Nexus to be ready (this may take 2-5 minutes on CI)..."
+	@nexus_wait_timeout=180; [ -n "$${NEXUS_WAIT_TIMEOUT}" ] && nexus_wait_timeout=$${NEXUS_WAIT_TIMEOUT}; [ -z "$${NEXUS_WAIT_TIMEOUT}" ] && [ -n "$${GITHUB_ACTIONS}" ] && nexus_wait_timeout=360; \
+	timeout=$$nexus_wait_timeout; \
 	while [ $$timeout -gt 0 ]; do \
 		ready=0; \
 		if command -v curl > /dev/null 2>&1; then \

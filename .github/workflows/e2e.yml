@@ -29,3 +29,6 @@ jobs:
 
       - name: Run full E2E (Nexus + Swift publish/resolve + registry API)
         run: make test-e2e-full
+        env:
+          NEXUS_WAIT_TIMEOUT: 360
+        timeout-minutes: 20

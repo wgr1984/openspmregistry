@@ -232,8 +232,16 @@ Integration tests are designed to be run in CI/CD pipelines. The Docker Compose 
 - Bootstrap creates repo and sets password before tests
 - Health checks before running tests
 
+On GitHub Actions, the Makefile uses a longer Nexus wait (6 minutes) because runners can be slow; locally 3 minutes is usually enough.
+
+**Alternatives to running Nexus in CI on every push:**
+- Run integration tests **locally**: `make test-integration` (recommended before merging Maven/nexus changes).
+- Run in CI only on **schedule** or **workflow_dispatch**: change the workflow `on:` to `schedule: - cron: '0 2 * * *'` and/or `workflow_dispatch:` so they don't block every PR.
+- Keep the current setup with the increased timeout; re-run the job if it occasionally times out.
+
 Example GitHub Actions step:
 ```yaml
 - name: Run integration tests
   run: make test-integration
+  timeout-minutes: 15
 ```
