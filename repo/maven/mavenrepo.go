@@ -180,11 +180,14 @@ func (m *MavenRepo) PublishDate(ctx context.Context, element *models.UploadEleme
 	if lastModified != "" {
 		t, err := time.Parse(time.RFC1123, lastModified)
 		if err != nil {
-			// Try RFC1123Z
 			t, err = time.Parse(time.RFC1123Z, lastModified)
-			if err != nil {
-				return m.timeProvider.Now(), err
-			}
+		}
+		if err != nil {
+			// Some servers (e.g. Reposilite) send single-digit day (e.g. "Sun, 1 Mar 2026")
+			t, err = time.Parse("Mon, 2 Jan 2006 15:04:05 MST", lastModified)
+		}
+		if err != nil {
+			return m.timeProvider.Now(), err
 		}
 		return t, nil
 	}

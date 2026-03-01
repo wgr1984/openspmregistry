@@ -460,8 +460,8 @@ func TestIntegration_PublishAndGet_RealServer(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Failed to get Swift tool version: %v", err)
 		}
-		if swiftVersion != "5.3" {
-			t.Fatalf("Expected Swift version 5.3, got %s", swiftVersion)
+		if swiftVersion != "6.0" {
+			t.Fatalf("Expected Swift version 6.0, got %s", swiftVersion)
 		}
 
 		t.Logf("Package.swift verified, Swift version: %s", swiftVersion)
