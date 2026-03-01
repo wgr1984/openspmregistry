@@ -28,18 +28,18 @@ help:
 	@echo "  tailwind-watch- Watch and rebuild Tailwind CSS on changes"
 	@echo "  release       - Create a new release (Usage: make release VERSION=1.2.3)"
 	@echo "  changelog-unreleased - Show unreleased changes"
-	@echo "  test-integration - Run integration tests (requires Docker)"
-	@echo "  test-integration-up - Start Nexus test server"
-	@echo "  test-integration-down - Stop Nexus test server"
+	@echo "  test-integration - Run integration tests (requires Docker; default Nexus, or MAVEN_PROVIDER=reposilite)"
+	@echo "  test-integration-up - Start Maven test server (Nexus or Reposilite per MAVEN_PROVIDER)"
+	@echo "  test-integration-down - Stop Maven test server(s)"
 	@echo "  test-e2e-generate-certs - Generate E2E HTTPS certs (for optional HTTPS testing)"
-	@echo "  test-e2e-swift - E2E: Swift publish + resolve (Nexus must be up; requires Swift)"
-	@echo "  test-e2e-registry - E2E: Registry HTTP API against file and Maven backends (Nexus required for Maven)"
-	@echo "  test-e2e-full - Start Nexus, run E2E Swift and registry tests, then stop Nexus"
+	@echo "  test-e2e-swift - E2E: Swift publish + resolve (Maven server must be up; requires Swift)"
+	@echo "  test-e2e-registry - E2E: Registry HTTP API against file and Maven backends"
+	@echo "  test-e2e-full - Start Maven server, run E2E Swift and registry tests, then stop"
 	@echo "  test-e2e-swift-https - E2E Swift over HTTPS (requires certs: make test-e2e-generate-certs)"
 	@echo "  test-e2e-registry-https - E2E registry API over HTTPS (requires certs)"
-	@echo "  test-e2e-full-https - Full E2E over HTTPS (Nexus + certs required)"
+	@echo "  test-e2e-full-https - Full E2E over HTTPS (Maven server + certs required)"
 	@echo ""
-	@echo "E2E HTTPS: use E2E_HTTPS=1 (e.g. make test-e2e-registry E2E_HTTPS=1) or the -https targets above."
+	@echo "Maven provider: MAVEN_PROVIDER=nexus (default) or reposilite. E2E HTTPS: E2E_HTTPS=1 or -https targets."
 	@echo ""
 	@echo "Example usage:"
 	@echo "  make build              - Build the project"
@@ -113,47 +113,69 @@ changelog-unreleased:
 	@echo "Latest changes:"
 	@awk '/## \[Latest\]/{p=1;print;next} /## \[[0-9]+\.[0-9]+\.[0-9]+\]/{p=0}p' CHANGELOG.md
 
+# Maven test provider: nexus (default) or reposilite. Set MAVEN_PROVIDER=reposilite to use Reposilite.
+MAVEN_PROVIDER ?= nexus
+
 # Integration test targets
 test-integration-up:
-	@echo "Starting Nexus test server..."
-	docker-compose -f docker-compose.test.yml up -d
-	@echo "Waiting for Nexus to be ready (this may take 2-5 minutes on CI)..."
-	@nexus_wait_timeout=180; [ -n "$${NEXUS_WAIT_TIMEOUT}" ] && nexus_wait_timeout=$${NEXUS_WAIT_TIMEOUT}; [ -z "$${NEXUS_WAIT_TIMEOUT}" ] && [ -n "$${GITHUB_ACTIONS}" ] && nexus_wait_timeout=360; \
-	timeout=$$nexus_wait_timeout; \
-	while [ $$timeout -gt 0 ]; do \
-		ready=0; \
-		if command -v curl > /dev/null 2>&1; then \
-			if curl -sf http://localhost:8081/service/rest/v1/status > /dev/null 2>&1; then \
-				ready=1; \
-			fi; \
-		fi; \
-		if [ $$ready -eq 1 ]; then \
-			echo "Nexus is ready!"; \
-			break; \
-		fi; \
-		sleep 5; \
-		timeout=$$((timeout - 5)); \
-	done; \
-	if [ $$timeout -le 0 ]; then \
-		echo "Warning: Nexus may not be fully ready yet. Check with: docker ps"; \
-		exit 1; \
+	@provider=$${MAVEN_PROVIDER:-nexus}; \
+	echo "Starting Maven test server ($$provider)..."; \
+	if [ "$$provider" = "reposilite" ]; then \
+		docker-compose -f docker-compose.test.yml up -d reposilite; \
+	else \
+		docker-compose -f docker-compose.test.yml up -d nexus; \
 	fi
-	@echo "Bootstrapping Nexus (create repo, set admin password)..."
-	@NEXUS_TEST_PASSWORD_FILE=.nexus-test-password go run ./cmd/nexus-bootstrap
+	@provider=$${MAVEN_PROVIDER:-nexus}; \
+	wait_timeout=180; [ -n "$${NEXUS_WAIT_TIMEOUT}" ] && wait_timeout=$${NEXUS_WAIT_TIMEOUT}; [ -n "$${GITHUB_ACTIONS}" ] && [ -z "$${NEXUS_WAIT_TIMEOUT}" ] && wait_timeout=360; \
+	if [ "$$provider" = "reposilite" ]; then \
+		echo "Waiting for Reposilite to be ready..."; \
+		timeout=$$wait_timeout; \
+		while [ $$timeout -gt 0 ]; do \
+			ready=0; \
+			if command -v curl > /dev/null 2>&1; then \
+				if curl -sf http://localhost:8080/ > /dev/null 2>&1; then ready=1; fi; \
+			fi; \
+			if [ $$ready -eq 1 ]; then echo "Reposilite is ready!"; break; fi; \
+			sleep 5; timeout=$$((timeout - 5)); \
+		done; \
+		if [ $$timeout -le 0 ]; then echo "Warning: Reposilite may not be ready. Check: docker ps"; exit 1; fi; \
+		echo "Bootstrapping Reposilite (default private repo)..."; \
+		go run ./cmd/reposilite-bootstrap; \
+	else \
+		echo "Waiting for Nexus to be ready (this may take 2-5 minutes on CI)..."; \
+		timeout=$$wait_timeout; \
+		while [ $$timeout -gt 0 ]; do \
+			ready=0; \
+			if command -v curl > /dev/null 2>&1; then \
+				if curl -sf http://localhost:8081/service/rest/v1/status > /dev/null 2>&1; then ready=1; fi; \
+			fi; \
+			if [ $$ready -eq 1 ]; then echo "Nexus is ready!"; break; fi; \
+			sleep 5; timeout=$$((timeout - 5)); \
+		done; \
+		if [ $$timeout -le 0 ]; then echo "Warning: Nexus may not be fully ready yet. Check with: docker ps"; exit 1; fi; \
+		echo "Bootstrapping Nexus (create repo, set admin password)..."; \
+		NEXUS_TEST_PASSWORD_FILE=.nexus-test-password go run ./cmd/nexus-bootstrap; \
+	fi
 
 test-integration-down:
-	@echo "Stopping Nexus test server..."
+	@echo "Stopping Maven test server(s)..."
 	docker-compose -f docker-compose.test.yml down
 
 test-integration: test-integration-up
-	@echo "Running integration tests..."
-	@passfile=".nexus-test-password"; \
-	if [ -f "$$passfile" ]; then \
-	  MAVEN_REPO_PASSWORD=$$(cat "$$passfile"); \
+	@provider=$${MAVEN_PROVIDER:-nexus}; \
+	if [ "$$provider" = "reposilite" ]; then \
+		MAVEN_REPO_URL="http://localhost:8080" MAVEN_REPO_NAME=private MAVEN_PROVIDER=reposilite MAVEN_REPO_USERNAME="" MAVEN_REPO_PASSWORD=""; \
 	else \
-	  MAVEN_REPO_PASSWORD=admin123; \
+		passfile=".nexus-test-password"; [ -f "$$passfile" ] && MAVEN_REPO_PASSWORD=$$(cat "$$passfile") || MAVEN_REPO_PASSWORD=admin123; \
+		export MAVEN_REPO_URL="http://localhost:8081/repository" MAVEN_REPO_NAME=private MAVEN_PROVIDER=nexus MAVEN_REPO_USERNAME=admin MAVEN_REPO_PASSWORD="$$MAVEN_REPO_PASSWORD"; \
 	fi; \
-	INTEGRATION_TESTS=1 MAVEN_REPO_URL=http://localhost:8081/repository MAVEN_REPO_NAME=private MAVEN_REPO_USERNAME=admin MAVEN_REPO_PASSWORD="$$MAVEN_REPO_PASSWORD" go test -tags=integration -v ./repo/maven/... -run TestIntegration
+	if [ "$$provider" = "reposilite" ]; then \
+		passfile=".reposilite-test-token"; [ -f "$$passfile" ] && MAVEN_REPO_PASSWORD=$$(cat "$$passfile") || MAVEN_REPO_PASSWORD="test-secret"; \
+		INTEGRATION_TESTS=1 MAVEN_REPO_URL="http://localhost:8080" MAVEN_REPO_NAME=private MAVEN_PROVIDER=reposilite MAVEN_REPO_USERNAME=e2e MAVEN_REPO_PASSWORD="$$MAVEN_REPO_PASSWORD" go test -tags=integration -v ./repo/maven/... -run TestIntegration; \
+	else \
+		passfile=".nexus-test-password"; [ -f "$$passfile" ] && export MAVEN_REPO_PASSWORD=$$(cat "$$passfile") || export MAVEN_REPO_PASSWORD=admin123; \
+		INTEGRATION_TESTS=1 MAVEN_REPO_URL="http://localhost:8081/repository" MAVEN_REPO_NAME=private MAVEN_PROVIDER=nexus MAVEN_REPO_USERNAME=admin MAVEN_REPO_PASSWORD="$$MAVEN_REPO_PASSWORD" go test -tags=integration -v ./repo/maven/... -run TestIntegration; \
+	fi
 	@$(MAKE) test-integration-down
 
 # Generate E2E certs for optional HTTPS testing (testdata/e2e/certs/).
@@ -161,28 +183,30 @@ test-e2e-generate-certs:
 	@go run ./cmd/e2e-generate-certs
 
 # E2E Swift: publish package to OpenSPMRegistry (Maven-backed) and resolve from consumer.
-# test-e2e-swift: run E2E test only (start Nexus first with make test-integration-up).
+# test-e2e-swift: run E2E test only (start Maven server first with make test-integration-up).
 test-e2e-swift:
-	@passfile=".nexus-test-password"; \
-	if [ -f "$$passfile" ]; then \
-	  MAVEN_REPO_PASSWORD=$$(cat "$$passfile"); \
+	@provider=$${MAVEN_PROVIDER:-nexus}; \
+	if [ "$$provider" = "reposilite" ]; then \
+	  passfile=".reposilite-test-token"; [ -f "$$passfile" ] && MAVEN_REPO_PASSWORD=$$(cat "$$passfile") || MAVEN_REPO_PASSWORD="test-secret"; \
+	  MAVEN_REPO_URL="http://localhost:8080" MAVEN_REPO_NAME=private MAVEN_PROVIDER=reposilite MAVEN_REPO_USERNAME=e2e MAVEN_REPO_PASSWORD="$$MAVEN_REPO_PASSWORD" E2E_TESTS=1 E2E_REGISTRY_URL="$(E2E_REGISTRY_URL)" go test -tags=e2e -v -count=1 ./e2e/... -run TestSwiftPublishResolve; \
 	else \
-	  MAVEN_REPO_PASSWORD=admin123; \
-	fi; \
-	E2E_TESTS=1 E2E_REGISTRY_URL="$(E2E_REGISTRY_URL)" MAVEN_REPO_USERNAME=admin MAVEN_REPO_PASSWORD="$$MAVEN_REPO_PASSWORD" go test -tags=e2e -v -count=1 ./e2e/... -run TestSwiftPublishResolve
+	  passfile=".nexus-test-password"; [ -f "$$passfile" ] && MAVEN_REPO_PASSWORD=$$(cat "$$passfile") || MAVEN_REPO_PASSWORD=admin123; \
+	  MAVEN_REPO_URL="http://localhost:8081/repository" MAVEN_REPO_NAME=private MAVEN_PROVIDER=nexus MAVEN_REPO_USERNAME=admin MAVEN_REPO_PASSWORD="$$MAVEN_REPO_PASSWORD" E2E_TESTS=1 E2E_REGISTRY_URL="$(E2E_REGISTRY_URL)" go test -tags=e2e -v -count=1 ./e2e/... -run TestSwiftPublishResolve; \
+	fi
 
 # E2E registry: exercise registry HTTP API against file and Maven backends (no Swift required).
-# test-e2e-registry: run E2E test only (start Nexus first with make test-integration-up for Maven backend).
+# test-e2e-registry: run E2E test only (start Maven server first with make test-integration-up for Maven backend).
 test-e2e-registry:
-	@passfile=".nexus-test-password"; \
-	if [ -f "$$passfile" ]; then \
-	  MAVEN_REPO_PASSWORD=$$(cat "$$passfile"); \
+	@provider=$${MAVEN_PROVIDER:-nexus}; \
+	if [ "$$provider" = "reposilite" ]; then \
+	  passfile=".reposilite-test-token"; [ -f "$$passfile" ] && MAVEN_REPO_PASSWORD=$$(cat "$$passfile") || MAVEN_REPO_PASSWORD="test-secret"; \
+	  MAVEN_REPO_URL="http://localhost:8080" MAVEN_REPO_NAME=private MAVEN_PROVIDER=reposilite MAVEN_REPO_USERNAME=e2e MAVEN_REPO_PASSWORD="$$MAVEN_REPO_PASSWORD" E2E_TESTS=1 E2E_REGISTRY_URL="$(E2E_REGISTRY_URL)" go test -tags=e2e -v -count=1 ./e2e/... -run TestRegistryE2E; \
 	else \
-	  MAVEN_REPO_PASSWORD=admin123; \
-	fi; \
-	E2E_TESTS=1 E2E_REGISTRY_URL="$(E2E_REGISTRY_URL)" MAVEN_REPO_USERNAME=admin MAVEN_REPO_PASSWORD="$$MAVEN_REPO_PASSWORD" go test -tags=e2e -v -count=1 ./e2e/... -run TestRegistryE2E
+	  passfile=".nexus-test-password"; [ -f "$$passfile" ] && MAVEN_REPO_PASSWORD=$$(cat "$$passfile") || MAVEN_REPO_PASSWORD=admin123; \
+	  MAVEN_REPO_URL="http://localhost:8081/repository" MAVEN_REPO_NAME=private MAVEN_PROVIDER=nexus MAVEN_REPO_USERNAME=admin MAVEN_REPO_PASSWORD="$$MAVEN_REPO_PASSWORD" E2E_TESTS=1 E2E_REGISTRY_URL="$(E2E_REGISTRY_URL)" go test -tags=e2e -v -count=1 ./e2e/... -run TestRegistryE2E; \
+	fi
 
-# test-e2e-full: start Nexus, bootstrap, run E2E Swift and registry tests, then tear down.
+# test-e2e-full: start Maven server, bootstrap, run E2E Swift and registry tests, then tear down.
 test-e2e-full: test-integration-up
 	@$(MAKE) test-e2e-swift
 	@$(MAKE) test-e2e-registry

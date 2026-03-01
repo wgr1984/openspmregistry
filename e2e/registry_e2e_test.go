@@ -3,7 +3,7 @@
 
 // Package e2e provides end-to-end tests for the registry via HTTP API (file and Maven backends).
 // Run with: go test -tags=e2e -v ./e2e/... -run TestRegistryE2E
-// Prerequisites: for Maven backend, Nexus running (make test-integration-up). File backend needs no Nexus.
+// Prerequisites: for Maven backend, Maven server running (make test-integration-up; MAVEN_PROVIDER=nexus or reposilite). File backend needs no Maven server.
 package e2e
 
 import (
@@ -33,9 +33,9 @@ const (
 	mavenVersion1_1   = "1.1.0" // second version so GET Package.swift returns Link with alternate(s)
 	mavenVersion2     = "2.0.0"
 
-	signedE2EScope    = "e2esign"
-	signedE2EPackage  = "SignedPkg"
-	signedE2EVersion  = "1.0.0"
+	signedE2EScope   = "e2esign"
+	signedE2EPackage = "SignedPkg"
+	signedE2EVersion = "1.0.0"
 
 	// Swift Package Registry spec 3.5: server MUST set these response headers
 	contentTypeJSON  = "application/json"
@@ -172,7 +172,7 @@ const (
 )
 
 // runRegistryE2ETestBody runs the shared HTTP API e2e test body for a given backend (config already set, server already started).
-// zip1 is the first published package zip (for checksum/download assertions). cleanupMaven: if true, call cleanNexusScope at end.
+// zip1 is the first published package zip (for checksum/download assertions). cleanupMaven: if true, call cleanMavenScope at end.
 func runRegistryE2ETestBody(t *testing.T, env *e2eEnv, zip1 []byte, metadataBody []byte, cleanupMaven bool) {
 	t.Helper()
 
@@ -833,38 +833,38 @@ func runRegistryE2ETestBody(t *testing.T, env *e2eEnv, zip1 []byte, metadataBody
 		}
 	})
 
-		t.Run("Lookup_NoURL_Returns400", func(t *testing.T) {
-			req, _ := http.NewRequest("GET", env.registryPath("identifiers"), nil)
+	t.Run("Lookup_NoURL_Returns400", func(t *testing.T) {
+		req, _ := http.NewRequest("GET", env.registryPath("identifiers"), nil)
+		req.Header.Set("Accept", acceptJSON)
+		env.setAuth(req)
+		resp, err := env.httpClient.Do(req)
+		if err != nil {
+			t.Fatalf("lookup: %v", err)
+		}
+		defer resp.Body.Close()
+		if resp.StatusCode != http.StatusBadRequest {
+			b, _ := io.ReadAll(resp.Body)
+			t.Fatalf("expected 400, got %d: %s", resp.StatusCode, string(b))
+		}
+	})
+
+	// Spec 3.2: server SHOULD respond 401 when auth required but no credentials
+	if env.useHTTPS {
+		t.Run("Unauthorized_NoCredentials_Returns401", func(t *testing.T) {
+			req, _ := http.NewRequest("GET", env.registryPath(mavenE2EScope, mavenTestPackage), nil)
 			req.Header.Set("Accept", acceptJSON)
-			env.setAuth(req)
+			// do not call env.setAuth(req)
 			resp, err := env.httpClient.Do(req)
 			if err != nil {
-				t.Fatalf("lookup: %v", err)
+				t.Fatalf("list: %v", err)
 			}
 			defer resp.Body.Close()
-			if resp.StatusCode != http.StatusBadRequest {
+			if resp.StatusCode != http.StatusUnauthorized {
 				b, _ := io.ReadAll(resp.Body)
-				t.Fatalf("expected 400, got %d: %s", resp.StatusCode, string(b))
+				t.Fatalf("expected 401 without auth, got %d: %s", resp.StatusCode, string(b))
 			}
 		})
-
-		// Spec 3.2: server SHOULD respond 401 when auth required but no credentials
-		if env.useHTTPS {
-			t.Run("Unauthorized_NoCredentials_Returns401", func(t *testing.T) {
-				req, _ := http.NewRequest("GET", env.registryPath(mavenE2EScope, mavenTestPackage), nil)
-				req.Header.Set("Accept", acceptJSON)
-				// do not call env.setAuth(req)
-				resp, err := env.httpClient.Do(req)
-				if err != nil {
-					t.Fatalf("list: %v", err)
-				}
-				defer resp.Body.Close()
-				if resp.StatusCode != http.StatusUnauthorized {
-					b, _ := io.ReadAll(resp.Body)
-					t.Fatalf("expected 401 without auth, got %d: %s", resp.StatusCode, string(b))
-				}
-			})
-		}
+	}
 
 	t.Run("Publish_DuplicateVersion_Returns409", func(t *testing.T) {
 		var body bytes.Buffer
@@ -902,7 +902,7 @@ func runRegistryE2ETestBody(t *testing.T, env *e2eEnv, zip1 []byte, metadataBody
 
 	if cleanupMaven {
 		t.Run("Cleanup", func(t *testing.T) {
-			cleanNexusScope(t, env, mavenE2EScope, []string{mavenTestPackage, mavenOtherPackage})
+			cleanMavenScope(t, env, mavenE2EScope, []string{mavenTestPackage, mavenOtherPackage})
 		})
 	}
 }
@@ -912,15 +912,19 @@ func runRegistryE2ETestBody(t *testing.T, env *e2eEnv, zip1 []byte, metadataBody
 // It covers all six Swift Package Registry normative endpoints (Registry spec 4) plus collections and error cases.
 func TestRegistryE2E(t *testing.T) {
 	env := setupE2E(t)
+	defer runE2ECleanup(t, env)()
 	zip1 := createMinimalZip(t, mavenE2EScope, mavenTestPackage, mavenVersion1, true)
 	metadataBody := []byte(`{"description":"E2E test metadata"}`)
 
 	t.Run("Maven", func(t *testing.T) {
-		waitForNexus(t, env)
-		cleanNexusScope(t, env, mavenE2EScope, []string{mavenTestPackage, mavenOtherPackage})
-		env.configPath = filepath.Join(env.rootDir, "config.e2e.yml")
+		waitForMaven(t, env)
+		cleanMavenScope(t, env, mavenE2EScope, []string{mavenTestPackage, mavenOtherPackage})
 		if env.useHTTPS {
 			env.configPath = filepath.Join(env.rootDir, "config.e2e.https.yml")
+		} else if env.mavenProvider == "reposilite" {
+			env.configPath = filepath.Join(env.rootDir, "config.e2e.reposilite.yml")
+		} else {
+			env.configPath = filepath.Join(env.rootDir, "config.e2e.yml")
 		}
 		defer startRegistryServer(t, env)()
 		time.Sleep(500 * time.Millisecond)
@@ -949,6 +953,7 @@ func TestRegistryE2E(t *testing.T) {
 // - GET .zip download includes X-Swift-Package-Signature and X-Swift-Package-Signature-Format headers
 func TestRegistryE2ESignedPackages(t *testing.T) {
 	env := setupE2E(t)
+	defer runE2ECleanup(t, env)()
 	zip1 := createMinimalZip(t, signedE2EScope, signedE2EPackage, signedE2EVersion, false)
 	// Dummy signature: 32 bytes of test data (not a real CMS signature, but sufficient for E2E)
 	dummySignature := make([]byte, 32)
@@ -957,11 +962,14 @@ func TestRegistryE2ESignedPackages(t *testing.T) {
 	}
 
 	t.Run("Maven", func(t *testing.T) {
-		waitForNexus(t, env)
-		cleanNexusScope(t, env, signedE2EScope, []string{signedE2EPackage})
-		env.configPath = filepath.Join(env.rootDir, "config.e2e.yml")
+		waitForMaven(t, env)
+		cleanMavenScope(t, env, signedE2EScope, []string{signedE2EPackage})
 		if env.useHTTPS {
 			env.configPath = filepath.Join(env.rootDir, "config.e2e.https.yml")
+		} else if env.mavenProvider == "reposilite" {
+			env.configPath = filepath.Join(env.rootDir, "config.e2e.reposilite.yml")
+		} else {
+			env.configPath = filepath.Join(env.rootDir, "config.e2e.yml")
 		}
 		defer startRegistryServer(t, env)()
 		time.Sleep(500 * time.Millisecond)
@@ -1073,7 +1081,7 @@ func runSignedPackageTestBody(t *testing.T, env *e2eEnv, zip1 []byte, signature 
 
 	if cleanupMaven {
 		t.Run("Cleanup", func(t *testing.T) {
-			cleanNexusScope(t, env, signedE2EScope, []string{signedE2EPackage})
+			cleanMavenScope(t, env, signedE2EScope, []string{signedE2EPackage})
 		})
 	}
 }

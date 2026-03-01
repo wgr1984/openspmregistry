@@ -7,6 +7,9 @@ on:
 jobs:
   e2e-full:
     runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        maven_provider: [reposilite]
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -27,8 +30,9 @@ jobs:
           printf '#!/bin/sh\nexec docker compose "$@"\n' | sudo tee /usr/local/bin/docker-compose
           sudo chmod +x /usr/local/bin/docker-compose
 
-      - name: Run full E2E (Nexus + Swift publish/resolve + registry API)
+      - name: Run full E2E (${{ matrix.maven_provider }} + Swift publish/resolve + registry API)
         run: make test-e2e-full
         env:
+          MAVEN_PROVIDER: ${{ matrix.maven_provider }}
           NEXUS_WAIT_TIMEOUT: 360
         timeout-minutes: 20

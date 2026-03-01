@@ -51,7 +51,7 @@ func (h *IntegrationTestHelper) WaitForServer(ctx context.Context, maxWait time.
 		case <-ctx.Done():
 			return ctx.Err()
 		case <-ticker.C:
-			// Nexus requires a path segment after the repo key (e.g. .../repository/private/); use trailing slash
+			// Nexus requires a path segment after the repo key (e.g. .../repository/private/); Reposilite accepts .../private/; use trailing slash
 			checkURL := strings.TrimSuffix(h.BaseURL, "/") + "/"
 			req, err := http.NewRequestWithContext(ctx, "GET", checkURL, nil)
 			if err != nil {
@@ -74,16 +74,24 @@ func (h *IntegrationTestHelper) WaitForServer(ctx context.Context, maxWait time.
 }
 
 // GetMavenConfig returns a MavenConfig for integration tests
-// It reads credentials from environment variables or uses Maven server defaults
+// It reads credentials from environment variables or uses Maven server defaults (Nexus or Reposilite)
 func (h *IntegrationTestHelper) GetMavenConfig() config.MavenConfig {
 	username := os.Getenv("MAVEN_REPO_USERNAME")
 	if username == "" {
-		username = "admin" // Nexus default
+		if os.Getenv("MAVEN_PROVIDER") == "reposilite" {
+			username = "e2e"
+		} else {
+			username = "admin" // Nexus default
+		}
 	}
 
 	password := os.Getenv("MAVEN_REPO_PASSWORD")
 	if password == "" {
-		password = "admin123" // Nexus default (set by bootstrap)
+		if os.Getenv("MAVEN_PROVIDER") == "reposilite" {
+			password = "test-secret"
+		} else {
+			password = "admin123" // Nexus default (set by bootstrap)
+		}
 	}
 
 	return config.MavenConfig{

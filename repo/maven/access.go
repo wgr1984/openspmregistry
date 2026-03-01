@@ -151,6 +151,7 @@ func newMavenWriter(client *client, cfg config.MavenConfig, access *access, path
 // updateSPMRegistryIndex GETs the SPM registry index (spmRegistryIndexPath), adds scope and packageName if not present, sorts, and PUTs back.
 // On 404 or invalid body the current list is treated as empty. Logs warnings on failure; does not fail the publish.
 // Writes only packages (scopes are derived from packages keys when reading).
+// Some backends (e.g. Reposilite) may not allow PUT to overwrite an existing file; we DELETE the index first then PUT so the write is a create.
 func (a *access) updateSPMRegistryIndex(ctx context.Context, scope, packageName string) {
 	a.indexMu.Lock()
 	defer a.indexMu.Unlock()
@@ -182,6 +183,11 @@ func (a *access) updateSPMRegistryIndex(ctx context.Context, scope, packageName 
 	if err != nil {
 		slog.Warn("failed to marshal SPM registry index", "error", err)
 		return
+	}
+	if err := a.client.DELETE(ctx, spmRegistryIndexPath); err != nil {
+		if slog.Default().Enabled(context.Background(), slog.LevelDebug) {
+			slog.Debug("DELETE index before PUT (ignore if missing)", "path", spmRegistryIndexPath, "error", err)
+		}
 	}
 	if err := a.client.PUT(ctx, spmRegistryIndexPath, bytes.NewReader(body), "application/json"); err != nil {
 		slog.Warn("failed to update SPM registry index", "path", spmRegistryIndexPath, "error", err)

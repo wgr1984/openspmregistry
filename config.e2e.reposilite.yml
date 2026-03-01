@@ -1,0 +1,25 @@
+# E2E test config (HTTP) with Reposilite Maven backend.
+# Reposilite must be running (make test-integration-up MAVEN_PROVIDER=reposilite).
+server:
+  hostname: 127.0.0.1
+  port: 8082
+  listPageSize: 1
+  tlsEnabled: false
+  certs:
+    cert: server.crt
+    key: server.key
+  repo:
+    type: maven
+    maven:
+      baseURL: http://localhost:8080/private
+      authMode: config
+      username: e2e
+      password: test-secret
+      timeout: 30
+  publish:
+    maxSize: 204800
+  auth:
+    enabled: false
+  packageCollections:
+    enabled: true
+    requirePackageJson: false

@@ -1,3 +1,4 @@
+# Maven test providers: start one via MAVEN_PROVIDER=nexus (default) or MAVEN_PROVIDER=reposilite.
 # Nexus 3.68.1+ addresses critical security vulnerabilities (see Nexus UI warnings on 3.21.x).
 # Scripting must be enabled so the bootstrap script can create the Maven repo via Script API.
 services:
@@ -10,6 +11,18 @@ services:
       - ./nexus-data:/nexus-data
     environment:
       - INSTALL4J_ADD_VM_PARAMS=-Djava.util.prefs.userRoot=/nexus-data/javaprefs -Dnexus.scripts.allowCreation=true
+    networks:
+      - test-network
+
+  reposilite:
+    image: dzikoysk/reposilite:3.5.28
+    container_name: reposilite-test
+    ports:
+      - "8080:8080"
+    volumes:
+      - ./reposilite-data:/app/data
+    environment:
+      - REPOSILITE_OPTS=--token e2e:test-secret
     networks:
       - test-network
 

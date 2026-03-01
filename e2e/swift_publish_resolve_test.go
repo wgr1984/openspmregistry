@@ -3,7 +3,7 @@
 
 // Package e2e provides end-to-end tests for the Swift package registry.
 // Run with: go test -tags=e2e -v ./e2e/...
-// Prerequisites: Nexus running (make test-integration-up), Swift toolchain installed.
+// Prerequisites: Maven server running (make test-integration-up; MAVEN_PROVIDER=nexus or reposilite), Swift toolchain installed.
 package e2e
 
 import (
@@ -27,8 +27,6 @@ import (
 
 const (
 	defaultRegistryURL = "http://127.0.0.1:8082"
-	nexusURL           = "http://localhost:8081"
-	nexusRepo          = "private"
 	scope              = "example"
 	acceptJSON         = "application/vnd.swift.registry.v1+json"
 	acceptSwift        = "application/vnd.swift.registry.v1+swift"
@@ -38,18 +36,21 @@ const (
 
 // e2eEnv holds paths and config for the E2E test.
 type e2eEnv struct {
-	rootDir      string
-	configPath   string
-	registryURL  string
-	useHTTPS     bool
-	registryUser string
-	registryPass string
-	consumerDir  string
-	samplePkgDir string
-	utilsPkgDir  string
-	nexusUser    string
-	nexusPass    string
-	httpClient   *http.Client
+	rootDir       string
+	configPath    string
+	registryURL   string
+	useHTTPS      bool
+	registryUser  string
+	registryPass  string
+	consumerDir   string
+	samplePkgDir  string
+	utilsPkgDir   string
+	mavenProvider string // "nexus" or "reposilite"
+	mavenBaseURL  string // Nexus: http://localhost:8081; Reposilite: http://localhost:8080
+	mavenRepo     string // repo name: "private" (Nexus and Reposilite) or custom
+	nexusUser     string // Maven auth username (admin for Nexus, token name for Reposilite)
+	nexusPass     string // Maven auth password
+	httpClient    *http.Client
 }
 
 func (e *e2eEnv) registryPath(parts ...string) string {
@@ -83,6 +84,7 @@ func findRepoRoot() (string, error) {
 
 // setupE2E initializes the E2E environment and skips if prerequisites are not met.
 // Supports E2E_REGISTRY_URL (default http://127.0.0.1:8082); https:// uses config.e2e.https.yml.
+// MAVEN_PROVIDER=nexus (default) or reposilite selects Maven backend and config.
 func setupE2E(t *testing.T) *e2eEnv {
 	t.Helper()
 	if os.Getenv("E2E_TESTS") == "" {
@@ -101,8 +103,36 @@ func setupE2E(t *testing.T) *e2eEnv {
 	registryURL = strings.TrimSuffix(registryURL, "/")
 	useHTTPS := strings.HasPrefix(registryURL, "https://")
 
+	mavenProvider := os.Getenv("MAVEN_PROVIDER")
+	if mavenProvider == "" {
+		mavenProvider = "nexus"
+	}
+	mavenRepoURL := os.Getenv("MAVEN_REPO_URL")
+	mavenRepoName := os.Getenv("MAVEN_REPO_NAME")
+	var mavenBaseURL string
+	if mavenProvider == "reposilite" {
+		if mavenRepoURL == "" {
+			mavenRepoURL = "http://localhost:8080"
+		}
+		if mavenRepoName == "" {
+			mavenRepoName = "private"
+		}
+		mavenBaseURL = strings.TrimSuffix(mavenRepoURL, "/")
+	} else {
+		if mavenRepoName == "" {
+			mavenRepoName = "private"
+		}
+		mavenBaseURL = os.Getenv("NEXUS_URL")
+		if mavenBaseURL == "" {
+			mavenBaseURL = "http://localhost:8081"
+		}
+		mavenBaseURL = strings.TrimSuffix(mavenBaseURL, "/")
+	}
+
 	configPath := filepath.Join(root, "config.e2e.yml")
-	if useHTTPS {
+	if mavenProvider == "reposilite" && !useHTTPS {
+		configPath = filepath.Join(root, "config.e2e.reposilite.yml")
+	} else if useHTTPS {
 		configPath = filepath.Join(root, "config.e2e.https.yml")
 	}
 	if _, err := os.Stat(configPath); err != nil {
@@ -111,14 +141,26 @@ func setupE2E(t *testing.T) *e2eEnv {
 
 	nexusUser := os.Getenv("MAVEN_REPO_USERNAME")
 	if nexusUser == "" {
-		nexusUser = "admin"
+		if mavenProvider == "reposilite" {
+			nexusUser = "e2e"
+		} else {
+			nexusUser = "admin"
+		}
 	}
 	nexusPass := os.Getenv("MAVEN_REPO_PASSWORD")
 	if nexusPass == "" {
-		if b, err := os.ReadFile(filepath.Join(root, ".nexus-test-password")); err == nil {
-			nexusPass = strings.TrimSpace(string(b))
+		if mavenProvider == "reposilite" {
+			if b, err := os.ReadFile(filepath.Join(root, ".reposilite-test-token")); err == nil {
+				nexusPass = strings.TrimSpace(string(b))
+			} else {
+				nexusPass = "test-secret"
+			}
 		} else {
-			nexusPass = "admin123"
+			if b, err := os.ReadFile(filepath.Join(root, ".nexus-test-password")); err == nil {
+				nexusPass = strings.TrimSpace(string(b))
+			} else {
+				nexusPass = "admin123"
+			}
 		}
 	}
 
@@ -139,92 +181,170 @@ func setupE2E(t *testing.T) *e2eEnv {
 	}
 
 	env := &e2eEnv{
-		rootDir:      root,
-		configPath:   configPath,
-		registryURL:  registryURL,
-		useHTTPS:     useHTTPS,
-		registryUser: registryUser,
-		registryPass: registryPass,
-		consumerDir:  filepath.Join(root, "testdata", "e2e", "Consumer"),
-		samplePkgDir: filepath.Join(root, "testdata", "e2e", "example.SamplePackage"),
-		utilsPkgDir:  filepath.Join(root, "testdata", "e2e", "example.UtilsPackage"),
-		nexusUser:    nexusUser,
-		nexusPass:    nexusPass,
-		httpClient:   httpClient,
+		rootDir:       root,
+		configPath:    configPath,
+		registryURL:   registryURL,
+		useHTTPS:      useHTTPS,
+		registryUser:  registryUser,
+		registryPass:  registryPass,
+		consumerDir:   filepath.Join(root, "testdata", "e2e", "Consumer"),
+		samplePkgDir:  filepath.Join(root, "testdata", "e2e", "example.SamplePackage"),
+		utilsPkgDir:   filepath.Join(root, "testdata", "e2e", "example.UtilsPackage"),
+		mavenProvider: mavenProvider,
+		mavenBaseURL:  mavenBaseURL,
+		mavenRepo:     mavenRepoName,
+		nexusUser:     nexusUser,
+		nexusPass:     nexusPass,
+		httpClient:    httpClient,
 	}
 	return env
 }
 
-// cleanNexusScope removes packages from Nexus via REST API for the given group and package names.
-func cleanNexusScope(t *testing.T, env *e2eEnv, group string, packageNames []string) {
-	t.Helper()
-	for _, pkgName := range packageNames {
-		baseURL := fmt.Sprintf("%s/service/rest/v1/search?repository=%s&group=%s&name=%s",
-			nexusURL, nexusRepo, group, pkgName)
-		auth := base64.StdEncoding.EncodeToString([]byte(env.nexusUser + ":" + env.nexusPass))
-		token := ""
-		for {
-			url := baseURL
-			if token != "" {
-				url += "&continuationToken=" + token
-			}
-			req, err := http.NewRequest("GET", url, nil)
-			if err != nil {
-				t.Logf("cleanNexus: create request: %v", err)
-				return
-			}
-			req.Header.Set("Authorization", "Basic "+auth)
-			resp, err := env.httpClient.Do(req)
-			if err != nil {
-				t.Logf("cleanNexus: request failed: %v", err)
-				return
-			}
-			body, _ := io.ReadAll(resp.Body)
-			resp.Body.Close()
-			if resp.StatusCode != 200 {
-				return
-			}
-			var data struct {
-				Items []struct {
-					ID string `json:"id"`
-				}
-				ContinuationToken string `json:"continuationToken"`
-			}
-			if err := json.Unmarshal(body, &data); err != nil {
-				t.Logf("cleanNexus: parse response: %v", err)
-				return
-			}
-			for _, item := range data.Items {
-				delURL := fmt.Sprintf("%s/service/rest/v1/components/%s", nexusURL, item.ID)
-				delReq, _ := http.NewRequest("DELETE", delURL, nil)
-				delReq.Header.Set("Authorization", "Basic "+auth)
-				env.httpClient.Do(delReq)
-			}
-			token = data.ContinuationToken
-			if token == "" {
-				break
-			}
+// runE2ECleanup runs the e2e-clean-nexus script at the end of the test suite to remove com and example trees.
+// Call via defer: defer runE2ECleanup(t, env)()
+func runE2ECleanup(t *testing.T, env *e2eEnv) func() {
+	return func() {
+		t.Helper()
+		cmd := exec.Command("go", "run", "./cmd/e2e-clean-nexus")
+		cmd.Dir = env.rootDir
+		cmd.Env = append(os.Environ(),
+			"MAVEN_PROVIDER="+env.mavenProvider,
+			"MAVEN_REPO_NAME="+env.mavenRepo,
+		)
+		if env.mavenProvider == "nexus" {
+			cmd.Env = append(cmd.Env,
+				"NEXUS_URL="+env.mavenBaseURL,
+				"MAVEN_REPO_USERNAME="+env.nexusUser,
+				"MAVEN_REPO_PASSWORD="+env.nexusPass,
+			)
+		}
+		if out, err := cmd.CombinedOutput(); err != nil {
+			t.Logf("e2e cleanup (non-fatal): %v\n%s", err, out)
 		}
 	}
 }
 
-// cleanNexus removes example.SamplePackage, example.UtilsPackage, example.SignedPkg, and example.SwiftSignedPkg from Nexus via REST API.
+// cleanMavenScope removes packages from the Maven repo (Nexus or Reposilite) for the given group and package names.
+func cleanMavenScope(t *testing.T, env *e2eEnv, group string, packageNames []string) {
+	t.Helper()
+	auth := base64.StdEncoding.EncodeToString([]byte(env.nexusUser + ":" + env.nexusPass))
+	if env.mavenProvider == "nexus" {
+		for _, pkgName := range packageNames {
+			baseURL := fmt.Sprintf("%s/service/rest/v1/search?repository=%s&group=%s&name=%s",
+				env.mavenBaseURL, env.mavenRepo, group, pkgName)
+			token := ""
+			for {
+				url := baseURL
+				if token != "" {
+					url += "&continuationToken=" + token
+				}
+				req, err := http.NewRequest("GET", url, nil)
+				if err != nil {
+					t.Logf("cleanMaven: create request: %v", err)
+					return
+				}
+				req.Header.Set("Authorization", "Basic "+auth)
+				resp, err := env.httpClient.Do(req)
+				if err != nil {
+					t.Logf("cleanMaven: request failed: %v", err)
+					return
+				}
+				body, _ := io.ReadAll(resp.Body)
+				resp.Body.Close()
+				if resp.StatusCode != 200 {
+					return
+				}
+				var data struct {
+					Items             []struct{ ID string } `json:"items"`
+					ContinuationToken string                `json:"continuationToken"`
+				}
+				if err := json.Unmarshal(body, &data); err != nil {
+					t.Logf("cleanMaven: parse response: %v", err)
+					return
+				}
+				for _, item := range data.Items {
+					delURL := fmt.Sprintf("%s/service/rest/v1/components/%s", env.mavenBaseURL, item.ID)
+					delReq, _ := http.NewRequest("DELETE", delURL, nil)
+					delReq.Header.Set("Authorization", "Basic "+auth)
+					env.httpClient.Do(delReq)
+				}
+				token = data.ContinuationToken
+				if token == "" {
+					break
+				}
+			}
+		}
+		return
+	}
+	// Reposilite: recursive list + DELETE per file
+	for _, pkgName := range packageNames {
+		path := group + "/" + pkgName
+		cleanReposilitePath(t, env, path, auth)
+	}
+}
+
+func cleanReposilitePath(t *testing.T, env *e2eEnv, path, auth string) {
+	t.Helper()
+	detailsURL := fmt.Sprintf("%s/api/maven/details/%s/%s", env.mavenBaseURL, env.mavenRepo, path)
+	req, _ := http.NewRequest("GET", detailsURL, nil)
+	req.Header.Set("Authorization", "Basic "+auth)
+	resp, err := env.httpClient.Do(req)
+	if err != nil {
+		return
+	}
+	body, _ := io.ReadAll(resp.Body)
+	resp.Body.Close()
+	if resp.StatusCode != 200 {
+		return
+	}
+	var details struct {
+		Type    string `json:"type"`
+		Name    string `json:"name"`
+		Content []struct {
+			Type string `json:"type"`
+			Name string `json:"name"`
+		} `json:"content"`
+	}
+	if err := json.Unmarshal(body, &details); err != nil {
+		return
+	}
+	if details.Type == "FILE" {
+		// Reposilite delete is DELETE /{repository}/{gav}, not /api/maven/file/...
+		delURL := fmt.Sprintf("%s/%s/%s", env.mavenBaseURL, env.mavenRepo, path)
+		delReq, _ := http.NewRequest("DELETE", delURL, nil)
+		delReq.Header.Set("Authorization", "Basic "+auth)
+		env.httpClient.Do(delReq)
+		return
+	}
+	for _, child := range details.Content {
+		childPath := path + "/" + child.Name
+		cleanReposilitePath(t, env, childPath, auth)
+	}
+}
+
+// cleanNexus removes example.SamplePackage, example.UtilsPackage, example.SignedPkg, and example.SwiftSignedPkg from the Maven repo.
 // SignedPkg is cleaned so PublishSignedPackageViaHTTP and ConsumerResolve start from a clean state.
 // SwiftSignedPkg is cleaned so PublishWithSwiftSigning (spm-extended) can re-publish.
 func cleanNexus(t *testing.T, env *e2eEnv) {
 	t.Helper()
-	cleanNexusScope(t, env, "example", []string{"SamplePackage", "UtilsPackage", "SignedPkg", "SwiftSignedPkg"})
+	cleanMavenScope(t, env, "example", []string{"SamplePackage", "UtilsPackage", "SignedPkg", "SwiftSignedPkg"})
 }
 
-// waitForNexus checks that Nexus is reachable.
-func waitForNexus(t *testing.T, env *e2eEnv) {
+// waitForMaven checks that the Maven repository server (Nexus or Reposilite) is reachable.
+func waitForMaven(t *testing.T, env *e2eEnv) {
 	t.Helper()
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
-	req, _ := http.NewRequestWithContext(ctx, "GET", nexusURL+"/service/rest/v1/status", nil)
+	var healthURL string
+	if env.mavenProvider == "nexus" {
+		healthURL = env.mavenBaseURL + "/service/rest/v1/status"
+	} else {
+		healthURL = env.mavenBaseURL + "/"
+	}
+	req, _ := http.NewRequestWithContext(ctx, "GET", healthURL, nil)
 	resp, err := env.httpClient.Do(req)
 	if err != nil || resp.StatusCode != 200 {
-		t.Skipf("Nexus not reachable at %s. Start with: make test-integration-up", nexusURL)
+		t.Skipf("Maven server not reachable at %s. Start with: make test-integration-up", env.mavenBaseURL)
 	}
 	resp.Body.Close()
 }
@@ -269,7 +389,8 @@ func swiftAvailable() bool {
 // TestSwiftPublishResolve runs the full E2E: publish packages, verify HTTP API, resolve consumer.
 func TestSwiftPublishResolve(t *testing.T) {
 	env := setupE2E(t)
-	waitForNexus(t, env)
+	defer runE2ECleanup(t, env)()
+	waitForMaven(t, env)
 
 	if !swiftAvailable() {
 		t.Skip("Swift toolchain not found. Install Swift to run this test.")
@@ -281,8 +402,8 @@ func TestSwiftPublishResolve(t *testing.T) {
 	cleanNexus(t, env)
 	// Remove e2emaven and e2esign scopes so collection is not polluted by a previous E2E run
 	// (Swift package-collection add validates all packages in the collection; stale minimal packages may lack products/targets in Package.json)
-	cleanNexusScope(t, env, "e2emaven", []string{"TestPackage", "OtherPackage"})
-	cleanNexusScope(t, env, "e2esign", []string{"SignedPkg"})
+	cleanMavenScope(t, env, "e2emaven", []string{"TestPackage", "OtherPackage"})
+	cleanMavenScope(t, env, "e2esign", []string{"SignedPkg"})
 
 	// Purge Swift PM cache (script lines 104-107; ignore errors)
 	pc := exec.Command("swift", "package", "purge-cache")

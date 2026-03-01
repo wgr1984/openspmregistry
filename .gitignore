@@ -29,7 +29,9 @@ go.work.sum
 /files/
 /maven-files/
 /nexus-data/
+/reposilite-data/
 .nexus-test-password
+.reposilite-test-token
 **/config.local.yml
 /node_modules/
 /static/output.css
