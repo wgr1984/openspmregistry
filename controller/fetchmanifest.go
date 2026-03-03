@@ -121,7 +121,7 @@ func (c *Controller) manifestsToString(r *http.Request, manifests []models.Uploa
 			if err2 != nil {
 				slog.Info("Swift tool version not found:", "error", err2)
 			} else {
-				result += fmt.Sprintf("; swift-tools-version=\"%s\"", swiftToolVersion)
+				result += fmt.Sprintf("; swift-tools-version=\"%s\"", strings.TrimSpace(swiftToolVersion))
 			}
 		}
 	}
