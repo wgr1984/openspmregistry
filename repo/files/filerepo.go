@@ -253,8 +253,8 @@ func (f *FileRepo) GetSwiftToolVersion(ctx context.Context, manifest *models.Upl
 	scanner := bufio.NewScanner(file)
 	if scanner.Scan() {
 		line := scanner.Text()
-		if strings.HasPrefix(line, swiftVersionPrefix) {
-			return strings.TrimPrefix(line, swiftVersionPrefix), nil
+		if after, ok := strings.CutPrefix(line, swiftVersionPrefix); ok {
+			return strings.TrimSpace(after), nil
 		}
 	}
 	if err := scanner.Err(); err != nil {
