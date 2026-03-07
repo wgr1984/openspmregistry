@@ -22,7 +22,8 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-// headResponseWriter discards the response body so HEAD returns same headers as GET but no body.
+// headResponseWriter discards the response body. Used for HEAD requests so the
+// same GET handler runs (Go 1.22+ matches HEAD to GET) but no body is sent.
 type headResponseWriter struct {
 	http.ResponseWriter
 }
@@ -100,33 +101,21 @@ func main() {
 	a := middleware.NewAuthentication(authenticator.CreateAuthenticator(serverConfig.Server), registryMux)
 	c := controller.NewController(serverConfig.Server, r)
 
-	// headNoBody wraps w to discard the response body. Only used for HEAD routes (same headers as GET, no body).
-	headNoBody := func(h http.HandlerFunc) http.HandlerFunc {
-		return func(w http.ResponseWriter, r *http.Request) {
-			w = &headResponseWriter{ResponseWriter: w}
-			h(w, r)
-		}
-	}
-
 	// Package Collections on a separate mux so Go 1.22+ ServeMux does not conflict with /{scope}/{package}.
+	// GET also matches HEAD per Go 1.22+ routing.
 	if serverConfig.Server.PackageCollections.Enabled {
 		if serverConfig.Server.PackageCollections.PublicRead {
 			collectionMux.HandleFunc("GET /collection", c.GlobalCollectionAction)
-			collectionMux.HandleFunc("HEAD /collection", headNoBody(c.GlobalCollectionAction))
 			collectionMux.HandleFunc("GET /collection/{scope}", c.ScopeCollectionAction)
-			collectionMux.HandleFunc("HEAD /collection/{scope}", headNoBody(c.ScopeCollectionAction))
 		} else {
 			collectionMux.HandleFunc("GET /collection", a.WrapHandler(c.GlobalCollectionAction))
-			collectionMux.HandleFunc("HEAD /collection", headNoBody(a.WrapHandler(c.GlobalCollectionAction)))
 			collectionMux.HandleFunc("GET /collection/{scope}", a.WrapHandler(c.ScopeCollectionAction))
-			collectionMux.HandleFunc("HEAD /collection/{scope}", headNoBody(a.WrapHandler(c.ScopeCollectionAction)))
 		}
 	}
 
-	// authorized routes (registry only)
+	// authorized routes (registry only). GET matches HEAD automatically.
 	a.HandleFunc("POST /login", c.LoginAction)
 	a.HandleFunc("GET /{scope}/{package}", c.ListAction)
-	a.HandleFunc("HEAD /{scope}/{package}", headNoBody(c.ListAction))
 	a.HandleFunc("GET /{scope}/{package}/{version}", func(w http.ResponseWriter, r *http.Request) {
 		if strings.HasSuffix(r.URL.Path, ".zip") {
 			c.DownloadSourceArchiveAction(w, r)
@@ -134,17 +123,8 @@ func main() {
 			c.InfoAction(w, r)
 		}
 	})
-	a.HandleFunc("HEAD /{scope}/{package}/{version}", headNoBody(func(w http.ResponseWriter, r *http.Request) {
-		if strings.HasSuffix(r.URL.Path, ".zip") {
-			c.DownloadSourceArchiveAction(w, r)
-		} else {
-			c.InfoAction(w, r)
-		}
-	}))
 	a.HandleFunc("GET /{scope}/{package}/{version}/Package.swift", c.FetchManifestAction)
-	a.HandleFunc("HEAD /{scope}/{package}/{version}/Package.swift", headNoBody(c.FetchManifestAction))
 	a.HandleFunc("GET /identifiers", c.LookupAction)
-	a.HandleFunc("HEAD /identifiers", headNoBody(c.LookupAction))
 	a.HandleFunc("PUT /{scope}/{package}/{version}", c.PublishAction)
 
 	// public and static routes on registry mux
@@ -153,8 +133,12 @@ func main() {
 	registryMux.HandleFunc("GET /favicon.svg", c.StaticAction)
 	registryMux.HandleFunc("GET /output.css", c.StaticAction)
 
-	// Path dispatcher: /collection* -> collectionMux, else -> auth-wrapped registryMux.
+	// Path dispatcher: for HEAD, discard response body; then /collection* -> collectionMux, else -> auth-wrapped registryMux.
+	// Go 1.22+ matches HEAD to GET patterns, so the same handler runs; we only strip the body.
 	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == http.MethodHead {
+			w = &headResponseWriter{ResponseWriter: w}
+		}
 		if strings.HasPrefix(r.URL.Path, "/collection") {
 			collectionMux.ServeHTTP(w, r)
 		} else {
