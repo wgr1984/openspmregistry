@@ -6,18 +6,13 @@ on:
 
 jobs:
   e2e-full:
-    runs-on: macos-latest
+    runs-on: ubuntu-latest
     strategy:
       matrix:
         maven_provider: [reposilite]
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
-
-      - name: Install Docker (Colima)
-        run: |
-          brew install colima docker
-          colima start --cpu 2 --memory 2
 
       - name: Set up Go
         uses: actions/setup-go@v5
