@@ -36,6 +36,7 @@ go.work.sum
 /node_modules/
 /static/output.css
 **/.DS_Store
+*.bak
 openspmregistry
 openspmregistry.e2e
 e2e-file-repo
@@ -46,7 +47,6 @@ cover.out
 SPM-Registry-Spec.md
 CHANGELOG.md.tmp
 .vscode/**
-**/.build
 **/.build
 **/.swiftpm/**
 
