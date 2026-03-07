@@ -677,8 +677,8 @@ func Test_GetSwiftToolVersion_ValidManifest_ReturnsVersion(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	if version != "5.7" {
-		t.Errorf("expected version '5.7', got '%s'", version)
+	if version != "6.0" {
+		t.Errorf("expected version '6.0', got '%s'", version)
 	}
 }
 

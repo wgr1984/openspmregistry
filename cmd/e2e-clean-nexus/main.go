@@ -23,13 +23,13 @@ import (
 	"strings"
 )
 
-// e2eScopes are the top-level trees to remove (SPM scope "example" + registry index "com").
-var e2eScopes = []string{"com", "example", "e2emaven", "e2esign"}
-
 type searchResponse struct {
 	Items             []struct{ ID string } `json:"items"`
 	ContinuationToken string                `json:"continuationToken"`
 }
+
+// e2eScopes are the top-level trees to remove (SPM scope "example" + registry index "com").
+var e2eScopes = []string{"com", "example", "e2emaven", "e2esign"}
 
 func main() {
 	provider := getEnv("MAVEN_PROVIDER", "nexus")
