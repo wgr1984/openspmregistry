@@ -18,6 +18,7 @@ import (
 	"os/signal"
 	"strings"
 	"syscall"
+	"time"
 
 	"gopkg.in/yaml.v3"
 )
@@ -158,10 +159,13 @@ func main() {
 	sigChannel := make(chan os.Signal, 1)
 	signal.Notify(sigChannel, os.Interrupt, syscall.SIGTERM)
 
+	const shutdownTimeout = 30 * time.Second
 	go func() {
 		<-sigChannel
 		slog.Info("Shutting down server...")
-		if err := srv.Shutdown(context.TODO()); err != nil {
+		ctx, cancel := context.WithTimeout(context.Background(), shutdownTimeout)
+		defer cancel()
+		if err := srv.Shutdown(ctx); err != nil {
 			slog.Error("Error shutting down server", "error", err)
 		}
 		os.Exit(1)
