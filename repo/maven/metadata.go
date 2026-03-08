@@ -7,9 +7,10 @@ import (
 	"fmt"
 	"io"
 	"slices"
-	"sort"
 	"strings"
 	"time"
+
+	"OpenSPMRegistry/models"
 )
 
 // MavenMetadata represents a Maven metadata.xml structure
@@ -89,12 +90,12 @@ func updateMetadata(client *client, ctx context.Context, groupId, artifactId, ve
 			metadata.Versioning.Versions.Version = append(metadata.Versioning.Versions.Version, version)
 		}
 
-		// Sort versions (Maven typically expects sorted versions)
-		sort.Strings(metadata.Versioning.Versions.Version)
+		// Sort versions by semantic order, highest first (models.SortVersions is descending)
+		models.SortVersions(metadata.Versioning.Versions.Version)
 
-		// Update latest and release to the highest version
+		// Update latest and release to the highest version (first element after sort)
 		if len(metadata.Versioning.Versions.Version) > 0 {
-			latest := metadata.Versioning.Versions.Version[len(metadata.Versioning.Versions.Version)-1]
+			latest := metadata.Versioning.Versions.Version[0]
 			metadata.Versioning.Latest = latest
 			metadata.Versioning.Release = latest
 		}
