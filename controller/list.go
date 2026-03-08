@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"log/slog"
 	"net/http"
+	"net/url"
 	"strconv"
 	"strings"
 )
@@ -104,9 +105,13 @@ func addListPaginationLinks(scope, packageName string, totalCount, page, perPage
 	}
 
 	base := utils.BaseUrl(c.config)
-	path := "/" + scope + "/" + packageName
+	path, err := url.JoinPath(base, scope, packageName)
+	if err != nil {
+		slog.Error("Building pagination path", "error", err)
+		return
+	}
 	makeLink := func(p int) string {
-		return base + path + "?page=" + strconv.Itoa(p)
+		return path + "?page=" + strconv.Itoa(p)
 	}
 
 	var links []string
