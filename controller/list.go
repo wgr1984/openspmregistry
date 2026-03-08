@@ -8,6 +8,7 @@ import (
 	"log/slog"
 	"net/http"
 	"strconv"
+	"strings"
 )
 
 // defaultListPageSize is used when listPageSize is not set in config.
@@ -119,19 +120,8 @@ func addListPaginationLinks(scope, packageName string, totalCount, page, perPage
 
 	existing := header.Get("Link")
 	if existing != "" {
-		header.Set("Link", existing+", "+joinLinks(links))
+		header.Set("Link", existing+", "+strings.Join(links, ", "))
 	} else {
-		header.Set("Link", joinLinks(links))
+		header.Set("Link", strings.Join(links, ", "))
 	}
-}
-
-func joinLinks(links []string) string {
-	if len(links) == 0 {
-		return ""
-	}
-	result := links[0]
-	for i := 1; i < len(links); i++ {
-		result += ", " + links[i]
-	}
-	return result
 }
