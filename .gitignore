@@ -41,6 +41,8 @@ openspmregistry
 openspmregistry.e2e
 e2e-file-repo
 testdata/e2e/Consumer/Package.resolved
+# Generated at E2E runtime (swift package dump-package); contains machine-specific packageKind.root paths
+testdata/e2e/**/Package.json
 # Leftover from swift package archive-source in fixture dirs (e2e uses package-registry publish)
 testdata/e2e/**/*.zip
 cover.out
