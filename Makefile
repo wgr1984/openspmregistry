@@ -51,15 +51,21 @@ build: tailwind lint
 
 lint: staticcheck golangci-lint errcheck
 
+# Pinned versions (no @latest) to avoid supply-chain risk. Bump periodically for latest.
+# staticcheck: v0.7.0 requires Go 1.25; v0.6.0 is latest for Go 1.23.
+STATICCHECK_VER ?= v0.6.0
+GOLANGCI_LINT_VER ?= v1.64.8
+ERRCHECK_VER ?= v1.10.0
+
 staticcheck:
-	go run honnef.co/go/tools/cmd/staticcheck@latest ./...
+	go run honnef.co/go/tools/cmd/staticcheck@$(STATICCHECK_VER) ./...
 
 golangci-lint:
-	go run github.com/golangci/golangci-lint/cmd/golangci-lint@latest run ./...
+	go run github.com/golangci/golangci-lint/cmd/golangci-lint@$(GOLANGCI_LINT_VER) run ./...
 
 # Catches unchecked errors including defer x.Close() (no -blank: explicit _ discards not reported).
 errcheck:
-	go run github.com/kisielk/errcheck@latest ./...
+	go run github.com/kisielk/errcheck@$(ERRCHECK_VER) ./...
 
 clean:
 	go clean -cache
