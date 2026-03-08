@@ -101,6 +101,9 @@ func addListPaginationLinks(scope, packageName string, totalCount, page, perPage
 	if totalPages <= 1 {
 		return
 	}
+	if page > totalPages {
+		page = totalPages
+	}
 
 	base := utils.BaseUrl(c.config)
 	path := "/" + scope + "/" + packageName
