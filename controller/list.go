@@ -61,6 +61,7 @@ func (c *Controller) ListAction(w http.ResponseWriter, r *http.Request) {
 
 // parseListPagination reads page from query. Returns (page, perPage); perPage 0 means no pagination.
 // When listPageSize is 0 (not configured), pagination is disabled and perPage is always 0.
+// When listPageSize > 0, perPage is always pageSize; omitted or invalid ?page= is treated as page 1.
 // The Swift Registry spec (4.1) exemplifies ?page=N in Link URLs but does not define query params.
 func parseListPagination(r *http.Request, pageSize int) (page int, perPage int) {
 	if pageSize <= 0 {
@@ -68,7 +69,7 @@ func parseListPagination(r *http.Request, pageSize int) (page int, perPage int) 
 	}
 	page, _ = strconv.Atoi(r.URL.Query().Get("page"))
 	if page < 1 {
-		return 1, 0
+		page = 1
 	}
 	return page, pageSize
 }

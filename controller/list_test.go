@@ -109,6 +109,40 @@ func Test_ListAction_ListPageSizeZero_IgnoresPageParam(t *testing.T) {
 	}
 }
 
+func Test_ListAction_Pagination_NoPageParam_DefaultsToPage1(t *testing.T) {
+	elements := []models.ListElement{
+		{Scope: "scope", PackageName: "package", Version: "1.0.0"},
+		{Scope: "scope", PackageName: "package", Version: "1.1.0"},
+		{Scope: "scope", PackageName: "package", Version: "2.0.0"},
+	}
+	mockRepo := &MockListRepo{elements: elements}
+	cfg := config.ServerConfig{Hostname: "localhost", Port: 8080, ListPageSize: 1}
+	c := NewController(cfg, mockRepo)
+
+	req := httptest.NewRequest("GET", "/scope/package", nil)
+	req.Header.Set("Accept", "application/vnd.swift.registry.v1+json")
+	w := httptest.NewRecorder()
+
+	c.ListAction(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Errorf("expected status code %d, got %d", http.StatusOK, w.Code)
+	}
+	link := w.Header().Get("Link")
+	if !strings.Contains(link, "rel=\"next\"") {
+		t.Errorf("expected pagination Link headers when ListPageSize set and no ?page=, got %q", link)
+	}
+	var response struct {
+		Releases map[string]models.Release `json:"releases"`
+	}
+	if err := json.NewDecoder(w.Body).Decode(&response); err != nil {
+		t.Fatalf("failed to decode response: %v", err)
+	}
+	if len(response.Releases) != 1 {
+		t.Errorf("ListPageSize 1 without ?page= should return first page only (1 release), got %d", len(response.Releases))
+	}
+}
+
 func Test_ListAction_Pagination_ReturnsLinkHeaders(t *testing.T) {
 	elements := []models.ListElement{
 		{Scope: "scope", PackageName: "package", Version: "1.0.0"},
