@@ -605,49 +605,68 @@ func runRegistryE2ETestBody(t *testing.T, env *e2eEnv, zip1 []byte, metadataBody
 	})
 
 	t.Run("List", func(t *testing.T) {
-		req, _ := http.NewRequest("GET", env.registryPath(mavenE2EScope, mavenTestPackage), nil)
-		req.Header.Set("Accept", acceptJSON)
-		env.setAuth(req)
-		resp, err := env.httpClient.Do(req)
-		if err != nil {
-			t.Fatalf("list: %v", err)
+		// E2E config uses listPageSize: 1; no ?page= returns first page only. Request page 1 and 2 to get all releases.
+		basePath := env.registryPath(mavenE2EScope, mavenTestPackage)
+		mergedReleases := make(map[string]struct {
+			URL     string
+			Problem map[string]any
+		})
+		for _, page := range []string{"?page=1", "?page=2"} {
+			req, _ := http.NewRequest("GET", basePath+page, nil)
+			req.Header.Set("Accept", acceptJSON)
+			env.setAuth(req)
+			resp, err := env.httpClient.Do(req)
+			if err != nil {
+				t.Fatalf("list %q: %v", page, err)
+			}
+			if resp.StatusCode != http.StatusOK {
+				body, _ := io.ReadAll(resp.Body)
+				resp.Body.Close()
+				t.Fatalf("list %q: expected 200, got %d %s", page, resp.StatusCode, string(body))
+			}
+			// Spec 3.5, 4.1: Content-Type, Content-Version, Link (latest-version) on first page
+			if page == "" {
+				if ct := resp.Header.Get("Content-Type"); ct != contentTypeJSON {
+					t.Fatalf("Content-Type: got %q, want %q", ct, contentTypeJSON)
+				}
+				if v := resp.Header.Get("Content-Version"); v != contentVersion {
+					t.Fatalf("Content-Version: got %q, want %q", v, contentVersion)
+				}
+				if link := resp.Header.Get("Link"); link == "" || !strings.Contains(link, "latest-version") {
+					t.Fatalf("Link header with latest-version missing: %q", link)
+				}
+			}
+			body, _ := io.ReadAll(resp.Body)
+			resp.Body.Close()
+			var listResp struct {
+				Releases map[string]struct {
+					URL     string         `json:"url"`
+					Problem map[string]any `json:"problem"`
+				} `json:"releases"`
+			}
+			if err := json.Unmarshal(body, &listResp); err != nil {
+				t.Fatalf("parse list response: %v", err)
+			}
+			if listResp.Releases != nil {
+				for ver, entry := range listResp.Releases {
+					mergedReleases[ver] = struct {
+						URL     string
+						Problem map[string]any
+					}{entry.URL, entry.Problem}
+				}
+			}
 		}
-		defer resp.Body.Close()
-		if resp.StatusCode != http.StatusOK {
-			t.Fatalf("list: expected 200, got %d", resp.StatusCode)
-		}
-		// Spec 3.5, 4.1: Content-Type, Content-Version, Link (latest-version)
-		if ct := resp.Header.Get("Content-Type"); ct != contentTypeJSON {
-			t.Fatalf("Content-Type: got %q, want %q", ct, contentTypeJSON)
-		}
-		if v := resp.Header.Get("Content-Version"); v != contentVersion {
-			t.Fatalf("Content-Version: got %q, want %q", v, contentVersion)
-		}
-		if link := resp.Header.Get("Link"); link == "" || !strings.Contains(link, "latest-version") {
-			t.Fatalf("Link header with latest-version missing: %q", link)
-		}
-		body, _ := io.ReadAll(resp.Body)
-		// Spec 4.1: response must have top-level "releases" object; each value has url and/or problem
-		var listResp struct {
-			Releases map[string]struct {
-				URL     string         `json:"url"`
-				Problem map[string]any `json:"problem"`
-			} `json:"releases"`
-		}
-		if err := json.Unmarshal(body, &listResp); err != nil {
-			t.Fatalf("parse list response: %v", err)
-		}
-		if listResp.Releases == nil {
+		if len(mergedReleases) == 0 {
 			t.Fatal("list response missing releases object")
 		}
-		for ver, entry := range listResp.Releases {
+		for ver, entry := range mergedReleases {
 			if entry.URL == "" && (entry.Problem == nil || len(entry.Problem) == 0) {
 				t.Fatalf("list release %q must have url or problem", ver)
 			}
 		}
 		for _, ver := range []string{mavenVersion1, mavenVersion1_1} {
-			if !bytes.Contains(body, []byte(`"`+ver+`"`)) {
-				t.Fatalf("list missing version %s: %s", ver, string(body))
+			if _, ok := mergedReleases[ver]; !ok {
+				t.Fatalf("list missing version %s (merged from pages): %v", ver, mergedReleases)
 			}
 		}
 
