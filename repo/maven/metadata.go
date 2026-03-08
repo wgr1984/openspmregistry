@@ -4,8 +4,10 @@ import (
 	"bytes"
 	"context"
 	"encoding/xml"
+	"errors"
 	"fmt"
 	"io"
+	"net/http"
 	"slices"
 	"strings"
 	"time"
@@ -34,6 +36,10 @@ type Versions struct {
 	Version []string `xml:"version"`
 }
 
+// ErrMetadataNotFound is returned by loadMetadata when maven-metadata.xml does not exist (HTTP 404).
+// Callers should use errors.Is(err, ErrMetadataNotFound) to detect not-found and create new metadata only in that case.
+var ErrMetadataNotFound = errors.New("maven metadata not found")
+
 // parseMetadata parses a Maven metadata.xml file
 func parseMetadata(data []byte) (*MavenMetadata, error) {
 	var metadata MavenMetadata
@@ -49,11 +55,17 @@ func getMetadataPath(groupId, artifactId string) string {
 	return fmt.Sprintf("%s/%s/maven-metadata.xml", groupIdPath, artifactId)
 }
 
-// loadMetadata loads and parses a Maven metadata.xml file
+// loadMetadata loads and parses a Maven metadata.xml file.
+// Returns ErrMetadataNotFound when the file does not exist (HTTP 404); other errors (e.g. timeouts, 5xx, auth)
+// are returned as-is so callers can avoid overwriting existing metadata on transient failures.
 func loadMetadata(client *client, ctx context.Context, groupId, artifactId string) (*MavenMetadata, error) {
 	path := getMetadataPath(groupId, artifactId)
 	resp, err := client.GET(ctx, path)
 	if err != nil {
+		var statusErr *HTTPStatusError
+		if errors.As(err, &statusErr) && statusErr.StatusCode == http.StatusNotFound {
+			return nil, ErrMetadataNotFound
+		}
 		return nil, err
 	}
 	defer func() { _ = resp.Body.Close() }()
@@ -66,13 +78,16 @@ func loadMetadata(client *client, ctx context.Context, groupId, artifactId strin
 	return parseMetadata(data)
 }
 
-// updateMetadata adds or updates a version in the metadata and uploads it
-// If metadata doesn't exist, it creates a new one
+// updateMetadata adds or updates a version in the metadata and uploads it.
+// Creates new metadata only when maven-metadata.xml is missing (404); on other load errors (e.g. timeouts, 5xx)
+// it returns the error without overwriting, to avoid losing existing versions.
 func updateMetadata(client *client, ctx context.Context, groupId, artifactId, version string) error {
-	// Try to load existing metadata
 	metadata, err := loadMetadata(client, ctx, groupId, artifactId)
 	if err != nil {
-		// Metadata doesn't exist, create new one
+		if !errors.Is(err, ErrMetadataNotFound) {
+			return err
+		}
+		// Metadata doesn't exist (404), create new one
 		metadata = &MavenMetadata{
 			GroupId:    groupId,
 			ArtifactId: artifactId,

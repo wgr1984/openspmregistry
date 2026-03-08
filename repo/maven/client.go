@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"log/slog"
@@ -29,9 +30,18 @@ type spmRegistryIndexResponse struct {
 	Packages map[string][]string `json:"packages,omitempty"`
 }
 
+// HTTPStatusError carries the HTTP status code for failed requests.
+type HTTPStatusError struct {
+	StatusCode int
+}
+
 // spmRegistryIndexPath is the well-known path for the SPM registry scope index (relative to repo base URL).
 // Uses Maven 2 layout (groupId/artifactId/version/file) so strict Maven repos (e.g. Nexus) accept PUT/GET.
 const spmRegistryIndexPath = "com/spm/registry/index/1/index-1.json"
+
+// ErrHTTPStatus is returned when the server responds with status >= 400.
+// Callers can use errors.As to detect specific status codes (e.g. 404).
+var ErrHTTPStatus = errors.New("http request failed with error status")
 
 // newClient creates a new Maven HTTP client
 func newClient(cfg config.MavenConfig) (*client, error) {
@@ -104,6 +114,14 @@ func (c *client) makeRequest(ctx context.Context, method, path string, body io.R
 	return req, nil
 }
 
+func (e *HTTPStatusError) Error() string {
+	return fmt.Sprintf("request failed with status %d", e.StatusCode)
+}
+
+func (e *HTTPStatusError) Is(target error) bool {
+	return target == ErrHTTPStatus
+}
+
 // doRequest executes an HTTP request and returns the response
 func (c *client) doRequest(ctx context.Context, method, path string, body io.Reader) (*http.Response, error) {
 	req, err := c.makeRequest(ctx, method, path, body)
@@ -119,7 +137,7 @@ func (c *client) doRequest(ctx context.Context, method, path string, body io.Rea
 	// Caller must close resp.Body; do not close here so GET callers can read the body.
 	if resp.StatusCode >= http.StatusBadRequest {
 		_ = resp.Body.Close()
-		return nil, fmt.Errorf("request failed with status %d: %s", resp.StatusCode, resp.Status)
+		return nil, &HTTPStatusError{StatusCode: resp.StatusCode}
 	}
 
 	return resp, nil

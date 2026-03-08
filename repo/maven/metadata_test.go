@@ -4,6 +4,7 @@ import (
 	"OpenSPMRegistry/config"
 	"context"
 	"encoding/xml"
+	"errors"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -131,7 +132,10 @@ func Test_loadMetadata_NotFound_ReturnsError(t *testing.T) {
 
 	_, err = loadMetadata(c, context.Background(), "com.example", "test-package")
 	if err == nil {
-		t.Errorf("expected error for not found, got nil")
+		t.Fatal("expected error for not found, got nil")
+	}
+	if !errors.Is(err, ErrMetadataNotFound) {
+		t.Errorf("expected ErrMetadataNotFound, got %v", err)
 	}
 }
 
@@ -152,6 +156,34 @@ func Test_loadMetadata_InvalidXML_ReturnsError(t *testing.T) {
 	_, err = loadMetadata(c, context.Background(), "com.example", "test-package")
 	if err == nil {
 		t.Errorf("expected error for invalid XML, got nil")
+	}
+}
+
+func Test_updateMetadata_TransientError_ReturnsErrorWithoutOverwriting(t *testing.T) {
+	putCalled := false
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == http.MethodGet && r.URL.Path == "/com/example/artifact/maven-metadata.xml" {
+			w.WriteHeader(http.StatusInternalServerError)
+			return
+		}
+		if r.Method == http.MethodPut {
+			putCalled = true
+		}
+	}))
+	defer server.Close()
+
+	cfg := config.MavenConfig{BaseURL: server.URL}
+	c, err := newClient(cfg)
+	if err != nil {
+		t.Fatalf("failed to create client: %v", err)
+	}
+
+	err = updateMetadata(c, context.Background(), "com.example", "artifact", "1.0.0")
+	if err == nil {
+		t.Fatal("expected error when GET metadata returns 500, got nil")
+	}
+	if putCalled {
+		t.Error("updateMetadata must not PUT when load fails with non-404; would overwrite existing metadata")
 	}
 }
 
