@@ -77,6 +77,42 @@ func Test_ListAction_Success(t *testing.T) {
 	}
 }
 
+// Test_ListAction_NoPageParam_WhenPaginationDisabled_ReturnsAllReleases ensures that when
+// listPageSize is 0 (pagination disabled), GET list with no ?page= returns all releases.
+func Test_ListAction_NoPageParam_WhenPaginationDisabled_ReturnsAllReleases(t *testing.T) {
+	elements := []models.ListElement{
+		{Scope: "scope", PackageName: "package", Version: "1.0.0"},
+		{Scope: "scope", PackageName: "package", Version: "1.1.0"},
+	}
+	mockRepo := &MockListRepo{elements: elements}
+	cfg := config.ServerConfig{Hostname: "localhost", Port: 8080, ListPageSize: 0}
+	c := NewController(cfg, mockRepo)
+
+	req := httptest.NewRequest("GET", "/scope/package", nil)
+	req.Header.Set("Accept", "application/vnd.swift.registry.v1+json")
+	w := httptest.NewRecorder()
+
+	c.ListAction(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Errorf("expected status code %d, got %d", http.StatusOK, w.Code)
+	}
+	var response struct {
+		Releases map[string]models.Release `json:"releases"`
+	}
+	if err := json.NewDecoder(w.Body).Decode(&response); err != nil {
+		t.Fatalf("failed to decode response: %v", err)
+	}
+	if len(response.Releases) != 2 {
+		t.Errorf("no ?page= and ListPageSize 0: expected all releases (2), got %d", len(response.Releases))
+	}
+	for _, v := range []string{"1.0.0", "1.1.0"} {
+		if _, ok := response.Releases[v]; !ok {
+			t.Errorf("no ?page= and ListPageSize 0: expected release %s in response", v)
+		}
+	}
+}
+
 func Test_ListAction_ListPageSizeZero_IgnoresPageParam(t *testing.T) {
 	elements := []models.ListElement{
 		{Scope: "scope", PackageName: "package", Version: "1.0.0"},

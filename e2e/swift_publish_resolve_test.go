@@ -711,21 +711,56 @@ let package = Package(
 	})
 
 	t.Run("VerifyListReleases", func(t *testing.T) {
+		// With listPageSize=1, no ?page= defaults to page 1; collect both pages to get all versions.
+		var allBody []byte
+		for _, page := range []int{1, 2} {
+			url := env.registryPath(scope, "SamplePackage")
+			if page > 1 {
+				url += "?page=" + fmt.Sprint(page)
+			}
+			req, _ := http.NewRequest("GET", url, nil)
+			req.Header.Set("Accept", acceptJSON)
+			env.setAuth(req)
+			resp, err := env.httpClient.Do(req)
+			if err != nil {
+				t.Fatalf("list releases page %d: %v", page, err)
+			}
+			body, _ := io.ReadAll(resp.Body)
+			resp.Body.Close()
+			allBody = append(allBody, body...)
+			if page == 1 && !strings.Contains(resp.Header.Get("Link"), "latest-version") {
+				t.Fatalf("list response missing latest-version Link header")
+			}
+		}
+		for _, v := range []string{"1.0.0", "1.1.0"} {
+			if !bytes.Contains(allBody, []byte(`"`+v+`"`)) {
+				t.Fatalf("list response missing version %s", v)
+			}
+		}
+	})
+
+	// With listPageSize=1, no ?page= must default to page 1 (first page only), not all versions.
+	t.Run("VerifyListNoPageParamReturnsFirstPageOnly", func(t *testing.T) {
 		req, _ := http.NewRequest("GET", env.registryPath(scope, "SamplePackage"), nil)
 		req.Header.Set("Accept", acceptJSON)
 		env.setAuth(req)
 		resp, err := env.httpClient.Do(req)
 		if err != nil {
-			t.Fatalf("list releases: %v", err)
+			t.Fatalf("list (no page param): %v", err)
 		}
 		defer resp.Body.Close()
 		body, _ := io.ReadAll(resp.Body)
-		for _, v := range []string{"1.0.0", "1.1.0"} {
-			if !bytes.Contains(body, []byte(`"`+v+`"`)) {
-				t.Fatalf("list response missing version %s", v)
-			}
+		if !bytes.Contains(body, []byte(`"1.1.0"`)) {
+			t.Fatalf("no ?page= should return first page with 1.1.0 (highest precedence), got body without 1.1.0")
 		}
-		if !strings.Contains(resp.Header.Get("Link"), "latest-version") {
+		if bytes.Contains(body, []byte(`"1.0.0"`)) {
+			t.Fatalf("no ?page= with listPageSize=1 should return first page only; 1.0.0 should be on page 2")
+		}
+		link := resp.Header.Get("Link")
+		if !strings.Contains(link, `rel="next"`) {
+			t.Fatalf("no ?page= first page should include next link for pagination")
+		}
+		if !strings.Contains(link, "latest-version") {
 			t.Fatalf("list response missing latest-version Link header")
 		}
 	})
@@ -764,17 +799,26 @@ let package = Package(
 	})
 
 	t.Run("VerifyUtilsPackageList", func(t *testing.T) {
-		req, _ := http.NewRequest("GET", env.registryPath(scope, "UtilsPackage"), nil)
-		req.Header.Set("Accept", acceptJSON)
-		env.setAuth(req)
-		resp, err := env.httpClient.Do(req)
-		if err != nil {
-			t.Fatalf("list UtilsPackage: %v", err)
+		// With listPageSize=1, no ?page= defaults to page 1; request both pages to get all versions.
+		var allBody []byte
+		for _, page := range []int{1, 2} {
+			url := env.registryPath(scope, "UtilsPackage")
+			if page > 1 {
+				url += "?page=" + fmt.Sprint(page)
+			}
+			req, _ := http.NewRequest("GET", url, nil)
+			req.Header.Set("Accept", acceptJSON)
+			env.setAuth(req)
+			resp, err := env.httpClient.Do(req)
+			if err != nil {
+				t.Fatalf("list UtilsPackage page %d: %v", page, err)
+			}
+			body, _ := io.ReadAll(resp.Body)
+			resp.Body.Close()
+			allBody = append(allBody, body...)
 		}
-		defer resp.Body.Close()
-		body, _ := io.ReadAll(resp.Body)
 		for _, v := range []string{"1.0.0", "1.1.0"} {
-			if !bytes.Contains(body, []byte(`"`+v+`"`)) {
+			if !bytes.Contains(allBody, []byte(`"`+v+`"`)) {
 				t.Fatalf("UtilsPackage list missing %s", v)
 			}
 		}
