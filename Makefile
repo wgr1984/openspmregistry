@@ -170,16 +170,10 @@ test-integration-down:
 test-integration: test-integration-up
 	@provider=$${MAVEN_PROVIDER:-nexus}; \
 	if [ "$$provider" = "reposilite" ]; then \
-		MAVEN_REPO_URL="http://localhost:8080" MAVEN_REPO_NAME=private MAVEN_PROVIDER=reposilite MAVEN_REPO_USERNAME="" MAVEN_REPO_PASSWORD=""; \
-	else \
-		passfile=".nexus-test-password"; [ -f "$$passfile" ] && MAVEN_REPO_PASSWORD=$$(cat "$$passfile") || MAVEN_REPO_PASSWORD=admin123; \
-		export MAVEN_REPO_URL="http://localhost:8081/repository" MAVEN_REPO_NAME=private MAVEN_PROVIDER=nexus MAVEN_REPO_USERNAME=admin MAVEN_REPO_PASSWORD="$$MAVEN_REPO_PASSWORD"; \
-	fi; \
-	if [ "$$provider" = "reposilite" ]; then \
 		passfile=".reposilite-test-token"; [ -f "$$passfile" ] && MAVEN_REPO_PASSWORD=$$(cat "$$passfile") || MAVEN_REPO_PASSWORD="test-secret"; \
 		INTEGRATION_TESTS=1 MAVEN_REPO_URL="http://localhost:8080" MAVEN_REPO_NAME=private MAVEN_PROVIDER=reposilite MAVEN_REPO_USERNAME=e2e MAVEN_REPO_PASSWORD="$$MAVEN_REPO_PASSWORD" go test -tags=integration -v ./repo/maven/... -run TestIntegration; \
 	else \
-		passfile=".nexus-test-password"; [ -f "$$passfile" ] && export MAVEN_REPO_PASSWORD=$$(cat "$$passfile") || export MAVEN_REPO_PASSWORD=admin123; \
+		passfile=".nexus-test-password"; [ -f "$$passfile" ] && MAVEN_REPO_PASSWORD=$$(cat "$$passfile") || MAVEN_REPO_PASSWORD=admin123; \
 		INTEGRATION_TESTS=1 MAVEN_REPO_URL="http://localhost:8081/repository" MAVEN_REPO_NAME=private MAVEN_PROVIDER=nexus MAVEN_REPO_USERNAME=admin MAVEN_REPO_PASSWORD="$$MAVEN_REPO_PASSWORD" go test -tags=integration -v ./repo/maven/... -run TestIntegration; \
 	fi
 	@$(MAKE) test-integration-down
