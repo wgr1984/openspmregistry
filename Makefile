@@ -175,8 +175,8 @@ test-integration: test-integration-up
 	else \
 		passfile=".nexus-test-password"; [ -f "$$passfile" ] && MAVEN_REPO_PASSWORD=$$(cat "$$passfile") || MAVEN_REPO_PASSWORD=admin123; \
 		INTEGRATION_TESTS=1 MAVEN_REPO_URL="http://localhost:8081/repository" MAVEN_REPO_NAME=private MAVEN_PROVIDER=nexus MAVEN_REPO_USERNAME=admin MAVEN_REPO_PASSWORD="$$MAVEN_REPO_PASSWORD" go test -tags=integration -v ./repo/maven/... -run TestIntegration; \
-	fi
-	@$(MAKE) test-integration-down
+	fi; \
+	r=$$?; $(MAKE) test-integration-down; exit $$r
 
 # Generate E2E certs for optional HTTPS testing (testdata/e2e/certs/).
 test-e2e-generate-certs:
@@ -207,10 +207,10 @@ test-e2e-registry:
 	fi
 
 # test-e2e-full: start Maven server, bootstrap, run E2E Swift and registry tests, then tear down.
+# Always run test-integration-down so containers are stopped even when tests fail.
 test-e2e-full: test-integration-up
-	@$(MAKE) test-e2e-swift
-	@$(MAKE) test-e2e-registry
-	@$(MAKE) test-integration-down
+	@$(MAKE) test-e2e-swift; r=$$?; $(MAKE) test-e2e-registry; r2=$$?; $(MAKE) test-integration-down; \
+	if [ $$r -ne 0 ]; then exit $$r; fi; exit $$r2
 
 test-e2e-swift-https:
 	@$(MAKE) test-e2e-swift E2E_HTTPS=1
@@ -219,6 +219,5 @@ test-e2e-registry-https:
 	@$(MAKE) test-e2e-registry E2E_HTTPS=1
 
 test-e2e-full-https: test-integration-up
-	@$(MAKE) test-e2e-swift E2E_HTTPS=1
-	@$(MAKE) test-e2e-registry E2E_HTTPS=1
-	@$(MAKE) test-integration-down
+	@$(MAKE) test-e2e-swift E2E_HTTPS=1; r=$$?; $(MAKE) test-e2e-registry E2E_HTTPS=1; r2=$$?; $(MAKE) test-integration-down; \
+	if [ $$r -ne 0 ]; then exit $$r; fi; exit $$r2
