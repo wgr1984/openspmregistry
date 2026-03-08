@@ -65,6 +65,10 @@ type PackageCollectionsConfig struct {
 	// PublicRead allows unauthenticated GET /collection and /collection/{scope}.
 	// Required for swift package-collection add, which fetches the URL without credentials.
 	PublicRead bool `yaml:"publicRead"`
+	// AllowAuthQueryParam allows ?auth=<base64(Authorization)> on collection paths only, for clients
+	// that cannot send headers (e.g. swift package-collection add). Off by default to avoid credential
+	// leakage via logs, referrers, and proxies. When true, decoded value must start with "Basic " or "Bearer ".
+	AllowAuthQueryParam bool `yaml:"allowAuthQueryParam"`
 }
 
 const (

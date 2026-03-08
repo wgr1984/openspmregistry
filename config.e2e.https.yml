@@ -25,4 +25,5 @@ server:
   packageCollections:
     enabled: true
     requirePackageJson: false
+    allowAuthQueryParam: true  # swift package-collection add cannot send headers
     # No publicRead: use ?auth=<base64(user:pass)> for swift package-collection add

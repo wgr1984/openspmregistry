@@ -104,13 +104,14 @@ func main() {
 
 	// Package Collections on a separate mux so Go 1.22+ ServeMux does not conflict with /{scope}/{package}.
 	// GET also matches HEAD per Go 1.22+ routing.
+	allowAuthQueryParam := serverConfig.Server.PackageCollections.AllowAuthQueryParam
 	if serverConfig.Server.PackageCollections.Enabled {
 		if serverConfig.Server.PackageCollections.PublicRead {
 			collectionMux.HandleFunc("GET /collection", c.GlobalCollectionAction)
 			collectionMux.HandleFunc("GET /collection/{scope}", c.ScopeCollectionAction)
 		} else {
-			collectionMux.HandleFunc("GET /collection", a.WrapHandler(c.GlobalCollectionAction))
-			collectionMux.HandleFunc("GET /collection/{scope}", a.WrapHandler(c.ScopeCollectionAction))
+			collectionMux.HandleFunc("GET /collection", a.WrapHandler(c.GlobalCollectionAction, allowAuthQueryParam))
+			collectionMux.HandleFunc("GET /collection/{scope}", a.WrapHandler(c.ScopeCollectionAction, allowAuthQueryParam))
 		}
 	}
 

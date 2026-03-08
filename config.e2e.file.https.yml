@@ -22,3 +22,4 @@ server:
   packageCollections:
     enabled: true
     requirePackageJson: false
+    allowAuthQueryParam: true  # swift package-collection add cannot send headers

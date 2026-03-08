@@ -54,6 +54,7 @@ server:
   packageCollections:
     enabled: true              # Enable/disable collections endpoints
     requirePackageJson: false  # If true, publish fails without Package.json
+    allowAuthQueryParam: false # If true, allow ?auth= on collection URLs only (e.g. swift package-collection add)
 ```
 
 ### Configuration Options
@@ -70,8 +71,11 @@ server:
   - `false` (default): Collections require auth when server auth is enabled
   - `true`: `GET /collection` and `GET /collection/{scope}` are public
 
-When auth is required, you can pass credentials via the `auth` query parameter (for clients like `swift package-collection add` that cannot send headers):  
-`?auth=<base64(full Authorization value)>` — e.g. base64 of `Basic YWRtaW46YWRtaW4xMjM=` or `Bearer token`
+- **allowAuthQueryParam** (boolean): Allow passing credentials via the `auth` query parameter on **collection paths only**
+  - `false` (default): Query param is ignored; avoids credential leakage via logs, referrers, and proxies
+  - `true`: Enables `?auth=<base64(full Authorization value)>` for clients that cannot send headers (e.g. `swift package-collection add`). The decoded value must start with `Basic ` or `Bearer `.
+
+When auth is required and `allowAuthQueryParam` is true, use `?auth=<base64(full Authorization value)>` on collection URLs — e.g. base64 of `Basic YWRtaW46YWRtaW4xMjM=` or `Bearer token`.
 
 ## For Package Publishers
 
