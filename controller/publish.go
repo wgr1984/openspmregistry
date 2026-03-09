@@ -79,7 +79,7 @@ func (c *Controller) PublishAction(w http.ResponseWriter, r *http.Request) {
 		}
 
 		// currently we support only source archive storing
-		element, err := storeElements(w, r, name, scope, packageName, version, mimeType, c, part)
+		element, err := storeElements(r, w, name, scope, packageName, version, mimeType, c, part)
 		if element != nil {
 			storedElements = append(storedElements, element)
 		}
@@ -132,7 +132,7 @@ func (c *Controller) PublishAction(w http.ResponseWriter, r *http.Request) {
 
 // storeElements stores the given element in the repository
 // returns the stored element and an error if the element could not be stored
-func storeElements(w http.ResponseWriter, r *http.Request, name string, scope string, packageName string, version string, mimeType string, c *Controller, part *multipart.Part) (*models.UploadElement, error) {
+func storeElements(r *http.Request, w http.ResponseWriter, name string, scope string, packageName string, version string, mimeType string, c *Controller, part *multipart.Part) (*models.UploadElement, error) {
 	uploadType, err := validateUploadType(name)
 	if err != nil {
 		writeErrorWithStatusCode(err.Error(), w, http.StatusBadRequest)

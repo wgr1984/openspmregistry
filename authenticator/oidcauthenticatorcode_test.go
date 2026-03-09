@@ -269,7 +269,7 @@ func Test_setCallbackCookie_SetsCorrectCookie(t *testing.T) {
 	req := httptest.NewRequest("GET", "/", nil)
 	w := httptest.NewRecorder()
 
-	setCallbackCookie(w, req, "testname", "testvalue")
+	setCallbackCookie(req, w, "testname", "testvalue")
 	cookie := w.Result().Cookies()[0]
 
 	if cookie.Name != "testname" {
@@ -297,7 +297,7 @@ func Test_setCallbackCookie_WithTLS_SetsCookieSecure(t *testing.T) {
 	req.TLS = &tls.ConnectionState{} // Simulate TLS connection
 	w := httptest.NewRecorder()
 
-	setCallbackCookie(w, req, "testname", "testvalue")
+	setCallbackCookie(req, w, "testname", "testvalue")
 	cookie := w.Result().Cookies()[0]
 
 	if !cookie.Secure {
@@ -309,8 +309,8 @@ func Test_setCallbackCookie_MultipleCookies(t *testing.T) {
 	req := httptest.NewRequest("GET", "/", nil)
 	w := httptest.NewRecorder()
 
-	setCallbackCookie(w, req, "cookie1", "value1")
-	setCallbackCookie(w, req, "cookie2", "value2")
+	setCallbackCookie(req, w, "cookie1", "value1")
+	setCallbackCookie(req, w, "cookie2", "value2")
 
 	cookies := w.Result().Cookies()
 
@@ -359,7 +359,7 @@ func Test_setCallbackCookie_InvalidValues(t *testing.T) {
 			req := httptest.NewRequest("GET", "/", nil)
 			w := httptest.NewRecorder()
 
-			setCallbackCookie(w, req, "testname", tt.cookieVal)
+			setCallbackCookie(req, w, "testname", tt.cookieVal)
 			cookies := w.Result().Cookies()
 
 			if len(cookies) != 1 {

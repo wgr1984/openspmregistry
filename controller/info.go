@@ -35,7 +35,7 @@ func (c *Controller) InfoAction(w http.ResponseWriter, r *http.Request) {
 	header := w.Header()
 
 	// add first release as latest
-	elements, err := listElements(w, c, r, scope, packageName)
+	elements, err := listElements(r, w, c, scope, packageName)
 	if err != nil {
 		return // error already logged
 	}

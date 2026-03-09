@@ -190,7 +190,7 @@ func Test_CheckHeadersEnforce_MissingAcceptHeader_ReturnsError(t *testing.T) {
 func Test_ListElements_RepoError_ReturnsEmptyList(t *testing.T) {
 	w := httptest.NewRecorder()
 	c := &Controller{repo: &MockRepo{shouldError: true}}
-	elements, _ := listElements(w, c, httptest.NewRequest("GET", "/", nil), "testScope", "testPackage")
+	elements, _ := listElements(httptest.NewRequest("GET", "/", nil), w, c, "testScope", "testPackage")
 
 	if len(elements) != 0 {
 		t.Errorf("expected empty list, got %d elements", len(elements))
@@ -200,7 +200,7 @@ func Test_ListElements_RepoError_ReturnsEmptyList(t *testing.T) {
 func Test_ListElements_RepoError_WritesError(t *testing.T) {
 	w := httptest.NewRecorder()
 	c := &Controller{repo: &MockRepo{shouldError: true}}
-	_, err := listElements(w, c, httptest.NewRequest("GET", "/", nil), "testScope", "testPackage")
+	_, err := listElements(httptest.NewRequest("GET", "/", nil), w, c, "testScope", "testPackage")
 
 	if err == nil || w.Code != http.StatusInternalServerError {
 		t.Errorf("expected status %d, got %d", http.StatusInternalServerError, w.Code)
@@ -218,7 +218,7 @@ func Test_ListElements_RepoError_WritesError(t *testing.T) {
 func Test_ListElements_NilElements_ReturnsEmptyList(t *testing.T) {
 	w := httptest.NewRecorder()
 	c := &Controller{repo: &MockListElementsRepo{}}
-	elements, _ := listElements(w, c, httptest.NewRequest("GET", "/", nil), "testScope", "testPackage")
+	elements, _ := listElements(httptest.NewRequest("GET", "/", nil), w, c, "testScope", "testPackage")
 
 	if len(elements) != 0 {
 		t.Errorf("expected empty list, got %d elements", len(elements))
@@ -228,7 +228,7 @@ func Test_ListElements_NilElements_ReturnsEmptyList(t *testing.T) {
 func Test_ListElements_EmptyList_ReturnsEmptyList(t *testing.T) {
 	w := httptest.NewRecorder()
 	c := &Controller{repo: &MockRepo{}}
-	elements, _ := listElements(w, c, httptest.NewRequest("GET", "/", nil), "testScope", "testPackage")
+	elements, _ := listElements(httptest.NewRequest("GET", "/", nil), w, c, "testScope", "testPackage")
 
 	if len(elements) != 0 {
 		t.Errorf("expected empty list, got %d elements", len(elements))
@@ -243,7 +243,7 @@ func Test_ListElements_MultipleElements_ReturnsElements(t *testing.T) {
 			{Scope: "testScope", PackageName: "testPackage", Version: "2.0.0"},
 		},
 	}}
-	elements, _ := listElements(w, c, httptest.NewRequest("GET", "/", nil), "testScope", "testPackage")
+	elements, _ := listElements(httptest.NewRequest("GET", "/", nil), w, c, "testScope", "testPackage")
 
 	if len(elements) != 2 {
 		t.Errorf("expected empty list, got %d elements", len(elements))

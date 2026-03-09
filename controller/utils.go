@@ -104,7 +104,7 @@ func checkHeadersEnforce(r *http.Request, enforceMediaType string) *HeaderError 
 	}
 }
 
-func listElements(w http.ResponseWriter, c *Controller, r *http.Request, scope string, packageName string) ([]models.ListElement, error) {
+func listElements(r *http.Request, w http.ResponseWriter, c *Controller, scope string, packageName string) ([]models.ListElement, error) {
 	ctx := requestContext(r)
 	elements, err := c.repo.List(ctx, scope, packageName)
 	if err != nil {

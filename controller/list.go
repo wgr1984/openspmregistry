@@ -25,7 +25,7 @@ func (c *Controller) ListAction(w http.ResponseWriter, r *http.Request) {
 	scope := r.PathValue("scope")
 	packageName := utils.StripExtension(r.PathValue("package"), ".json")
 
-	elements, err := listElements(w, c, r, scope, packageName)
+	elements, err := listElements(r, w, c, scope, packageName)
 	if err != nil {
 		return // error already logged
 	}
