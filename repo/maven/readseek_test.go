@@ -34,7 +34,7 @@ func Test_newRangeReadSeekCloser_ValidResponse_ReturnsReader(t *testing.T) {
 	cfg := config.MavenConfig{BaseURL: server.URL}
 	c, _ := newClient(cfg)
 
-	reader, err := newRangeReadSeekCloser(c, "test/path", context.Background())
+	reader, err := newRangeReadSeekCloser(context.Background(), c, "test/path")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -60,7 +60,7 @@ func Test_newRangeReadSeekCloser_NoContentLength_ReturnsError(t *testing.T) {
 	cfg := config.MavenConfig{BaseURL: server.URL}
 	c, _ := newClient(cfg)
 
-	_, err := newRangeReadSeekCloser(c, "test/path", context.Background())
+	_, err := newRangeReadSeekCloser(context.Background(), c, "test/path")
 	if err == nil {
 		t.Errorf("expected error for missing Content-Length, got nil")
 	}
@@ -89,7 +89,7 @@ func Test_rangeReadSeekCloser_Read_ReadsData(t *testing.T) {
 	cfg := config.MavenConfig{BaseURL: server.URL}
 	c, _ := newClient(cfg)
 
-	reader, err := newRangeReadSeekCloser(c, "test/path", context.Background())
+	reader, err := newRangeReadSeekCloser(context.Background(), c, "test/path")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -135,7 +135,7 @@ func Test_rangeReadSeekCloser_Seek_SeeksToPosition(t *testing.T) {
 	cfg := config.MavenConfig{BaseURL: server.URL}
 	c, _ := newClient(cfg)
 
-	reader, err := newRangeReadSeekCloser(c, "test/path", context.Background())
+	reader, err := newRangeReadSeekCloser(context.Background(), c, "test/path")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -180,7 +180,7 @@ func Test_rangeReadSeekCloser_Seek_SeekStart(t *testing.T) {
 	cfg := config.MavenConfig{BaseURL: server.URL}
 	c, _ := newClient(cfg)
 
-	reader, err := newRangeReadSeekCloser(c, "test/path", context.Background())
+	reader, err := newRangeReadSeekCloser(context.Background(), c, "test/path")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -213,7 +213,7 @@ func Test_rangeReadSeekCloser_Seek_SeekCurrent(t *testing.T) {
 	cfg := config.MavenConfig{BaseURL: server.URL}
 	c, _ := newClient(cfg)
 
-	reader, err := newRangeReadSeekCloser(c, "test/path", context.Background())
+	reader, err := newRangeReadSeekCloser(context.Background(), c, "test/path")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -253,7 +253,7 @@ func Test_rangeReadSeekCloser_Seek_SeekEnd(t *testing.T) {
 	cfg := config.MavenConfig{BaseURL: server.URL}
 	c, _ := newClient(cfg)
 
-	reader, err := newRangeReadSeekCloser(c, "test/path", context.Background())
+	reader, err := newRangeReadSeekCloser(context.Background(), c, "test/path")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -287,7 +287,7 @@ func Test_rangeReadSeekCloser_Seek_NegativePosition_ReturnsError(t *testing.T) {
 	cfg := config.MavenConfig{BaseURL: server.URL}
 	c, _ := newClient(cfg)
 
-	reader, err := newRangeReadSeekCloser(c, "test/path", context.Background())
+	reader, err := newRangeReadSeekCloser(context.Background(), c, "test/path")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -317,7 +317,7 @@ func Test_rangeReadSeekCloser_Seek_BeyondSize_ClampsToSize(t *testing.T) {
 	cfg := config.MavenConfig{BaseURL: server.URL}
 	c, _ := newClient(cfg)
 
-	reader, err := newRangeReadSeekCloser(c, "test/path", context.Background())
+	reader, err := newRangeReadSeekCloser(context.Background(), c, "test/path")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -350,7 +350,7 @@ func Test_rangeReadSeekCloser_Close_ClosesReader(t *testing.T) {
 	cfg := config.MavenConfig{BaseURL: server.URL}
 	c, _ := newClient(cfg)
 
-	reader, err := newRangeReadSeekCloser(c, "test/path", context.Background())
+	reader, err := newRangeReadSeekCloser(context.Background(), c, "test/path")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -380,7 +380,7 @@ func Test_newBufferedReadSeekCloser_ValidResponse_ReturnsReader(t *testing.T) {
 	cfg := config.MavenConfig{BaseURL: server.URL}
 	c, _ := newClient(cfg)
 
-	reader, err := newBufferedReadSeekCloser(c, "test/path", context.Background())
+	reader, err := newBufferedReadSeekCloser(context.Background(), c, "test/path")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -408,7 +408,7 @@ func Test_bufferedReadSeekCloser_Seek_SeeksToPosition(t *testing.T) {
 	cfg := config.MavenConfig{BaseURL: server.URL}
 	c, _ := newClient(cfg)
 
-	reader, err := newBufferedReadSeekCloser(c, "test/path", context.Background())
+	reader, err := newBufferedReadSeekCloser(context.Background(), c, "test/path")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -448,7 +448,7 @@ func Test_bufferedReadSeekCloser_Close_ClosesReader(t *testing.T) {
 	cfg := config.MavenConfig{BaseURL: server.URL}
 	c, _ := newClient(cfg)
 
-	reader, err := newBufferedReadSeekCloser(c, "test/path", context.Background())
+	reader, err := newBufferedReadSeekCloser(context.Background(), c, "test/path")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -478,7 +478,7 @@ func Test_bufferedReadSeekCloser_ReadAll_ReadsAllData(t *testing.T) {
 	cfg := config.MavenConfig{BaseURL: server.URL}
 	c, _ := newClient(cfg)
 
-	reader, err := newBufferedReadSeekCloser(c, "test/path", context.Background())
+	reader, err := newBufferedReadSeekCloser(context.Background(), c, "test/path")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}

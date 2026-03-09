@@ -105,7 +105,7 @@ func Test_loadMetadata_ValidResponse_ReturnsMetadata(t *testing.T) {
 		t.Fatalf("failed to create client: %v", err)
 	}
 
-	metadata, err := loadMetadata(c, context.Background(), "com.example", "test-package")
+	metadata, err := loadMetadata(context.Background(), c, "com.example", "test-package")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -130,7 +130,7 @@ func Test_loadMetadata_NotFound_ReturnsError(t *testing.T) {
 		t.Fatalf("failed to create client: %v", err)
 	}
 
-	_, err = loadMetadata(c, context.Background(), "com.example", "test-package")
+	_, err = loadMetadata(context.Background(), c, "com.example", "test-package")
 	if err == nil {
 		t.Fatal("expected error for not found, got nil")
 	}
@@ -153,7 +153,7 @@ func Test_loadMetadata_InvalidXML_ReturnsError(t *testing.T) {
 		t.Fatalf("failed to create client: %v", err)
 	}
 
-	_, err = loadMetadata(c, context.Background(), "com.example", "test-package")
+	_, err = loadMetadata(context.Background(), c, "com.example", "test-package")
 	if err == nil {
 		t.Errorf("expected error for invalid XML, got nil")
 	}
@@ -178,7 +178,7 @@ func Test_updateMetadata_TransientError_ReturnsErrorWithoutOverwriting(t *testin
 		t.Fatalf("failed to create client: %v", err)
 	}
 
-	err = updateMetadata(c, context.Background(), "com.example", "artifact", "1.0.0")
+	err = updateMetadata(context.Background(), c, "com.example", "artifact", "1.0.0")
 	if err == nil {
 		t.Fatal("expected error when GET metadata returns 500, got nil")
 	}
@@ -271,7 +271,7 @@ func Test_updateMetadata_SemanticVersionOrdering_SetsLatestReleaseToHighest(t *t
 	if err != nil {
 		t.Fatalf("failed to create client: %v", err)
 	}
-	err = updateMetadata(c, context.Background(), "com.example", "artifact", "1.0.0")
+	err = updateMetadata(context.Background(), c, "com.example", "artifact", "1.0.0")
 	if err != nil {
 		t.Fatalf("updateMetadata: %v", err)
 	}
@@ -347,7 +347,7 @@ func Test_updateMetadata_AddVersion_SortsSemantically(t *testing.T) {
 	if err != nil {
 		t.Fatalf("failed to create client: %v", err)
 	}
-	err = updateMetadata(c, context.Background(), "com.example", "artifact", "2.0.0")
+	err = updateMetadata(context.Background(), c, "com.example", "artifact", "2.0.0")
 	if err != nil {
 		t.Fatalf("updateMetadata: %v", err)
 	}

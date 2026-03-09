@@ -58,7 +58,7 @@ func getMetadataPath(groupId, artifactId string) string {
 // loadMetadata loads and parses a Maven metadata.xml file.
 // Returns ErrMetadataNotFound when the file does not exist (HTTP 404); other errors (e.g. timeouts, 5xx, auth)
 // are returned as-is so callers can avoid overwriting existing metadata on transient failures.
-func loadMetadata(client *client, ctx context.Context, groupId, artifactId string) (*MavenMetadata, error) {
+func loadMetadata(ctx context.Context, client *client, groupId, artifactId string) (*MavenMetadata, error) {
 	path := getMetadataPath(groupId, artifactId)
 	resp, err := client.GET(ctx, path)
 	if err != nil {
@@ -81,8 +81,8 @@ func loadMetadata(client *client, ctx context.Context, groupId, artifactId strin
 // updateMetadata adds or updates a version in the metadata and uploads it.
 // Creates new metadata only when maven-metadata.xml is missing (404); on other load errors (e.g. timeouts, 5xx)
 // it returns the error without overwriting, to avoid losing existing versions.
-func updateMetadata(client *client, ctx context.Context, groupId, artifactId, version string) error {
-	metadata, err := loadMetadata(client, ctx, groupId, artifactId)
+func updateMetadata(ctx context.Context, client *client, groupId, artifactId, version string) error {
+	metadata, err := loadMetadata(ctx, client, groupId, artifactId)
 	if err != nil {
 		if !errors.Is(err, ErrMetadataNotFound) {
 			return err

@@ -29,7 +29,7 @@ type bufferedReadSeekCloser struct {
 }
 
 // newRangeReadSeekCloser creates a new range-based ReadSeekCloser
-func newRangeReadSeekCloser(client *client, url string, ctx context.Context) (*rangeReadSeekCloser, error) {
+func newRangeReadSeekCloser(ctx context.Context, client *client, url string) (*rangeReadSeekCloser, error) {
 	// First, get the size via HEAD request
 	resp, err := client.HEAD(ctx, url)
 	if err != nil {
@@ -197,7 +197,7 @@ func (r *rangeReadSeekCloser) Close() error {
 }
 
 // newBufferedReadSeekCloser creates a new buffered ReadSeekCloser
-func newBufferedReadSeekCloser(client *client, url string, ctx context.Context) (*bufferedReadSeekCloser, error) {
+func newBufferedReadSeekCloser(ctx context.Context, client *client, url string) (*bufferedReadSeekCloser, error) {
 	resp, err := client.GET(ctx, url)
 	if err != nil {
 		return nil, err

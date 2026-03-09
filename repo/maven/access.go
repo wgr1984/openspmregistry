@@ -113,29 +113,29 @@ func (a *access) GetReader(ctx context.Context, element *models.UploadElement) (
 	}
 
 	if supportsRanges {
-		reader, err := newRangeReadSeekCloser(a.client, path, ctx)
+		reader, err := newRangeReadSeekCloser(ctx, a.client, path)
 		if err != nil {
 			// Fall back to buffering if range requests fail
 			if slog.Default().Enabled(context.Background(), slog.LevelDebug) {
 				slog.Debug("Range request failed, falling back to buffering", "error", err)
 			}
-			return newBufferedReadSeekCloser(a.client, path, ctx)
+			return newBufferedReadSeekCloser(ctx, a.client, path)
 		}
 		return reader, nil
 	}
 
 	// Use buffering
-	return newBufferedReadSeekCloser(a.client, path, ctx)
+	return newBufferedReadSeekCloser(ctx, a.client, path)
 }
 
 // GetWriter returns a writer that uploads via PUT on Close()
 func (a *access) GetWriter(ctx context.Context, element *models.UploadElement) (io.WriteCloser, error) {
 	path := a.buildMavenPathForElement(element)
 
-	return newMavenWriter(a.client, a.config, a, path, element, ctx), nil
+	return newMavenWriter(ctx, a.client, a.config, a, path, element), nil
 }
 
-func newMavenWriter(client *client, cfg config.MavenConfig, access *access, path string, element *models.UploadElement, ctx context.Context) *mavenWriter {
+func newMavenWriter(ctx context.Context, client *client, cfg config.MavenConfig, access *access, path string, element *models.UploadElement) *mavenWriter {
 	return &mavenWriter{
 		client:      client,
 		config:      cfg,
@@ -207,7 +207,7 @@ func (a *access) updateMetadataLocked(ctx context.Context, groupId, artifactId, 
 
 	keyMu.Lock()
 	defer keyMu.Unlock()
-	return updateMetadata(a.client, ctx, groupId, artifactId, version)
+	return updateMetadata(ctx, a.client, groupId, artifactId, version)
 }
 
 func (w *mavenWriter) Write(p []byte) (n int, err error) {

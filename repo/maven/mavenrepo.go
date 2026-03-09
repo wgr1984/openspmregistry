@@ -128,7 +128,7 @@ func (m *MavenRepo) List(ctx context.Context, scope string, name string) ([]mode
 	groupId := buildGroupId(scope, m.config)
 	artifactId := buildArtifactId(name)
 
-	metadata, err := loadMetadata(m.client, ctx, groupId, artifactId)
+	metadata, err := loadMetadata(ctx, m.client, groupId, artifactId)
 	if err != nil {
 		// If metadata doesn't exist, return empty list
 		return []models.ListElement{}, nil
@@ -276,7 +276,7 @@ func (m *MavenRepo) Checksum(ctx context.Context, element *models.UploadElement)
 func (m *MavenRepo) GetAlternativeManifests(ctx context.Context, element *models.UploadElement) ([]models.UploadElement, error) {
 	groupId := buildGroupId(element.Scope, m.config)
 	artifactId := buildArtifactId(element.Name)
-	metadata, err := loadMetadata(m.client, ctx, groupId, artifactId)
+	metadata, err := loadMetadata(ctx, m.client, groupId, artifactId)
 	if err != nil {
 		return []models.UploadElement{}, nil
 	}
@@ -362,7 +362,7 @@ func (m *MavenRepo) ListInScope(ctx context.Context, scope string) ([]models.Lis
 	groupId := buildGroupId(scope, m.config)
 	var out []models.ListElement
 	for _, artifactId := range artifactIds {
-		metadata, err := loadMetadata(m.client, ctx, groupId, artifactId)
+		metadata, err := loadMetadata(ctx, m.client, groupId, artifactId)
 		if err != nil {
 			continue
 		}

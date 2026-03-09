@@ -13,7 +13,7 @@ import (
 
 // GenerateCollection generates a package collection from the given packages.
 // The collection name is prefixed with the provided hostname when available.
-func GenerateCollection(r Repo, ctx context.Context, scope string, packages []models.ListElement, hostname string) (*models.PackageCollection, error) {
+func GenerateCollection(ctx context.Context, r Repo, scope string, packages []models.ListElement, hostname string) (*models.PackageCollection, error) {
 	// Group packages by scope/name without string splitting
 	packagesByScope := make(map[string]map[string][]models.ListElement)
 	for _, pkg := range packages {
@@ -27,7 +27,7 @@ func GenerateCollection(r Repo, ctx context.Context, scope string, packages []mo
 	collectionPackages := make([]models.CollectionPackage, 0)
 	for pkgScope, scopedPackages := range packagesByScope {
 		for pkgName, versions := range scopedPackages {
-			collPkg, err := buildCollectionPackage(r, ctx, pkgScope, pkgName, versions)
+			collPkg, err := buildCollectionPackage(ctx, r, pkgScope, pkgName, versions)
 			if err != nil {
 				slog.Warn("Error building collection package", "package", fmt.Sprintf("%s.%s", pkgScope, pkgName), "error", err)
 				continue
@@ -77,7 +77,7 @@ func GenerateCollection(r Repo, ctx context.Context, scope string, packages []mo
 }
 
 // buildCollectionPackage builds a CollectionPackage from package versions
-func buildCollectionPackage(r Repo, ctx context.Context, scope string, name string, versionElements []models.ListElement) (*models.CollectionPackage, error) {
+func buildCollectionPackage(ctx context.Context, r Repo, scope string, name string, versionElements []models.ListElement) (*models.CollectionPackage, error) {
 	// Prefer newest versions first so we pick metadata from the latest included version
 	sortVersionsDesc(versionElements)
 
@@ -85,7 +85,7 @@ func buildCollectionPackage(r Repo, ctx context.Context, scope string, name stri
 	var packageVersions []models.PackageVersion
 	var metadataVersion string
 	for _, versionElement := range versionElements {
-		pkgVersion, err := buildPackageVersion(r, ctx, scope, name, versionElement.Version)
+		pkgVersion, err := buildPackageVersion(ctx, r, scope, name, versionElement.Version)
 		if err != nil {
 			slog.Warn("Skipping version without Package.json", "package", fmt.Sprintf("%s.%s", scope, name), "version", versionElement.Version, "error", err)
 			continue
@@ -147,7 +147,7 @@ func sortVersionsDesc(versionElements []models.ListElement) {
 }
 
 // buildPackageVersion builds a PackageVersion from a specific version
-func buildPackageVersion(r Repo, ctx context.Context, scope string, name string, version string) (*models.PackageVersion, error) {
+func buildPackageVersion(ctx context.Context, r Repo, scope string, name string, version string) (*models.PackageVersion, error) {
 	// Load Package.json
 	packageJson, err := r.LoadPackageJson(ctx, scope, name, version)
 	if err != nil {

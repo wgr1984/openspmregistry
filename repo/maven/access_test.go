@@ -507,7 +507,7 @@ func Test_mavenWriter_Write_AppendsToBuffer(t *testing.T) {
 	a := newAccess(c, cfg)
 
 	element := models.NewUploadElement("testScope", "my-package", "1.0.0", mimetypes.ApplicationZip, models.SourceArchive)
-	writer := newMavenWriter(c, cfg, a, "test/path", element, context.Background())
+	writer := newMavenWriter(context.Background(), c, cfg, a, "test/path", element)
 	data := []byte("test data")
 	n, err := writer.Write(data)
 	if err != nil {
@@ -535,7 +535,7 @@ func Test_mavenWriter_Close_UploadsData(t *testing.T) {
 
 	element := models.NewUploadElement("testScope", "my-package", "1.0.0", mimetypes.ApplicationZip, models.SourceArchive)
 	path := a.buildMavenPathForElement(element)
-	writer := newMavenWriter(c, cfg, a, path, element, context.Background())
+	writer := newMavenWriter(context.Background(), c, cfg, a, path, element)
 	testData := []byte("test upload data")
 	if _, err := writer.Write(testData); err != nil {
 		t.Fatalf("unexpected error writing: %v", err)
