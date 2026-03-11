@@ -10,6 +10,12 @@ import (
 	"testing"
 )
 
+type MockTemplateParser struct {
+	template template.Template
+}
+
+type MockTemplateParserError struct{}
+
 func Test_WriteTokenOutput_ValidToken_WritesTokenToResponse(t *testing.T) {
 	w := httptest.NewRecorder()
 	token := "test-token"
@@ -120,18 +126,8 @@ func Test_CreateAuthenticator_UnknownType_ReturnsNoOpAuthenticator(t *testing.T)
 	}
 }
 
-// Mock types and implementations
-
-type MockTemplateParser struct {
-	template template.Template
-}
-
 func (m MockTemplateParser) ParseFiles(filenames ...string) (*template.Template, error) {
 	return &m.template, nil
-}
-
-type MockTemplateParserError struct {
-	template template.Template
 }
 
 func (m MockTemplateParserError) ParseFiles(filenames ...string) (*template.Template, error) {

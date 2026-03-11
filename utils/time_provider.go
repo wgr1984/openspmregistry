@@ -10,6 +10,11 @@ type TimeProvider interface {
 // RealTimeProvider provides actual system time
 type RealTimeProvider struct{}
 
+// MockTimeProvider provides a fixed time for testing
+type MockTimeProvider struct {
+	fixedTime time.Time
+}
+
 func (p *RealTimeProvider) Now() time.Time {
 	return time.Now()
 }
@@ -17,11 +22,6 @@ func (p *RealTimeProvider) Now() time.Time {
 // NewRealTimeProvider creates a new RealTimeProvider
 func NewRealTimeProvider() *RealTimeProvider {
 	return &RealTimeProvider{}
-}
-
-// MockTimeProvider provides a fixed time for testing
-type MockTimeProvider struct {
-	fixedTime time.Time
 }
 
 func (p *MockTimeProvider) Now() time.Time {

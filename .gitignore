@@ -27,12 +27,30 @@ go.work.sum
 #idea
 .idea
 /files/
+/maven-files/
+/nexus-data/
+/reposilite-data/
+.nexus-test-password
+.reposilite-test-token
 **/config.local.yml
 /node_modules/
 /static/output.css
 **/.DS_Store
+*.bak
 openspmregistry
+openspmregistry.e2e
+e2e-file-repo
+testdata/e2e/Consumer/Package.resolved
+# Generated at E2E runtime (swift package dump-package); contains machine-specific packageKind.root paths
+testdata/e2e/**/Package.json
+# Leftover from swift package archive-source in fixture dirs (e2e uses package-registry publish)
+testdata/e2e/**/*.zip
 cover.out
 SPM-Registry-Spec.md
 CHANGELOG.md.tmp
 .vscode/**
+**/.build
+**/.swiftpm/**
+
+# cmds
+/e2e-generate-certs

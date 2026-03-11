@@ -5,10 +5,12 @@ import (
 	"OpenSPMRegistry/config"
 	"OpenSPMRegistry/controller"
 	"OpenSPMRegistry/middleware"
+	"OpenSPMRegistry/repo"
 	"OpenSPMRegistry/repo/files"
+	"OpenSPMRegistry/repo/maven"
+	"context"
 	"flag"
 	"fmt"
-	"gopkg.in/yaml.v3"
 	"log"
 	"log/slog"
 	"net/http"
@@ -16,19 +18,38 @@ import (
 	"os/signal"
 	"strings"
 	"syscall"
+	"time"
+
+	"gopkg.in/yaml.v3"
 )
+
+// headResponseWriter discards the response body. Used for HEAD requests so the
+// same GET handler runs (Go 1.22+ matches HEAD to GET) but no body is sent.
+type headResponseWriter struct {
+	http.ResponseWriter
+}
 
 var (
 	verboseFlag bool
+	configPath  string
 )
 
+func (h *headResponseWriter) Write(b []byte) (int, error) {
+	return len(b), nil
+}
+
 func loadServerConfig() (*config.ServerRoot, error) {
-	yamlData, err := os.ReadFile("config.local.yml")
-	if err != nil {
-		yamlData, err = os.ReadFile("config.yml")
-		if err != nil {
-			return nil, err
+	path := configPath
+	if path == "" {
+		if _, err := os.Stat("config.local.yml"); err == nil {
+			path = "config.local.yml"
+		} else {
+			path = "config.yml"
 		}
+	}
+	yamlData, err := os.ReadFile(path)
+	if err != nil {
+		return nil, err
 	}
 
 	serverRoot := &config.ServerRoot{
@@ -46,6 +67,7 @@ func loadServerConfig() (*config.ServerRoot, error) {
 
 func main() {
 	flag.BoolVar(&verboseFlag, "v", false, "show more information")
+	flag.StringVar(&configPath, "config", "", "path to config file (default: config.local.yml or config.yml)")
 	flag.Parse()
 
 	if verboseFlag {
@@ -59,19 +81,41 @@ func main() {
 		log.Fatal(err)
 	}
 
-	router := http.NewServeMux()
+	registryMux := http.NewServeMux()
+	collectionMux := http.NewServeMux()
 
 	repoConfig := serverConfig.Server.Repo
 
-	if repoConfig.Type != "file" {
-		log.Fatal("Only filesystem is supported as repo so far")
+	var r repo.Repo
+	switch repoConfig.Type {
+	case "file":
+		r = files.NewFileRepo(repoConfig.Path)
+	case "maven":
+		mavenRepo, err := maven.NewMavenRepo(repoConfig.Maven)
+		if err != nil {
+			log.Fatalf("Failed to create Maven repository: %v", err)
+		}
+		r = mavenRepo
+	default:
+		log.Fatalf("Unsupported repo type: %s", repoConfig.Type)
 	}
-
-	r := files.NewFileRepo(repoConfig.Path)
-	a := middleware.NewAuthentication(authenticator.CreateAuthenticator(serverConfig.Server), router)
+	a := middleware.NewAuthentication(authenticator.CreateAuthenticator(serverConfig.Server), registryMux)
 	c := controller.NewController(serverConfig.Server, r)
 
-	// authorized routes
+	// Package Collections on a separate mux so Go 1.22+ ServeMux does not conflict with /{scope}/{package}.
+	// GET also matches HEAD per Go 1.22+ routing.
+	allowAuthQueryParam := serverConfig.Server.PackageCollections.AllowAuthQueryParam
+	if serverConfig.Server.PackageCollections.Enabled {
+		if serverConfig.Server.PackageCollections.PublicRead {
+			collectionMux.HandleFunc("GET /collection", c.GlobalCollectionAction)
+			collectionMux.HandleFunc("GET /collection/{scope}", c.ScopeCollectionAction)
+		} else {
+			collectionMux.HandleFunc("GET /collection", a.WrapHandler(c.GlobalCollectionAction, allowAuthQueryParam))
+			collectionMux.HandleFunc("GET /collection/{scope}", a.WrapHandler(c.ScopeCollectionAction, allowAuthQueryParam))
+		}
+	}
+
+	// authorized routes (registry only). GET matches HEAD automatically.
 	a.HandleFunc("POST /login", c.LoginAction)
 	a.HandleFunc("GET /{scope}/{package}", c.ListAction)
 	a.HandleFunc("GET /{scope}/{package}/{version}", func(w http.ResponseWriter, r *http.Request) {
@@ -85,30 +129,44 @@ func main() {
 	a.HandleFunc("GET /identifiers", c.LookupAction)
 	a.HandleFunc("PUT /{scope}/{package}/{version}", c.PublishAction)
 
-	// Package Collections endpoints (if enabled)
-	a.HandleFunc("GET /collection", c.GlobalCollectionAction)
-	a.HandleFunc("GET /collection/{scope}", c.ScopeCollectionAction)
+	// public and static routes on registry mux
+	registryMux.HandleFunc("GET /", c.MainAction)
+	registryMux.HandleFunc("GET /favicon.ico", c.StaticAction)
+	registryMux.HandleFunc("GET /favicon.svg", c.StaticAction)
+	registryMux.HandleFunc("GET /output.css", c.StaticAction)
 
-	// public routes
-	router.HandleFunc("GET /", c.MainAction)
+	// Path dispatcher: for HEAD, discard response body; then /collection* -> collectionMux, else -> auth-wrapped registryMux.
+	// Go 1.22+ matches HEAD to GET patterns, so the same handler runs; we only strip the body.
+	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == http.MethodHead {
+			w = &headResponseWriter{ResponseWriter: w}
+		}
+		if strings.HasPrefix(r.URL.Path, "/collection") {
+			collectionMux.ServeHTTP(w, r)
+		} else {
+			a.ServeHTTP(w, r)
+		}
+	})
 
-	// static routes
-	router.HandleFunc("GET /favicon.ico", c.StaticAction)
-	router.HandleFunc("GET /favicon.svg", c.StaticAction)
-	router.HandleFunc("GET /output.css", c.StaticAction)
-
+	addr := fmt.Sprintf(":%d", serverConfig.Server.Port)
+	if serverConfig.Server.Hostname != "" {
+		addr = fmt.Sprintf("%s:%d", serverConfig.Server.Hostname, serverConfig.Server.Port)
+	}
 	srv := &http.Server{
-		Addr:    fmt.Sprintf(":%d", serverConfig.Server.Port),
-		Handler: a,
+		Addr:    addr,
+		Handler: handler,
 	}
 
 	sigChannel := make(chan os.Signal, 1)
 	signal.Notify(sigChannel, os.Interrupt, syscall.SIGTERM)
 
+	const shutdownTimeout = 30 * time.Second
 	go func() {
 		<-sigChannel
 		slog.Info("Shutting down server...")
-		if err := srv.Shutdown(nil); err != nil {
+		ctx, cancel := context.WithTimeout(context.Background(), shutdownTimeout)
+		defer cancel()
+		if err := srv.Shutdown(ctx); err != nil {
 			slog.Error("Error shutting down server", "error", err)
 		}
 		os.Exit(1)

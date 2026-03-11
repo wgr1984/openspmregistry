@@ -1,6 +1,7 @@
 package middleware
 
 import (
+	"encoding/base64"
 	"fmt"
 	"log/slog"
 	"net/http"
@@ -9,6 +10,19 @@ import (
 
 	"golang.org/x/oauth2"
 )
+
+type MockTokenAuthenticator struct {
+	methodCallCount map[string]int
+}
+
+type MockOidcAuthenticator struct {
+	methodCallCount map[string]int
+}
+
+type MockAuthenticator struct {
+	shouldAuthenticate bool
+	methodCallCount    map[string]int
+}
 
 func Test_NewAuthentication_TokenAuthenticator_RegistersCallbackHandler(t *testing.T) {
 	router := http.NewServeMux()
@@ -91,12 +105,6 @@ func Test_HandleFunc_AuthorizedRequest_CallsNextHandler(t *testing.T) {
 	}
 }
 
-// Mock types and implementations
-
-type MockTokenAuthenticator struct {
-	methodCallCount map[string]int
-}
-
 func (m *MockTokenAuthenticator) increaseCallCount(method string) {
 	if m.methodCallCount == nil {
 		m.methodCallCount = make(map[string]int)
@@ -129,10 +137,6 @@ func (m *MockTokenAuthenticator) Callback(w http.ResponseWriter, r *http.Request
 	w.WriteHeader(http.StatusOK)
 }
 
-type MockOidcAuthenticator struct {
-	methodCallCount map[string]int
-}
-
 func (m *MockOidcAuthenticator) increaseCallCount(method string) {
 	if m.methodCallCount == nil {
 		m.methodCallCount = make(map[string]int)
@@ -155,11 +159,6 @@ func (m *MockOidcAuthenticator) Login(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusOK)
 }
 
-type MockAuthenticator struct {
-	shouldAuthenticate bool
-	methodCallCount    map[string]int
-}
-
 func (m *MockAuthenticator) increaseCallCount(method string) {
 	if m.methodCallCount == nil {
 		m.methodCallCount = make(map[string]int)
@@ -173,4 +172,108 @@ func (m *MockAuthenticator) Authenticate(w http.ResponseWriter, r *http.Request)
 		return "", fmt.Errorf("unauthorized")
 	}
 	return "", nil
+}
+
+func Test_AuthQueryParam_PromotesBasicHeader_WhenWrapHandlerTrue(t *testing.T) {
+	router := http.NewServeMux()
+	auth := &MockAuthenticator{shouldAuthenticate: true}
+	a := NewAuthentication(auth, router)
+
+	var receivedAuth string
+	collectionMux := http.NewServeMux()
+	collectionMux.HandleFunc("GET /collection", a.WrapHandler(func(w http.ResponseWriter, r *http.Request) {
+		receivedAuth = r.Header.Get("Authorization")
+	}, true))
+
+	payload := base64.StdEncoding.EncodeToString([]byte("Basic YWRtaW46YWRtaW4xMjM="))
+	req := httptest.NewRequest("GET", "/collection?auth="+payload, nil)
+	w := httptest.NewRecorder()
+	collectionMux.ServeHTTP(w, req)
+
+	if receivedAuth != "Basic YWRtaW46YWRtaW4xMjM=" {
+		t.Errorf("expected Basic auth, got %q", receivedAuth)
+	}
+}
+
+func Test_AuthQueryParam_PromotesBearer_WhenWrapHandlerTrue(t *testing.T) {
+	router := http.NewServeMux()
+	auth := &MockAuthenticator{shouldAuthenticate: true}
+	a := NewAuthentication(auth, router)
+
+	var receivedAuth string
+	collectionMux := http.NewServeMux()
+	collectionMux.HandleFunc("GET /collection", a.WrapHandler(func(w http.ResponseWriter, r *http.Request) {
+		receivedAuth = r.Header.Get("Authorization")
+	}, true))
+
+	payload := base64.StdEncoding.EncodeToString([]byte("Bearer mytoken123"))
+	req := httptest.NewRequest("GET", "/collection?auth="+payload, nil)
+	w := httptest.NewRecorder()
+	collectionMux.ServeHTTP(w, req)
+
+	if receivedAuth != "Bearer mytoken123" {
+		t.Errorf("expected Bearer auth, got %q", receivedAuth)
+	}
+}
+
+func Test_AuthQueryParam_NotPromoted_WhenWrapHandlerFalse(t *testing.T) {
+	router := http.NewServeMux()
+	auth := &MockAuthenticator{shouldAuthenticate: true}
+	a := NewAuthentication(auth, router)
+
+	var receivedAuth string
+	collectionMux := http.NewServeMux()
+	collectionMux.HandleFunc("GET /collection", a.WrapHandler(func(w http.ResponseWriter, r *http.Request) {
+		receivedAuth = r.Header.Get("Authorization")
+	}, false))
+
+	payload := base64.StdEncoding.EncodeToString([]byte("Basic YWRtaW46YWRtaW4xMjM="))
+	req := httptest.NewRequest("GET", "/collection?auth="+payload, nil)
+	w := httptest.NewRecorder()
+	collectionMux.ServeHTTP(w, req)
+
+	if receivedAuth != "" {
+		t.Errorf("expected no auth promotion when WrapHandler(..., false), got %q", receivedAuth)
+	}
+}
+
+func Test_AuthQueryParam_NotPromoted_OnHandleFuncRoute(t *testing.T) {
+	router := http.NewServeMux()
+	auth := &MockAuthenticator{shouldAuthenticate: true}
+	a := NewAuthentication(auth, router)
+
+	var receivedAuth string
+	a.HandleFunc("GET /test", func(w http.ResponseWriter, r *http.Request) {
+		receivedAuth = r.Header.Get("Authorization")
+	})
+
+	payload := base64.StdEncoding.EncodeToString([]byte("Basic YWRtaW46YWRtaW4xMjM="))
+	req := httptest.NewRequest("GET", "/test?auth="+payload, nil)
+	w := httptest.NewRecorder()
+	a.ServeHTTP(w, req)
+
+	if receivedAuth != "" {
+		t.Errorf("expected no auth promotion on HandleFunc route, got %q", receivedAuth)
+	}
+}
+
+func Test_AuthQueryParam_NotPromoted_InvalidScheme(t *testing.T) {
+	router := http.NewServeMux()
+	auth := &MockAuthenticator{shouldAuthenticate: true}
+	a := NewAuthentication(auth, router)
+
+	var receivedAuth string
+	collectionMux := http.NewServeMux()
+	collectionMux.HandleFunc("GET /collection", a.WrapHandler(func(w http.ResponseWriter, r *http.Request) {
+		receivedAuth = r.Header.Get("Authorization")
+	}, true))
+
+	payload := base64.StdEncoding.EncodeToString([]byte("Custom xxx"))
+	req := httptest.NewRequest("GET", "/collection?auth="+payload, nil)
+	w := httptest.NewRecorder()
+	collectionMux.ServeHTTP(w, req)
+
+	if receivedAuth != "" {
+		t.Errorf("expected no auth promotion for invalid scheme, got %q", receivedAuth)
+	}
 }

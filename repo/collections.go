@@ -3,6 +3,7 @@ package repo
 import (
 	"OpenSPMRegistry/mimetypes"
 	"OpenSPMRegistry/models"
+	"context"
 	"fmt"
 	"log/slog"
 	"slices"
@@ -12,7 +13,7 @@ import (
 
 // GenerateCollection generates a package collection from the given packages.
 // The collection name is prefixed with the provided hostname when available.
-func GenerateCollection(r Repo, scope string, packages []models.ListElement, hostname string) (*models.PackageCollection, error) {
+func GenerateCollection(ctx context.Context, r Repo, scope string, packages []models.ListElement, hostname string) (*models.PackageCollection, error) {
 	// Group packages by scope/name without string splitting
 	packagesByScope := make(map[string]map[string][]models.ListElement)
 	for _, pkg := range packages {
@@ -26,7 +27,7 @@ func GenerateCollection(r Repo, scope string, packages []models.ListElement, hos
 	collectionPackages := make([]models.CollectionPackage, 0)
 	for pkgScope, scopedPackages := range packagesByScope {
 		for pkgName, versions := range scopedPackages {
-			collPkg, err := buildCollectionPackage(r, pkgScope, pkgName, versions)
+			collPkg, err := buildCollectionPackage(ctx, r, pkgScope, pkgName, versions)
 			if err != nil {
 				slog.Warn("Error building collection package", "package", fmt.Sprintf("%s.%s", pkgScope, pkgName), "error", err)
 				continue
@@ -76,7 +77,7 @@ func GenerateCollection(r Repo, scope string, packages []models.ListElement, hos
 }
 
 // buildCollectionPackage builds a CollectionPackage from package versions
-func buildCollectionPackage(r Repo, scope string, name string, versionElements []models.ListElement) (*models.CollectionPackage, error) {
+func buildCollectionPackage(ctx context.Context, r Repo, scope string, name string, versionElements []models.ListElement) (*models.CollectionPackage, error) {
 	// Prefer newest versions first so we pick metadata from the latest included version
 	sortVersionsDesc(versionElements)
 
@@ -84,7 +85,7 @@ func buildCollectionPackage(r Repo, scope string, name string, versionElements [
 	var packageVersions []models.PackageVersion
 	var metadataVersion string
 	for _, versionElement := range versionElements {
-		pkgVersion, err := buildPackageVersion(r, scope, name, versionElement.Version)
+		pkgVersion, err := buildPackageVersion(ctx, r, scope, name, versionElement.Version)
 		if err != nil {
 			slog.Warn("Skipping version without Package.json", "package", fmt.Sprintf("%s.%s", scope, name), "version", versionElement.Version, "error", err)
 			continue
@@ -103,7 +104,7 @@ func buildCollectionPackage(r Repo, scope string, name string, versionElements [
 
 	if metadataVersion != "" {
 		// Use metadata from the first version that is actually included
-		metadata, err := r.LoadMetadata(scope, name, metadataVersion)
+		metadata, err := r.LoadMetadata(ctx, scope, name, metadataVersion)
 		if err == nil {
 			if desc, ok := metadata["description"].(string); ok {
 				summary = desc
@@ -146,16 +147,16 @@ func sortVersionsDesc(versionElements []models.ListElement) {
 }
 
 // buildPackageVersion builds a PackageVersion from a specific version
-func buildPackageVersion(r Repo, scope string, name string, version string) (*models.PackageVersion, error) {
+func buildPackageVersion(ctx context.Context, r Repo, scope string, name string, version string) (*models.PackageVersion, error) {
 	// Load Package.json
-	packageJson, err := r.LoadPackageJson(scope, name, version)
+	packageJson, err := r.LoadPackageJson(ctx, scope, name, version)
 	if err != nil {
 		return nil, err
 	}
 
 	// Get tools version from Package.swift
 	manifestElement := models.NewUploadElement(scope, name, version, mimetypes.TextXSwift, models.Manifest)
-	toolsVersionStr, err := r.GetSwiftToolVersion(manifestElement)
+	toolsVersionStr, err := r.GetSwiftToolVersion(ctx, manifestElement)
 	if err != nil {
 		slog.Warn("Could not get tools version", "package", fmt.Sprintf("%s.%s@%s", scope, name, version), "error", err)
 		toolsVersionStr = "5.0" // default
@@ -173,7 +174,7 @@ func buildPackageVersion(r Repo, scope string, name string, version string) (*mo
 	}
 
 	// Get metadata for author info
-	metadata, _ := r.LoadMetadata(scope, name, version)
+	metadata, _ := r.LoadMetadata(ctx, scope, name, version)
 	var author *models.Author
 	var license *models.License
 
@@ -189,7 +190,8 @@ func buildPackageVersion(r Repo, scope string, name string, version string) (*mo
 	}
 
 	// Get publish date
-	publishDate, err := r.PublishDate(models.NewUploadElement(scope, name, version, "application/zip", models.SourceArchive))
+	sourceArchiveElement := models.NewUploadElement(scope, name, version, "application/zip", models.SourceArchive)
+	publishDate, err := r.PublishDate(ctx, sourceArchiveElement)
 	if err != nil {
 		publishDate = time.Now()
 	}

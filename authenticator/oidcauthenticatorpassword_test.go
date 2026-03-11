@@ -19,7 +19,7 @@ func Test_NewOIDCAuthenticatorPassword_CreatesValidAuthenticator(t *testing.T) {
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path == "/.well-known/openid-configuration" {
 			w.Header().Set("Content-Type", "application/json")
-			w.Write([]byte(`{
+			_, _ = w.Write([]byte(`{
 				"issuer": "http://` + r.Host + `",
 				"authorization_endpoint": "http://` + r.Host + `/auth",
 				"token_endpoint": "http://` + r.Host + `/token",
@@ -39,6 +39,7 @@ func Test_NewOIDCAuthenticatorPassword_CreatesValidAuthenticator(t *testing.T) {
 
 	if auth == nil {
 		t.Error("expected non-nil authenticator")
+		return
 	}
 	if auth.OidcAuthenticatorImpl == nil {
 		t.Error("expected non-nil base authenticator")
@@ -62,7 +63,7 @@ func Test_OIDCAuthenticatorPassword_Callback_ReturnsUnauthorized(t *testing.T) {
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path == "/.well-known/openid-configuration" {
 			w.Header().Set("Content-Type", "application/json")
-			w.Write([]byte(`{
+			_, _ = w.Write([]byte(`{
 				"issuer": "http://` + r.Host + `",
 				"authorization_endpoint": "http://` + r.Host + `/auth",
 				"token_endpoint": "http://` + r.Host + `/token",
@@ -98,7 +99,7 @@ func Test_OIDCAuthenticatorPassword_Authenticate_WithBasicAuth_MissingCSRFToken_
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path == "/.well-known/openid-configuration" {
 			w.Header().Set("Content-Type", "application/json")
-			w.Write([]byte(`{
+			_, _ = w.Write([]byte(`{
 				"issuer": "http://` + r.Host + `",
 				"authorization_endpoint": "http://` + r.Host + `/auth",
 				"token_endpoint": "http://` + r.Host + `/token",
@@ -135,7 +136,7 @@ func Test_OIDCAuthenticatorPassword_Authenticate_WithBasicAuth_InvalidCSRFToken_
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path == "/.well-known/openid-configuration" {
 			w.Header().Set("Content-Type", "application/json")
-			w.Write([]byte(`{
+			_, _ = w.Write([]byte(`{
 				"issuer": "http://` + r.Host + `",
 				"authorization_endpoint": "http://` + r.Host + `/auth",
 				"token_endpoint": "http://` + r.Host + `/token",
@@ -182,7 +183,7 @@ func Test_OIDCAuthenticatorPassword_Login_ParsesTemplate(t *testing.T) {
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path == "/.well-known/openid-configuration" {
 			w.Header().Set("Content-Type", "application/json")
-			w.Write([]byte(`{
+			_, _ = w.Write([]byte(`{
 				"issuer": "http://` + r.Host + `",
 				"authorization_endpoint": "http://` + r.Host + `/auth",
 				"token_endpoint": "http://` + r.Host + `/token",
@@ -218,7 +219,7 @@ func Test_OIDCAuthenticatorPassword_Login_WithAuthHeader_ReturnsEarly(t *testing
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path == "/.well-known/openid-configuration" {
 			w.Header().Set("Content-Type", "application/json")
-			w.Write([]byte(`{
+			_, _ = w.Write([]byte(`{
 				"issuer": "http://` + r.Host + `",
 				"authorization_endpoint": "http://` + r.Host + `/auth",
 				"token_endpoint": "http://` + r.Host + `/token",
@@ -260,7 +261,7 @@ func Test_OIDCAuthenticatorPassword_Login_WithValidTemplate_RendersLoginPage(t *
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path == "/.well-known/openid-configuration" {
 			w.Header().Set("Content-Type", "application/json")
-			w.Write([]byte(`{
+			_, _ = w.Write([]byte(`{
 				"issuer": "http://` + r.Host + `",
 				"authorization_endpoint": "http://` + r.Host + `/auth",
 				"token_endpoint": "http://` + r.Host + `/token",
@@ -323,7 +324,7 @@ func Test_OIDCAuthenticatorPassword_EncryptToken_GeneratesValidJWT(t *testing.T)
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path == "/.well-known/openid-configuration" {
 			w.Header().Set("Content-Type", "application/json")
-			w.Write([]byte(`{
+			_, _ = w.Write([]byte(`{
 				"issuer": "http://` + r.Host + `",
 				"authorization_endpoint": "http://` + r.Host + `/auth",
 				"token_endpoint": "http://` + r.Host + `/token",
@@ -361,7 +362,7 @@ func Test_OIDCAuthenticatorPassword_VerifyToken_ExpiredToken_ReturnsError(t *tes
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path == "/.well-known/openid-configuration" {
 			w.Header().Set("Content-Type", "application/json")
-			w.Write([]byte(`{
+			_, _ = w.Write([]byte(`{
 				"issuer": "http://` + r.Host + `",
 				"authorization_endpoint": "http://` + r.Host + `/auth",
 				"token_endpoint": "http://` + r.Host + `/token",
@@ -419,7 +420,7 @@ func Test_OIDCAuthenticatorPassword_VerifyToken_InvalidValue_ReturnsError(t *tes
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path == "/.well-known/openid-configuration" {
 			w.Header().Set("Content-Type", "application/json")
-			w.Write([]byte(`{
+			_, _ = w.Write([]byte(`{
 				"issuer": "http://` + r.Host + `",
 				"authorization_endpoint": "http://` + r.Host + `/auth",
 				"token_endpoint": "http://` + r.Host + `/token",
@@ -453,7 +454,7 @@ func Test_OIDCAuthenticatorPassword_VerifyToken_InvalidSubject_ReturnsError(t *t
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path == "/.well-known/openid-configuration" {
 			w.Header().Set("Content-Type", "application/json")
-			w.Write([]byte(`{
+			_, _ = w.Write([]byte(`{
 				"issuer": "http://` + r.Host + `",
 				"authorization_endpoint": "http://` + r.Host + `/auth",
 				"token_endpoint": "http://` + r.Host + `/token",
@@ -512,7 +513,7 @@ func Test_OIDCAuthenticatorPassword_RequestToken_Success(t *testing.T) {
 		switch r.URL.Path {
 		case "/.well-known/openid-configuration":
 			w.Header().Set("Content-Type", "application/json")
-			w.Write([]byte(`{
+			_, _ = w.Write([]byte(`{
 				"issuer": "http://` + r.Host + `",
 				"authorization_endpoint": "http://` + r.Host + `/auth",
 				"token_endpoint": "http://` + r.Host + `/token",
@@ -520,7 +521,7 @@ func Test_OIDCAuthenticatorPassword_RequestToken_Success(t *testing.T) {
 			}`))
 		case "/token":
 			w.Header().Set("Content-Type", "application/json")
-			w.Write([]byte(`{
+			_, _ = w.Write([]byte(`{
 				"access_token": "access-token",
 				"token_type": "Bearer",
 				"id_token": "test-id-token"
@@ -552,7 +553,7 @@ func Test_OIDCAuthenticatorPassword_RequestToken_MissingIdToken_ReturnsError(t *
 		switch r.URL.Path {
 		case "/.well-known/openid-configuration":
 			w.Header().Set("Content-Type", "application/json")
-			w.Write([]byte(`{
+			_, _ = w.Write([]byte(`{
 				"issuer": "http://` + r.Host + `",
 				"authorization_endpoint": "http://` + r.Host + `/auth",
 				"token_endpoint": "http://` + r.Host + `/token",
@@ -560,7 +561,7 @@ func Test_OIDCAuthenticatorPassword_RequestToken_MissingIdToken_ReturnsError(t *
 			}`))
 		case "/token":
 			w.Header().Set("Content-Type", "application/json")
-			w.Write([]byte(`{
+			_, _ = w.Write([]byte(`{
 				"access_token": "access-token",
 				"token_type": "Bearer"
 			}`))
@@ -591,7 +592,7 @@ func Test_OIDCAuthenticatorPassword_RequestToken_InvalidCredentials_ReturnsError
 		switch r.URL.Path {
 		case "/.well-known/openid-configuration":
 			w.Header().Set("Content-Type", "application/json")
-			w.Write([]byte(`{
+			_, _ = w.Write([]byte(`{
 				"issuer": "http://` + r.Host + `",
 				"authorization_endpoint": "http://` + r.Host + `/auth",
 				"token_endpoint": "http://` + r.Host + `/token",
@@ -599,7 +600,7 @@ func Test_OIDCAuthenticatorPassword_RequestToken_InvalidCredentials_ReturnsError
 			}`))
 		case "/token":
 			w.WriteHeader(http.StatusUnauthorized)
-			w.Write([]byte(`{"error": "invalid_grant"}`))
+			_, _ = w.Write([]byte(`{"error": "invalid_grant"}`))
 		}
 	}))
 	defer mockServer.Close()
@@ -626,7 +627,7 @@ func Test_OIDCAuthenticatorPassword_Authenticate_WithInvalidBasicAuth_ReturnsErr
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path == "/.well-known/openid-configuration" {
 			w.Header().Set("Content-Type", "application/json")
-			w.Write([]byte(`{
+			_, _ = w.Write([]byte(`{
 				"issuer": "http://` + r.Host + `",
 				"authorization_endpoint": "http://` + r.Host + `/auth",
 				"token_endpoint": "http://` + r.Host + `/token",
@@ -669,7 +670,7 @@ func Test_OIDCAuthenticatorPassword_EncryptToken_EmptyKey_ReturnsError(t *testin
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path == "/.well-known/openid-configuration" {
 			w.Header().Set("Content-Type", "application/json")
-			w.Write([]byte(`{
+			_, _ = w.Write([]byte(`{
 				"issuer": "http://` + r.Host + `",
 				"authorization_endpoint": "http://` + r.Host + `/auth",
 				"token_endpoint": "http://` + r.Host + `/token",
@@ -702,7 +703,7 @@ func Test_OIDCAuthenticatorPassword_VerifyToken_MissingValue_ReturnsError(t *tes
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path == "/.well-known/openid-configuration" {
 			w.Header().Set("Content-Type", "application/json")
-			w.Write([]byte(`{
+			_, _ = w.Write([]byte(`{
 				"issuer": "http://` + r.Host + `",
 				"authorization_endpoint": "http://` + r.Host + `/auth",
 				"token_endpoint": "http://` + r.Host + `/token",
@@ -749,7 +750,7 @@ func Test_OIDCAuthenticatorPassword_RequestToken_InvalidResponse_ReturnsError(t 
 		switch r.URL.Path {
 		case "/.well-known/openid-configuration":
 			w.Header().Set("Content-Type", "application/json")
-			w.Write([]byte(`{
+			_, _ = w.Write([]byte(`{
 				"issuer": "http://` + r.Host + `",
 				"authorization_endpoint": "http://` + r.Host + `/auth",
 				"token_endpoint": "http://` + r.Host + `/token",
@@ -757,7 +758,7 @@ func Test_OIDCAuthenticatorPassword_RequestToken_InvalidResponse_ReturnsError(t 
 			}`))
 		case "/token":
 			w.Header().Set("Content-Type", "application/json")
-			w.Write([]byte(`{
+			_, _ = w.Write([]byte(`{
 				"access_token": "access-token",
 				"token_type": "Bearer",
 				"expires_in": 3600
@@ -789,7 +790,7 @@ func Test_OIDCAuthenticatorPassword_Authenticate_NoTemplate_WritesPlainToken(t *
 		switch r.URL.Path {
 		case "/.well-known/openid-configuration":
 			w.Header().Set("Content-Type", "application/json")
-			w.Write([]byte(`{
+			_, _ = w.Write([]byte(`{
 				"issuer": "http://` + r.Host + `",
 				"authorization_endpoint": "http://` + r.Host + `/auth",
 				"token_endpoint": "http://` + r.Host + `/token",
@@ -797,7 +798,7 @@ func Test_OIDCAuthenticatorPassword_Authenticate_NoTemplate_WritesPlainToken(t *
 			}`))
 		case "/token":
 			w.Header().Set("Content-Type", "application/json")
-			w.Write([]byte(`{
+			_, _ = w.Write([]byte(`{
 				"access_token": "access-token",
 				"token_type": "Bearer",
 				"id_token": "test-id-token"
@@ -846,7 +847,7 @@ func Test_OIDCAuthenticatorPassword_VerifyToken_InvalidIssuer_ReturnsError(t *te
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path == "/.well-known/openid-configuration" {
 			w.Header().Set("Content-Type", "application/json")
-			w.Write([]byte(`{
+			_, _ = w.Write([]byte(`{
 				"issuer": "http://` + r.Host + `",
 				"authorization_endpoint": "http://` + r.Host + `/auth",
 				"token_endpoint": "http://` + r.Host + `/token",
@@ -898,7 +899,7 @@ func Test_OIDCAuthenticatorPassword_VerifyToken_NoExpiry_ReturnsError(t *testing
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path == "/.well-known/openid-configuration" {
 			w.Header().Set("Content-Type", "application/json")
-			w.Write([]byte(`{
+			_, _ = w.Write([]byte(`{
 				"issuer": "http://` + r.Host + `",
 				"authorization_endpoint": "http://` + r.Host + `/auth",
 				"token_endpoint": "http://` + r.Host + `/token",
@@ -950,7 +951,7 @@ func Test_OIDCAuthenticatorPassword_VerifyToken_NoSubject_ReturnsError(t *testin
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path == "/.well-known/openid-configuration" {
 			w.Header().Set("Content-Type", "application/json")
-			w.Write([]byte(`{
+			_, _ = w.Write([]byte(`{
 				"issuer": "http://` + r.Host + `",
 				"authorization_endpoint": "http://` + r.Host + `/auth",
 				"token_endpoint": "http://` + r.Host + `/token",
@@ -1001,7 +1002,7 @@ func Test_OIDCAuthenticatorPassword_VerifyToken_InvalidAlgorithm_ReturnsError(t 
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path == "/.well-known/openid-configuration" {
 			w.Header().Set("Content-Type", "application/json")
-			w.Write([]byte(`{
+			_, _ = w.Write([]byte(`{
 				"issuer": "http://` + r.Host + `",
 				"authorization_endpoint": "http://` + r.Host + `/auth",
 				"token_endpoint": "http://` + r.Host + `/token",
@@ -1045,7 +1046,7 @@ func Test_OIDCAuthenticatorPassword_VerifyToken_InvalidContentType_ReturnsError(
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path == "/.well-known/openid-configuration" {
 			w.Header().Set("Content-Type", "application/json")
-			w.Write([]byte(`{
+			_, _ = w.Write([]byte(`{
 				"issuer": "http://` + r.Host + `",
 				"authorization_endpoint": "http://` + r.Host + `/auth",
 				"token_endpoint": "http://` + r.Host + `/token",
@@ -1083,7 +1084,7 @@ func Test_OIDCAuthenticatorPassword_VerifyToken_MalformedToken_ReturnsError(t *t
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path == "/.well-known/openid-configuration" {
 			w.Header().Set("Content-Type", "application/json")
-			w.Write([]byte(`{
+			_, _ = w.Write([]byte(`{
 				"issuer": "http://` + r.Host + `",
 				"authorization_endpoint": "http://` + r.Host + `/auth",
 				"token_endpoint": "http://` + r.Host + `/token",
@@ -1124,7 +1125,7 @@ func Test_OIDCAuthenticatorPassword_EncryptToken_InvalidKeySize_ReturnsError(t *
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path == "/.well-known/openid-configuration" {
 			w.Header().Set("Content-Type", "application/json")
-			w.Write([]byte(`{
+			_, _ = w.Write([]byte(`{
 				"issuer": "http://` + r.Host + `",
 				"authorization_endpoint": "http://` + r.Host + `/auth",
 				"token_endpoint": "http://` + r.Host + `/token",
@@ -1161,7 +1162,7 @@ func Test_OIDCAuthenticatorPassword_Login_TemplateExecuteError(t *testing.T) {
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path == "/.well-known/openid-configuration" {
 			w.Header().Set("Content-Type", "application/json")
-			w.Write([]byte(`{
+			_, _ = w.Write([]byte(`{
 				"issuer": "http://` + r.Host + `",
 				"authorization_endpoint": "http://` + r.Host + `/auth",
 				"token_endpoint": "http://` + r.Host + `/token",
@@ -1203,7 +1204,7 @@ func Test_OIDCAuthenticatorPassword_Login_EncryptTokenError(t *testing.T) {
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path == "/.well-known/openid-configuration" {
 			w.Header().Set("Content-Type", "application/json")
-			w.Write([]byte(`{
+			_, _ = w.Write([]byte(`{
 				"issuer": "http://` + r.Host + `",
 				"authorization_endpoint": "http://` + r.Host + `/auth",
 				"token_endpoint": "http://` + r.Host + `/token",
@@ -1241,7 +1242,7 @@ func Test_OIDCAuthenticatorPassword_Authenticate_InvalidTokenError(t *testing.T)
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path == "/.well-known/openid-configuration" {
 			w.Header().Set("Content-Type", "application/json")
-			w.Write([]byte(`{
+			_, _ = w.Write([]byte(`{
 				"issuer": "http://` + r.Host + `",
 				"authorization_endpoint": "http://` + r.Host + `/auth",
 				"token_endpoint": "http://` + r.Host + `/token",
@@ -1279,7 +1280,7 @@ func Test_OIDCAuthenticatorPassword_VerifyToken_ExpiredToken(t *testing.T) {
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path == "/.well-known/openid-configuration" {
 			w.Header().Set("Content-Type", "application/json")
-			w.Write([]byte(`{
+			_, _ = w.Write([]byte(`{
 				"issuer": "http://` + r.Host + `",
 				"authorization_endpoint": "http://` + r.Host + `/auth",
 				"token_endpoint": "http://` + r.Host + `/token",
@@ -1331,7 +1332,7 @@ func Test_OIDCAuthenticatorPassword_VerifyToken_InvalidSubject(t *testing.T) {
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path == "/.well-known/openid-configuration" {
 			w.Header().Set("Content-Type", "application/json")
-			w.Write([]byte(`{
+			_, _ = w.Write([]byte(`{
 				"issuer": "http://` + r.Host + `",
 				"authorization_endpoint": "http://` + r.Host + `/auth",
 				"token_endpoint": "http://` + r.Host + `/token",
@@ -1383,7 +1384,7 @@ func Test_OIDCAuthenticatorPassword_VerifyToken_EmptyValue(t *testing.T) {
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path == "/.well-known/openid-configuration" {
 			w.Header().Set("Content-Type", "application/json")
-			w.Write([]byte(`{
+			_, _ = w.Write([]byte(`{
 				"issuer": "http://` + r.Host + `",
 				"authorization_endpoint": "http://` + r.Host + `/auth",
 				"token_endpoint": "http://` + r.Host + `/token",
@@ -1435,7 +1436,7 @@ func Test_OIDCAuthenticatorPassword_VerifyToken_InvalidValue(t *testing.T) {
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path == "/.well-known/openid-configuration" {
 			w.Header().Set("Content-Type", "application/json")
-			w.Write([]byte(`{
+			_, _ = w.Write([]byte(`{
 				"issuer": "http://` + r.Host + `",
 				"authorization_endpoint": "http://` + r.Host + `/auth",
 				"token_endpoint": "http://` + r.Host + `/token",
@@ -1487,7 +1488,7 @@ func Test_OIDCAuthenticatorPassword_VerifyToken_InvalidToken(t *testing.T) {
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path == "/.well-known/openid-configuration" {
 			w.Header().Set("Content-Type", "application/json")
-			w.Write([]byte(`{
+			_, _ = w.Write([]byte(`{
 				"issuer": "http://` + r.Host + `",
 				"authorization_endpoint": "http://` + r.Host + `/auth",
 				"token_endpoint": "http://` + r.Host + `/token",
@@ -1519,7 +1520,7 @@ func Test_OIDCAuthenticatorPassword_EncryptToken_InvalidKey(t *testing.T) {
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path == "/.well-known/openid-configuration" {
 			w.Header().Set("Content-Type", "application/json")
-			w.Write([]byte(`{
+			_, _ = w.Write([]byte(`{
 				"issuer": "http://` + r.Host + `",
 				"authorization_endpoint": "http://` + r.Host + `/auth",
 				"token_endpoint": "http://` + r.Host + `/token",
@@ -1563,7 +1564,7 @@ func Test_OIDCAuthenticatorPassword_Authenticate_BasicAuthSuccess(t *testing.T) 
 		switch r.URL.Path {
 		case "/.well-known/openid-configuration":
 			w.Header().Set("Content-Type", "application/json")
-			w.Write([]byte(`{
+			_, _ = w.Write([]byte(`{
 				"issuer": "http://` + r.Host + `",
 				"authorization_endpoint": "http://` + r.Host + `/auth",
 				"token_endpoint": "http://` + r.Host + `/token",
@@ -1571,7 +1572,7 @@ func Test_OIDCAuthenticatorPassword_Authenticate_BasicAuthSuccess(t *testing.T) 
 			}`))
 		case "/token":
 			w.Header().Set("Content-Type", "application/json")
-			w.Write([]byte(`{
+			_, _ = w.Write([]byte(`{
 				"access_token": "access-token",
 				"token_type": "Bearer",
 				"id_token": "test-id-token"

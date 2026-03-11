@@ -25,13 +25,13 @@ type randomStringGenerator interface {
 
 type defaultRandomStringGenerator struct{}
 
-func (d *defaultRandomStringGenerator) RandomString(length int) (string, error) {
-	return utils.RandomString(length)
-}
-
 type OidcAuthenticatorCodeImpl struct {
 	*OidcAuthenticatorImpl
 	randomStringGenerator randomStringGenerator
+}
+
+func (d *defaultRandomStringGenerator) RandomString(length int) (string, error) {
+	return utils.RandomString(length)
 }
 
 // NewOIDCAuthenticatorCodeWithConfig creates a new OIDC authenticator with code grant
@@ -125,11 +125,10 @@ func (a *OidcAuthenticatorCodeImpl) Login(w http.ResponseWriter, r *http.Request
 		utils.WriteAuthorizationHeaderError(w, err)
 		return
 	}
-	setCallbackCookie(w, r, "state", state)
-	setCallbackCookie(w, r, "nonce", nonce)
+	setCallbackCookie(r, w, "state", state)
+	setCallbackCookie(r, w, "nonce", nonce)
 
 	http.Redirect(w, r, a.config.AuthCodeURL(state, oidc.Nonce(nonce)), http.StatusFound)
-	return
 }
 
 // setCallbackCookie sets a cookie with the provided name and value
@@ -138,7 +137,7 @@ func (a *OidcAuthenticatorCodeImpl) Login(w http.ResponseWriter, r *http.Request
 // the cookie is http only
 // the cookie is set to SameSiteStrictMode
 // the cookie is set on the response writer
-func setCallbackCookie(w http.ResponseWriter, r *http.Request, name, value string) {
+func setCallbackCookie(r *http.Request, w http.ResponseWriter, name, value string) {
 	c := &http.Cookie{
 		Name:     name,
 		Value:    value,

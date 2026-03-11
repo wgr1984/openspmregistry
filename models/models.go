@@ -20,6 +20,40 @@ type Version struct {
 	Suffix string
 }
 
+type UploadElementType string
+
+type UploadElement struct {
+	Scope             string `json:"scope"`
+	Name              string `json:"name"`
+	Version           string `json:"version"`
+	MimeType          string `json:"mime_type"`
+	filenameOverwrite string
+	extOverwrite      string
+}
+
+type ListElement struct {
+	Scope       string
+	PackageName string
+	Version     string
+}
+
+type Release struct {
+	Url string `json:"url"`
+}
+
+type ListRelease struct {
+	Releases map[string]Release `json:"releases"`
+}
+
+const (
+	SourceArchive          UploadElementType = "source-archive"
+	SourceArchiveSignature UploadElementType = "source-archive-signature"
+	Metadata               UploadElementType = "metadata"
+	MetadataSignature      UploadElementType = "metadata-signature"
+	Manifest               UploadElementType = "manifest"
+	PackageManifestJson    UploadElementType = "package-manifest-json"
+)
+
 func (v Version) Compare(v1 *Version) int {
 	if v.Major != v1.Major {
 		return v.Major - v1.Major
@@ -42,32 +76,6 @@ func (v Version) Compare(v1 *Version) int {
 	}
 	// v1 has a suffix but v not, otherwise we would not reach this point
 	return 1
-}
-
-type UploadElementType string
-
-const (
-	SourceArchive          UploadElementType = "source-archive"
-	SourceArchiveSignature UploadElementType = "source-archive-signature"
-	Metadata               UploadElementType = "metadata"
-	MetadataSignature      UploadElementType = "metadata-signature"
-	Manifest               UploadElementType = "manifest"
-	PackageManifestJson    UploadElementType = "package-manifest-json"
-)
-
-type UploadElement struct {
-	Scope             string `json:"scope"`
-	Name              string `json:"name"`
-	Version           string `json:"version"`
-	MimeType          string `json:"mime_type"`
-	filenameOverwrite string
-	extOverwrite      string
-}
-
-type ListElement struct {
-	Scope       string
-	PackageName string
-	Version     string
 }
 
 func NewListElement(scope string, packageName string, version string) *ListElement {
@@ -134,16 +142,33 @@ func (e *UploadElement) FileName() string {
 	return fmt.Sprintf("%s.%s-%s%s", e.Scope, e.Name, e.Version, extensions[0])
 }
 
-type Release struct {
-	Url string `json:"url"`
+// Extension returns the file extension without a leading dot (e.g. "zip", "swift").
+func (e *UploadElement) Extension() string {
+	var ext string
+	if e.extOverwrite != "" {
+		ext = e.extOverwrite
+	} else {
+		extensions, err := mime.ExtensionsByType(e.MimeType)
+		if err != nil || len(extensions) == 0 || extensions[0] == "" {
+			return "zip"
+		}
+		ext = extensions[0]
+	}
+	if ext != "" && ext[0] == '.' {
+		return ext[1:]
+	}
+	return ext
+}
+
+func (e *UploadElement) FilenameWithoutExtension() string {
+	if len(e.filenameOverwrite) > 0 {
+		return e.filenameOverwrite
+	}
+	return fmt.Sprintf("%s.%s-%s", e.Scope, e.Name, e.Version)
 }
 
 func NewRelease(url string) *Release {
 	return &Release{Url: url}
-}
-
-type ListRelease struct {
-	Releases map[string]Release `json:"releases"`
 }
 
 func NewListRelease(releases map[string]Release) *ListRelease {

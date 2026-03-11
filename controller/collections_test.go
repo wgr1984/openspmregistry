@@ -1,6 +1,7 @@
 package controller
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"net/http"
@@ -12,6 +13,18 @@ import (
 	"OpenSPMRegistry/models"
 	"OpenSPMRegistry/responses"
 )
+
+type collectionTestRepo struct {
+	MockRepo
+	listAll        []models.ListElement
+	listInScope    []models.ListElement
+	listAllErr     error
+	listInScopeErr error
+	packageJson    map[string]any
+	metadata       map[string]any
+	swiftVersion   string
+	publishDate    time.Time
+}
 
 func Test_GlobalCollectionAction_CollectionsDisabled_ReturnsNotFound(t *testing.T) {
 	c := &Controller{
@@ -197,18 +210,6 @@ func Test_ScopeCollectionAction_ReturnsScopeCollection(t *testing.T) {
 	}
 }
 
-type collectionTestRepo struct {
-	MockRepo
-	listAll        []models.ListElement
-	listInScope    []models.ListElement
-	listAllErr     error
-	listInScopeErr error
-	packageJson    map[string]any
-	metadata       map[string]any
-	swiftVersion   string
-	publishDate    time.Time
-}
-
 func newCollectionTestRepo(elements []models.ListElement) *collectionTestRepo {
 	pkgName := "pkg"
 	if len(elements) > 0 {
@@ -248,14 +249,14 @@ func newCollectionTestRepo(elements []models.ListElement) *collectionTestRepo {
 	}
 }
 
-func (r *collectionTestRepo) ListAll() ([]models.ListElement, error) {
+func (r *collectionTestRepo) ListAll(ctx context.Context) ([]models.ListElement, error) {
 	if r.listAllErr != nil {
 		return nil, r.listAllErr
 	}
 	return r.listAll, nil
 }
 
-func (r *collectionTestRepo) ListInScope(scope string) ([]models.ListElement, error) {
+func (r *collectionTestRepo) ListInScope(ctx context.Context, scope string) ([]models.ListElement, error) {
 	if r.listInScopeErr != nil {
 		return nil, r.listInScopeErr
 	}
@@ -271,21 +272,21 @@ func (r *collectionTestRepo) ListInScope(scope string) ([]models.ListElement, er
 	return filtered, nil
 }
 
-func (r *collectionTestRepo) LoadPackageJson(scope string, name string, version string) (map[string]any, error) {
+func (r *collectionTestRepo) LoadPackageJson(ctx context.Context, scope string, name string, version string) (map[string]any, error) {
 	return r.packageJson, nil
 }
 
-func (r *collectionTestRepo) LoadMetadata(scope string, name string, version string) (map[string]any, error) {
+func (r *collectionTestRepo) LoadMetadata(ctx context.Context, scope string, name string, version string) (map[string]any, error) {
 	return r.metadata, nil
 }
 
-func (r *collectionTestRepo) GetSwiftToolVersion(manifest *models.UploadElement) (string, error) {
+func (r *collectionTestRepo) GetSwiftToolVersion(ctx context.Context, manifest *models.UploadElement) (string, error) {
 	if r.swiftVersion == "" {
 		return "5.10", nil
 	}
 	return r.swiftVersion, nil
 }
 
-func (r *collectionTestRepo) PublishDate(element *models.UploadElement) (time.Time, error) {
+func (r *collectionTestRepo) PublishDate(ctx context.Context, element *models.UploadElement) (time.Time, error) {
 	return r.publishDate, nil
 }

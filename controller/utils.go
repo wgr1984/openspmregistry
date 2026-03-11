@@ -1,6 +1,7 @@
 package controller
 
 import (
+	"OpenSPMRegistry/config"
 	"OpenSPMRegistry/models"
 	"OpenSPMRegistry/responses"
 	"OpenSPMRegistry/utils"
@@ -19,6 +20,10 @@ type HeaderError struct {
 	errorMessage   string
 	httpStatusCode int
 }
+
+const acceptHeaderPrefix = "application/vnd.swift.registry.v"
+
+var supportedMediaType = []string{"json", "swift", "zip"}
 
 func NewHeaderError(errorMessage string) *HeaderError {
 	return &HeaderError{errorMessage: errorMessage, httpStatusCode: http.StatusBadRequest}
@@ -40,10 +45,6 @@ func (e *HeaderError) writeResponse(w http.ResponseWriter) {
 		slog.Error("Error writing response:", "error", err)
 	}
 }
-
-const acceptHeaderPrefix = "application/vnd.swift.registry.v"
-
-var supportedMediaType = []string{"json", "swift", "zip"}
 
 // checkHeaders checks headers according to spec:
 // https://github.com/swiftlang/swift-package-manager/blob/main/Documentation/PackageRegistry/Registry.md#35-api-versioning
@@ -103,15 +104,17 @@ func checkHeadersEnforce(r *http.Request, enforceMediaType string) *HeaderError 
 	}
 }
 
-func listElements(w http.ResponseWriter, c *Controller, scope string, packageName string) ([]models.ListElement, error) {
-	elements, err := c.repo.List(scope, packageName)
+func listElements(r *http.Request, w http.ResponseWriter, c *Controller, scope string, packageName string) ([]models.ListElement, error) {
+	ctx := requestContext(r)
+	elements, err := c.repo.List(ctx, scope, packageName)
 	if err != nil {
 		writeError(fmt.Sprintf("error listing package %s.%s", scope, packageName), w)
 		return nil, err
 	}
-	if elements == nil {
+	// Spec 4.1: "Otherwise, a server SHOULD respond with 404 (Not Found)" when package has no releases
+	if len(elements) == 0 {
 		writeErrorWithStatusCode(fmt.Sprintf("error package %s.%s was not found", scope, packageName), w, http.StatusNotFound)
-		return make([]models.ListElement, 0), nil
+		return nil, fmt.Errorf("package %s.%s not found", scope, packageName)
 	}
 
 	slices.SortFunc(elements, func(a models.ListElement, b models.ListElement) int {
@@ -208,6 +211,19 @@ func writeErrorWithStatusCode(msg string, w http.ResponseWriter, status int) {
 	}
 }
 
+// requestContext creates a context from the HTTP request, adding Authorization header if present
+// This enables passthrough authentication mode for Maven repositories
+func requestContext(r *http.Request) context.Context {
+	ctx := r.Context()
+
+	// Extract Authorization header and add to context for passthrough mode
+	if authHeader := r.Header.Get("Authorization"); authHeader != "" {
+		ctx = context.WithValue(ctx, config.AuthHeaderContextKey, authHeader)
+	}
+
+	return ctx
+}
+
 func printCallInfo(methodName string, r *http.Request) {
 	if slog.Default().Enabled(context.TODO(), slog.LevelDebug) {
 		slog.Info(fmt.Sprintf("%s Request:", methodName))
@@ -226,7 +242,16 @@ func printCallInfo(methodName string, r *http.Request) {
 				}
 			}
 		}
-		slog.Info("URL", "url", r.RequestURI)
+		logURI := r.RequestURI
+		if idx := strings.Index(logURI, "auth="); idx >= 0 {
+			end := strings.Index(logURI[idx:], "&")
+			if end < 0 {
+				logURI = logURI[:idx+5] + "***"
+			} else {
+				logURI = logURI[:idx+5] + "***" + logURI[idx+end:]
+			}
+		}
+		slog.Info("URL", "url", logURI)
 		slog.Info("Method", "method", r.Method)
 	}
 }

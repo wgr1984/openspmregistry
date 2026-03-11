@@ -3,28 +3,29 @@ package files
 import (
 	"OpenSPMRegistry/mimetypes"
 	"OpenSPMRegistry/models"
+	"context"
 	"errors"
 	"os"
 	"path/filepath"
 	"testing"
 )
 
-var fakeError = errors.New("fake_error")
-
 type fakeOsModule_mkDirAllError struct {
 	osAdapterDefault
-}
-
-func (m *fakeOsModule_mkDirAllError) MkdirAll(path string, perm os.FileMode) error {
-	return fakeError
 }
 
 type fakeOsModule_openError struct {
 	osAdapterDefault
 }
 
+var errFake = errors.New("fake_error")
+
+func (m *fakeOsModule_mkDirAllError) MkdirAll(path string, perm os.FileMode) error {
+	return errFake
+}
+
 func (m *fakeOsModule_openError) Open(name string) (*os.File, error) {
-	return nil, fakeError
+	return nil, errFake
 }
 
 func teardown(t *testing.T) {
@@ -44,7 +45,7 @@ func Test_Exists_FileDoesNotExist_ReturnsFalse(t *testing.T) {
 		Version: "1.0.0",
 	}
 
-	exists := fileRepo.Exists(element)
+	exists := fileRepo.Exists(context.Background(), element)
 	if exists {
 		t.Errorf("expected false, got true")
 	}
@@ -61,14 +62,16 @@ func Test_Exists_FileExists_ReturnsTrue(t *testing.T) {
 	}
 
 	path := filepath.Join("/tmp/openspmsreg_tests", element.Scope, element.Name, element.Version, element.FileName())
-	os.MkdirAll(filepath.Dir(path), os.ModePerm)
+	if err := os.MkdirAll(filepath.Dir(path), os.ModePerm); err != nil {
+		t.Fatalf("failed to create dir: %v", err)
+	}
 	file, err := os.Create(path)
 	if err != nil {
 		t.Fatalf("failed to create file: %v", err)
 	}
-	file.Close()
+	_ = file.Close()
 
-	exists := fileRepo.Exists(element)
+	exists := fileRepo.Exists(context.Background(), element)
 	if !exists {
 		t.Errorf("expected true, got false")
 	}
@@ -92,21 +95,23 @@ func Test_GetReader_FileExists_ReturnsReader(t *testing.T) {
 	)
 
 	path := filepath.Join("/tmp/openspmsreg_tests", element.Scope, element.Name, element.Version, element.FileName())
-	os.MkdirAll(filepath.Dir(path), os.ModePerm)
+	if err := os.MkdirAll(filepath.Dir(path), os.ModePerm); err != nil {
+		t.Fatalf("failed to create dir: %v", err)
+	}
 	file, err := os.Create(path)
 	if err != nil {
 		t.Fatalf("failed to create file: %v", err)
 	}
-	file.Close()
+	_ = file.Close()
 
-	reader, err := fileRepo.GetReader(element)
+	reader, err := fileRepo.GetReader(context.Background(), element)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 	if reader == nil {
 		t.Errorf("expected reader, got nil")
 	}
-	reader.Close()
+	_ = reader.Close()
 }
 
 func Test_GetReader_FileDoesNotExist_ReturnsError(t *testing.T) {
@@ -123,7 +128,7 @@ func Test_GetReader_FileDoesNotExist_ReturnsError(t *testing.T) {
 	)
 	element.SetFilenameOverwrite("nonExistentFile.txt")
 
-	reader, err := fileRepo.GetReader(element)
+	reader, err := fileRepo.GetReader(context.Background(), element)
 	if err == nil {
 		t.Errorf("expected error, got nil")
 	}
@@ -144,7 +149,7 @@ func Test_GetReader_InvalidPath_ReturnsError(t *testing.T) {
 		models.Manifest,
 	).SetFilenameOverwrite("nonExistentFile.txt")
 
-	_, err := fileRepo.GetReader(element)
+	_, err := fileRepo.GetReader(context.Background(), element)
 	if err == nil {
 		t.Errorf("expected error, got nil")
 	}
@@ -163,17 +168,19 @@ func Test_GetReader_FileReadError_ReturnsError(t *testing.T) {
 	)
 
 	path := filepath.Join("/tmp/openspmsreg_tests", element.Scope, element.Name, element.Version, element.FileName())
-	os.MkdirAll(filepath.Dir(path), os.ModePerm)
+	if err := os.MkdirAll(filepath.Dir(path), os.ModePerm); err != nil {
+		t.Fatalf("failed to create dir: %v", err)
+	}
 	file, err := os.Create(path)
 	if err != nil {
 		t.Fatalf("failed to create file: %v", err)
 	}
-	file.Close()
+	_ = file.Close()
 
 	// Simulate read error by removing the file
-	os.Remove(path)
+	_ = os.Remove(path)
 
-	_, err = fileRepo.GetReader(element)
+	_, err = fileRepo.GetReader(context.Background(), element)
 	if err == nil {
 		t.Errorf("expected error, got nil")
 	}
@@ -189,17 +196,19 @@ func Test_GetWriter_ValidElement_ReturnsWriter(t *testing.T) {
 		Version: "1.0.0",
 	}
 
-	writer, err := fileRepo.GetWriter(element)
+	writer, err := fileRepo.GetWriter(context.Background(), element)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 	if writer == nil {
 		t.Errorf("expected writer, got nil")
 	}
-	writer.Close()
+	_ = writer.Close()
 
 	// delete the file
-	fileRepo.Remove(element)
+	if err := fileRepo.Remove(context.Background(), element); err != nil {
+		t.Fatalf("failed to remove: %v", err)
+	}
 }
 
 func Test_GetWriter_InvalidPath_ReturnsError(t *testing.T) {
@@ -228,7 +237,7 @@ func Test_GetWriter_InvalidPath_ReturnsError(t *testing.T) {
 		t.Fatalf("failed to change directory permissions: %v", err)
 	}
 
-	_, err = fileRepo.GetWriter(element)
+	_, err = fileRepo.GetWriter(context.Background(), element)
 	if err == nil {
 		t.Errorf("expected error, got nil")
 	}
@@ -255,8 +264,8 @@ func Test_GetWriter_GetWriterError_ReturnsError(t *testing.T) {
 		t.Fatalf("failed to create directory: %v", err)
 	}
 
-	_, err = fileRepo.GetWriter(element)
-	if err == nil || !errors.Is(err, fakeError) {
+	_, err = fileRepo.GetWriter(context.Background(), element)
+	if err == nil || !errors.Is(err, errFake) {
 		t.Errorf("expected error, got nil")
 	}
 }
@@ -283,7 +292,7 @@ func Test_GetWriter_MkdirAllError_ReturnsError(t *testing.T) {
 		"application/zip",
 	)
 
-	_, err := fileRepo.GetWriter(element)
+	_, err := fileRepo.GetWriter(context.Background(), element)
 	if err == nil {
 		t.Errorf("expected error, got nil")
 	}
@@ -321,11 +330,11 @@ func Test_GetReader_OpenError_ReturnsError(t *testing.T) {
 		t.Fatalf("failed to create file: %v", err)
 	}
 
-	_, err = fileRepo.GetReader(element)
+	_, err = fileRepo.GetReader(context.Background(), element)
 	if err == nil {
 		t.Errorf("expected error, got nil")
 	}
-	if !errors.Is(err, fakeError) {
+	if !errors.Is(err, errFake) {
 		t.Errorf("expected error, got %v", err)
 	}
 }

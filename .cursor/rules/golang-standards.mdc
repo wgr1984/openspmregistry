@@ -64,6 +64,10 @@ actions:
          - Use testing/quick for property testing
          - Use go test -race for race detection
 
+      6. Linting:
+         - Run project lint before committing or after any change: make lint
+         - Lint runs staticcheck, golangci-lint, and errcheck (see Makefile)
+
 examples:
   - input: |
       # Bad: Using external HTTP library

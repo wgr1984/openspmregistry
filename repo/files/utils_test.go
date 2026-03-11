@@ -24,21 +24,25 @@ func Test_ExtractPackageSwiftFiles_ValidZip_ExtractsFiles(t *testing.T) {
 	)
 
 	path := filepath.Join("/tmp/openspmsreg_tests", element.Scope, element.Name, element.Version, element.FileName())
-	os.MkdirAll(filepath.Dir(path), os.ModePerm)
+	if err := os.MkdirAll(filepath.Dir(path), os.ModePerm); err != nil {
+		t.Fatalf("failed to create dir: %v", err)
+	}
 	file, err := os.Create(path)
 	if err != nil {
 		t.Fatalf("failed to create file: %v", err)
 	}
-	defer file.Close()
+	defer func() { _ = file.Close() }()
 
 	zipWriter := zip.NewWriter(file)
-	defer zipWriter.Close()
+	defer func() { _ = zipWriter.Close() }()
 
 	fileWriter, err := zipWriter.Create("Package.swift")
 	if err != nil {
 		t.Fatalf("failed to create zip entry: %v", err)
 	}
-	fileWriter.Write([]byte("swift package content"))
+	if _, err := fileWriter.Write([]byte("swift package content")); err != nil {
+		t.Fatalf("failed to write: %v", err)
+	}
 
 	err = zipWriter.Close()
 	if err != nil {
@@ -68,14 +72,18 @@ func Test_ExtractPackageSwiftFiles_InvalidZip_ReturnsError(t *testing.T) {
 	)
 
 	path := filepath.Join("/tmp/openspmsreg_tests", element.Scope, element.Name, element.Version, element.FileName())
-	os.MkdirAll(filepath.Dir(path), os.ModePerm)
+	if err := os.MkdirAll(filepath.Dir(path), os.ModePerm); err != nil {
+		t.Fatalf("failed to create dir: %v", err)
+	}
 	file, err := os.Create(path)
 	if err != nil {
 		t.Fatalf("failed to create file: %v", err)
 	}
-	defer file.Close()
+	defer func() { _ = file.Close() }()
 
-	file.WriteString("invalid zip content")
+	if _, err := file.WriteString("invalid zip content"); err != nil {
+		t.Fatalf("failed to write: %v", err)
+	}
 
 	err = ExtractPackageSwiftFiles(element, path, func(name string, r io.ReadCloser) error {
 		return nil
@@ -97,21 +105,25 @@ func Test_ExtractPackageSwiftFiles_NoPackageSwiftFiles_NoError(t *testing.T) {
 	)
 
 	path := filepath.Join("/tmp/openspmsreg_tests", element.Scope, element.Name, element.Version, element.FileName())
-	os.MkdirAll(filepath.Dir(path), os.ModePerm)
+	if err := os.MkdirAll(filepath.Dir(path), os.ModePerm); err != nil {
+		t.Fatalf("failed to create dir: %v", err)
+	}
 	file, err := os.Create(path)
 	if err != nil {
 		t.Fatalf("failed to create file: %v", err)
 	}
-	defer file.Close()
+	defer func() { _ = file.Close() }()
 
 	zipWriter := zip.NewWriter(file)
-	defer zipWriter.Close()
+	defer func() { _ = zipWriter.Close() }()
 
 	fileWriter, err := zipWriter.Create("NotPackage.swift")
 	if err != nil {
 		t.Fatalf("failed to create zip entry: %v", err)
 	}
-	fileWriter.Write([]byte("not a package swift content"))
+	if _, err := fileWriter.Write([]byte("not a package swift content")); err != nil {
+		t.Fatalf("failed to write: %v", err)
+	}
 
 	err = zipWriter.Close()
 	if err != nil {
@@ -138,21 +150,25 @@ func Test_ExtractPackageSwiftFiles_ReadError_ReturnsError(t *testing.T) {
 	)
 
 	path := filepath.Join("/tmp/openspmsreg_tests", element.Scope, element.Name, element.Version, element.FileName())
-	os.MkdirAll(filepath.Dir(path), os.ModePerm)
+	if err := os.MkdirAll(filepath.Dir(path), os.ModePerm); err != nil {
+		t.Fatalf("failed to create dir: %v", err)
+	}
 	file, err := os.Create(path)
 	if err != nil {
 		t.Fatalf("failed to create file: %v", err)
 	}
-	defer file.Close()
+	defer func() { _ = file.Close() }()
 
 	zipWriter := zip.NewWriter(file)
-	defer zipWriter.Close()
+	defer func() { _ = zipWriter.Close() }()
 
 	fileWriter, err := zipWriter.Create("testScope.testName/Package.swift")
 	if err != nil {
 		t.Fatalf("failed to create zip entry: %v", err)
 	}
-	fileWriter.Write([]byte("swift package content"))
+	if _, err := fileWriter.Write([]byte("swift package content")); err != nil {
+		t.Fatalf("failed to write: %v", err)
+	}
 
 	err = zipWriter.Close()
 	if err != nil {
@@ -190,7 +206,7 @@ func Test_ExtractPackageSwiftFiles_AllowsSingleTopLevelDirectory(t *testing.T) {
 	if err != nil {
 		t.Fatalf("failed to create file: %v", err)
 	}
-	defer file.Close()
+	defer func() { _ = file.Close() }()
 
 	zipWriter := zip.NewWriter(file)
 

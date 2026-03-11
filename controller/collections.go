@@ -19,8 +19,9 @@ func (c *Controller) GlobalCollectionAction(w http.ResponseWriter, r *http.Reque
 		return
 	}
 
+	ctx := requestContext(r)
 	// Get all packages
-	packages, err := c.repo.ListAll()
+	packages, err := c.repo.ListAll(ctx)
 	if err != nil {
 		slog.Error("Error listing all packages", "error", err)
 		writeErrorWithStatusCode("Error generating collection", w, http.StatusInternalServerError)
@@ -28,7 +29,7 @@ func (c *Controller) GlobalCollectionAction(w http.ResponseWriter, r *http.Reque
 	}
 
 	// Generate collection
-	collection, err := repo.GenerateCollection(c.repo, "", packages, c.config.Hostname)
+	collection, err := repo.GenerateCollection(ctx, c.repo, "", packages, c.config.Hostname)
 	if err != nil {
 		slog.Error("Error generating collection", "error", err)
 		writeErrorWithStatusCode("Error generating collection", w, http.StatusInternalServerError)
@@ -64,6 +65,7 @@ func (c *Controller) ScopeCollectionAction(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
+	ctx := requestContext(r)
 	// Get scope from path
 	scope := r.PathValue("scope")
 	if scope == "" {
@@ -72,7 +74,7 @@ func (c *Controller) ScopeCollectionAction(w http.ResponseWriter, r *http.Reques
 	}
 
 	// Get packages in scope
-	packages, err := c.repo.ListInScope(scope)
+	packages, err := c.repo.ListInScope(ctx, scope)
 	if err != nil {
 		slog.Error("Error listing packages in scope", "scope", scope, "error", err)
 		writeErrorWithStatusCode("Scope not found", w, http.StatusNotFound)
@@ -85,7 +87,7 @@ func (c *Controller) ScopeCollectionAction(w http.ResponseWriter, r *http.Reques
 	}
 
 	// Generate collection
-	collection, err := repo.GenerateCollection(c.repo, scope, packages, c.config.Hostname)
+	collection, err := repo.GenerateCollection(ctx, c.repo, scope, packages, c.config.Hostname)
 	if err != nil {
 		slog.Error("Error generating collection", "scope", scope, "error", err)
 		writeErrorWithStatusCode("Error generating collection", w, http.StatusInternalServerError)

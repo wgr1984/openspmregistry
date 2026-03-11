@@ -17,13 +17,17 @@ import (
 	"golang.org/x/oauth2"
 )
 
+type mockRandomStringGenerator struct {
+	generateFunc func(length int) (string, error)
+}
+
 func Test_AuthCodeURL_GeneratesCorrectURL(t *testing.T) {
 	ctx := context.Background()
 
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path == "/.well-known/openid-configuration" {
 			w.Header().Set("Content-Type", "application/json")
-			w.Write([]byte(`{
+			_, _ = w.Write([]byte(`{
 					"issuer": "http://` + r.Host + `",
 					"authorization_endpoint": "http://` + r.Host + `/auth",
 					"token_endpoint": "http://` + r.Host + `/token",
@@ -31,7 +35,7 @@ func Test_AuthCodeURL_GeneratesCorrectURL(t *testing.T) {
 				}`))
 		} else if r.URL.Path == "/keys" {
 			w.Header().Set("Content-Type", "application/json")
-			w.Write([]byte(`{
+			_, _ = w.Write([]byte(`{
 					"keys": [
 						{
 							"kty": "RSA",
@@ -84,7 +88,7 @@ func Test_Callback_InvalidState_ReturnsUnauthorized(t *testing.T) {
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path == "/.well-known/openid-configuration" {
 			w.Header().Set("Content-Type", "application/json")
-			w.Write([]byte(`{
+			_, _ = w.Write([]byte(`{
 				"issuer": "http://example.com",
 				"authorization_endpoint": "/auth",
 				"token_endpoint": "/token",
@@ -129,7 +133,7 @@ func Test_Callback_ValidStateAndCode_ReturnsToken(t *testing.T) {
 		switch r.URL.Path {
 		case "/.well-known/openid-configuration":
 			w.Header().Set("Content-Type", "application/json")
-			w.Write([]byte(`{
+			_, _ = w.Write([]byte(`{
 				"issuer": "http://` + r.Host + `",
 				"authorization_endpoint": "http://` + r.Host + `/auth", 
 				"token_endpoint": "http://` + r.Host + `/token",
@@ -137,7 +141,7 @@ func Test_Callback_ValidStateAndCode_ReturnsToken(t *testing.T) {
 			}`))
 		case "/token":
 			w.Header().Set("Content-Type", "application/json")
-			w.Write([]byte(`{
+			_, _ = w.Write([]byte(`{
 				"access_token": "access-token",
 				"token_type": "Bearer",
 				"id_token": "id-token"
@@ -181,7 +185,7 @@ func Test_Login_RedirectsToAuthURL(t *testing.T) {
 		switch r.URL.Path {
 		case "/.well-known/openid-configuration":
 			w.Header().Set("Content-Type", "application/json")
-			w.Write([]byte(`{
+			_, _ = w.Write([]byte(`{
 				"issuer": "http://` + r.Host + `",
 				"authorization_endpoint": "http://` + r.Host + `/auth",
 				"token_endpoint": "http://` + r.Host + `/token",
@@ -225,7 +229,7 @@ func Test_Login_RedirectsToAuthURL_NotToSelf(t *testing.T) {
 		switch r.URL.Path {
 		case "/.well-known/openid-configuration":
 			w.Header().Set("Content-Type", "application/json")
-			w.Write([]byte(`{
+			_, _ = w.Write([]byte(`{
 				"issuer": "http://` + r.Host + `",
 				"authorization_endpoint": "http://` + r.Host + `/auth",
 				"token_endpoint": "http://` + r.Host + `/token",
@@ -265,7 +269,7 @@ func Test_setCallbackCookie_SetsCorrectCookie(t *testing.T) {
 	req := httptest.NewRequest("GET", "/", nil)
 	w := httptest.NewRecorder()
 
-	setCallbackCookie(w, req, "testname", "testvalue")
+	setCallbackCookie(req, w, "testname", "testvalue")
 	cookie := w.Result().Cookies()[0]
 
 	if cookie.Name != "testname" {
@@ -293,7 +297,7 @@ func Test_setCallbackCookie_WithTLS_SetsCookieSecure(t *testing.T) {
 	req.TLS = &tls.ConnectionState{} // Simulate TLS connection
 	w := httptest.NewRecorder()
 
-	setCallbackCookie(w, req, "testname", "testvalue")
+	setCallbackCookie(req, w, "testname", "testvalue")
 	cookie := w.Result().Cookies()[0]
 
 	if !cookie.Secure {
@@ -305,8 +309,8 @@ func Test_setCallbackCookie_MultipleCookies(t *testing.T) {
 	req := httptest.NewRequest("GET", "/", nil)
 	w := httptest.NewRecorder()
 
-	setCallbackCookie(w, req, "cookie1", "value1")
-	setCallbackCookie(w, req, "cookie2", "value2")
+	setCallbackCookie(req, w, "cookie1", "value1")
+	setCallbackCookie(req, w, "cookie2", "value2")
 
 	cookies := w.Result().Cookies()
 
@@ -355,7 +359,7 @@ func Test_setCallbackCookie_InvalidValues(t *testing.T) {
 			req := httptest.NewRequest("GET", "/", nil)
 			w := httptest.NewRecorder()
 
-			setCallbackCookie(w, req, "testname", tt.cookieVal)
+			setCallbackCookie(req, w, "testname", tt.cookieVal)
 			cookies := w.Result().Cookies()
 
 			if len(cookies) != 1 {
@@ -408,7 +412,7 @@ func Test_Callback_MissingStateCookie_ReturnsUnauthorized(t *testing.T) {
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path == "/.well-known/openid-configuration" {
 			w.Header().Set("Content-Type", "application/json")
-			w.Write([]byte(`{
+			_, _ = w.Write([]byte(`{
 				"issuer": "http://` + r.Host + `",
 				"authorization_endpoint": "http://` + r.Host + `/auth",
 				"token_endpoint": "http://` + r.Host + `/token",
@@ -448,7 +452,7 @@ func Test_Callback_MissingStateParam_ReturnsUnauthorized(t *testing.T) {
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path == "/.well-known/openid-configuration" {
 			w.Header().Set("Content-Type", "application/json")
-			w.Write([]byte(`{
+			_, _ = w.Write([]byte(`{
 				"issuer": "http://` + r.Host + `",
 				"authorization_endpoint": "http://` + r.Host + `/auth",
 				"token_endpoint": "http://` + r.Host + `/token",
@@ -488,7 +492,7 @@ func Test_Callback_MissingCode_ReturnsUnauthorized(t *testing.T) {
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path == "/.well-known/openid-configuration" {
 			w.Header().Set("Content-Type", "application/json")
-			w.Write([]byte(`{
+			_, _ = w.Write([]byte(`{
 				"issuer": "http://` + r.Host + `",
 				"authorization_endpoint": "http://` + r.Host + `/auth",
 				"token_endpoint": "http://` + r.Host + `/token",
@@ -529,7 +533,7 @@ func Test_Callback_TokenExchangeError_ReturnsUnauthorized(t *testing.T) {
 		switch r.URL.Path {
 		case "/.well-known/openid-configuration":
 			w.Header().Set("Content-Type", "application/json")
-			w.Write([]byte(`{
+			_, _ = w.Write([]byte(`{
 				"issuer": "http://` + r.Host + `",
 				"authorization_endpoint": "http://` + r.Host + `/auth",
 				"token_endpoint": "http://` + r.Host + `/token",
@@ -538,7 +542,7 @@ func Test_Callback_TokenExchangeError_ReturnsUnauthorized(t *testing.T) {
 		case "/token":
 			// Simulate token exchange error
 			w.WriteHeader(http.StatusBadRequest)
-			w.Write([]byte(`{"error": "invalid_grant"}`))
+			_, _ = w.Write([]byte(`{"error": "invalid_grant"}`))
 		}
 	}))
 	defer mockServer.Close()
@@ -574,7 +578,7 @@ func Test_Callback_MissingIdToken_ReturnsUnauthorized(t *testing.T) {
 		switch r.URL.Path {
 		case "/.well-known/openid-configuration":
 			w.Header().Set("Content-Type", "application/json")
-			w.Write([]byte(`{
+			_, _ = w.Write([]byte(`{
 				"issuer": "http://` + r.Host + `",
 				"authorization_endpoint": "http://` + r.Host + `/auth",
 				"token_endpoint": "http://` + r.Host + `/token",
@@ -583,7 +587,7 @@ func Test_Callback_MissingIdToken_ReturnsUnauthorized(t *testing.T) {
 		case "/token":
 			// Return token response without id_token
 			w.Header().Set("Content-Type", "application/json")
-			w.Write([]byte(`{
+			_, _ = w.Write([]byte(`{
 				"access_token": "access-token",
 				"token_type": "Bearer"
 			}`))
@@ -621,7 +625,7 @@ func Test_Login_WithTLS_SetsCookiesSecure(t *testing.T) {
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path == "/.well-known/openid-configuration" {
 			w.Header().Set("Content-Type", "application/json")
-			w.Write([]byte(`{
+			_, _ = w.Write([]byte(`{
 				"issuer": "http://` + r.Host + `",
 				"authorization_endpoint": "http://` + r.Host + `/auth",
 				"token_endpoint": "http://` + r.Host + `/token",
@@ -661,7 +665,7 @@ func Test_Login_WithExistingAuthHeader_ReturnsEarly(t *testing.T) {
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path == "/.well-known/openid-configuration" {
 			w.Header().Set("Content-Type", "application/json")
-			w.Write([]byte(`{
+			_, _ = w.Write([]byte(`{
 				"issuer": "http://` + r.Host + `",
 				"authorization_endpoint": "http://` + r.Host + `/auth",
 				"token_endpoint": "http://` + r.Host + `/token",
@@ -705,7 +709,7 @@ func Test_Login_WithNilTemplate_HandlesError(t *testing.T) {
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path == "/.well-known/openid-configuration" {
 			w.Header().Set("Content-Type", "application/json")
-			w.Write([]byte(`{
+			_, _ = w.Write([]byte(`{
 				"issuer": "http://` + r.Host + `",
 				"authorization_endpoint": "http://` + r.Host + `/auth",
 				"token_endpoint": "http://` + r.Host + `/token",
@@ -745,7 +749,7 @@ func Test_Login_RandomStateError_ReturnsUnauthorized(t *testing.T) {
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path == "/.well-known/openid-configuration" {
 			w.Header().Set("Content-Type", "application/json")
-			w.Write([]byte(`{
+			_, _ = w.Write([]byte(`{
 				"issuer": "http://` + r.Host + `",
 				"authorization_endpoint": "http://` + r.Host + `/auth",
 				"token_endpoint": "http://` + r.Host + `/token",
@@ -791,7 +795,7 @@ func Test_Login_RandomNonceError_ReturnsUnauthorized(t *testing.T) {
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path == "/.well-known/openid-configuration" {
 			w.Header().Set("Content-Type", "application/json")
-			w.Write([]byte(`{
+			_, _ = w.Write([]byte(`{
 				"issuer": "http://` + r.Host + `",
 				"authorization_endpoint": "http://` + r.Host + `/auth",
 				"token_endpoint": "http://` + r.Host + `/token",
@@ -837,12 +841,6 @@ func Test_Login_RandomNonceError_ReturnsUnauthorized(t *testing.T) {
 	if !strings.Contains(w.Body.String(), "Authentication failed: simulated nonce generation error") {
 		t.Errorf("expected error message about nonce generation, got %s", w.Body.String())
 	}
-}
-
-// Mock types and implementations
-
-type mockRandomStringGenerator struct {
-	generateFunc func(length int) (string, error)
 }
 
 func (m *mockRandomStringGenerator) RandomString(length int) (string, error) {

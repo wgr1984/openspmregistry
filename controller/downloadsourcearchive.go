@@ -23,9 +23,10 @@ func (c *Controller) DownloadSourceArchiveAction(w http.ResponseWriter, r *http.
 	versionRaw := r.PathValue("version")
 	version := strings.TrimSuffix(versionRaw, filepath.Ext(versionRaw))
 
+	ctx := requestContext(r)
 	element := models.NewUploadElement(scope, packageName, version, mimetypes.ApplicationZip, models.SourceArchive)
 
-	if !c.repo.Exists(element) {
+	if !c.repo.Exists(ctx, element) {
 		writeErrorWithStatusCode(fmt.Sprintf("source archive %s does not exist", element.FileName()), w, http.StatusNotFound)
 		return
 	}
@@ -35,7 +36,7 @@ func (c *Controller) DownloadSourceArchiveAction(w http.ResponseWriter, r *http.
 	header.Set("Content-Disposition", fmt.Sprintf("attachment; filename=\"%s\"", element.FileName()))
 	header.Set("Content-Version", "1")
 	header.Set("Cache-Control", "public, immutable")
-	checksum, err := c.repo.Checksum(element)
+	checksum, err := c.repo.Checksum(ctx, element)
 	if err != nil {
 		slog.Error("Error calculating checksum:", "error", err)
 	} else {
@@ -43,8 +44,8 @@ func (c *Controller) DownloadSourceArchiveAction(w http.ResponseWriter, r *http.
 	}
 
 	signatureElement := models.NewUploadElement(scope, packageName, version, mimetypes.ApplicationOctetStream, models.SourceArchiveSignature)
-	if c.repo.Exists(signatureElement) {
-		signature, err := c.repo.EncodeBase64(signatureElement)
+	if c.repo.Exists(ctx, signatureElement) {
+		signature, err := c.repo.EncodeBase64(ctx, signatureElement)
 		if err != nil {
 			slog.Info("Signature not found:")
 		} else {
@@ -55,7 +56,7 @@ func (c *Controller) DownloadSourceArchiveAction(w http.ResponseWriter, r *http.
 
 	header.Set("Accept-Ranges", "bytes")
 
-	reader, err := c.repo.GetReader(element)
+	reader, err := c.repo.GetReader(ctx, element)
 	if err != nil {
 		writeError(fmt.Sprintf("error reading source archive %s", element.FileName()), w)
 		return // error already logged

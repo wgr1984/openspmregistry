@@ -1,0 +1,25 @@
+# E2E test config (HTTP). For HTTPS: E2E_REGISTRY_URL=https://127.0.0.1:8082 make test-e2e-swift
+# Nexus must be running (make test-integration-up).
+server:
+  hostname: 127.0.0.1
+  port: 8082
+  listPageSize: 1  # E2E: paginate with 1 per page to test Link headers (first, prev, next, last)
+  tlsEnabled: false
+  certs:
+    cert: server.crt
+    key: server.key
+  repo:
+    type: maven
+    maven:
+      baseURL: http://localhost:8081/repository/private
+      authMode: config
+      username: admin
+      password: admin123
+      timeout: 30
+  publish:
+    maxSize: 204800
+  auth:
+    enabled: false
+  packageCollections:
+    enabled: true
+    requirePackageJson: false

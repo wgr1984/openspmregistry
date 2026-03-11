@@ -1,0 +1,516 @@
+package maven
+
+import (
+	"OpenSPMRegistry/config"
+	"context"
+	"encoding/base64"
+	"net/http"
+	"net/http/httptest"
+	"strings"
+	"testing"
+	"time"
+)
+
+func Test_newClient_ValidConfig_ReturnsClient(t *testing.T) {
+	cfg := config.MavenConfig{
+		BaseURL: "https://repo.example.com",
+		Timeout: 60,
+	}
+	c, err := newClient(cfg)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if c == nil {
+		t.Errorf("expected client, got nil")
+		return
+	}
+	if c.baseURL != "https://repo.example.com" {
+		t.Errorf("expected baseURL 'https://repo.example.com', got '%s'", c.baseURL)
+	}
+	if c.httpClient.Timeout != 60*time.Second {
+		t.Errorf("expected timeout 60s, got %v", c.httpClient.Timeout)
+	}
+}
+
+func Test_newClient_DefaultTimeout_ReturnsClientWithDefaultTimeout(t *testing.T) {
+	cfg := config.MavenConfig{
+		BaseURL: "https://repo.example.com",
+	}
+	c, err := newClient(cfg)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if c.httpClient.Timeout != 30*time.Second {
+		t.Errorf("expected default timeout 30s, got %v", c.httpClient.Timeout)
+	}
+}
+
+func Test_newClient_BaseURLWithTrailingSlash_TrimsSlash(t *testing.T) {
+	cfg := config.MavenConfig{
+		BaseURL: "https://repo.example.com/",
+	}
+	c, err := newClient(cfg)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if c.baseURL != "https://repo.example.com" {
+		t.Errorf("expected baseURL without trailing slash, got '%s'", c.baseURL)
+	}
+}
+
+func Test_buildBasicAuth_ValidCredentials_ReturnsAuthHeader(t *testing.T) {
+	c := &client{}
+	result := c.buildBasicAuth("user", "pass")
+	expected := "Basic " + base64.StdEncoding.EncodeToString([]byte("user:pass"))
+	if result != expected {
+		t.Errorf("expected '%s', got '%s'", expected, result)
+	}
+}
+
+func Test_getAuthHeader_PassthroughMode_ReturnsContextAuth(t *testing.T) {
+	cfg := config.MavenConfig{AuthMode: "passthrough"}
+	c, _ := newClient(cfg)
+	ctx := context.WithValue(context.Background(), config.AuthHeaderContextKey, "Bearer token123")
+	result := c.getAuthHeader(ctx)
+	if result != "Bearer token123" {
+		t.Errorf("expected 'Bearer token123', got '%s'", result)
+	}
+}
+
+func Test_getAuthHeader_ConfigMode_IgnoresContextAuth(t *testing.T) {
+	cfg := config.MavenConfig{
+		AuthMode: "config",
+		Username: "admin",
+		Password: "admin123",
+	}
+	c, _ := newClient(cfg)
+	ctx := context.WithValue(context.Background(), config.AuthHeaderContextKey, "Basic e2e:dXB3")
+	result := c.getAuthHeader(ctx)
+	expected := "Basic " + base64.StdEncoding.EncodeToString([]byte("admin:admin123"))
+	if result != expected {
+		t.Errorf("expected config auth, got '%s'", result)
+	}
+}
+
+func Test_getAuthHeader_ConfigMode_ReturnsConfigAuth(t *testing.T) {
+	cfg := config.MavenConfig{
+		AuthMode: "config",
+		Username: "user",
+		Password: "pass",
+	}
+	c, _ := newClient(cfg)
+	ctx := context.Background()
+	result := c.getAuthHeader(ctx)
+	expected := "Basic " + base64.StdEncoding.EncodeToString([]byte("user:pass"))
+	if result != expected {
+		t.Errorf("expected '%s', got '%s'", expected, result)
+	}
+}
+
+func Test_getAuthHeader_UsernameWithoutAuthMode_ReturnsConfigAuth(t *testing.T) {
+	cfg := config.MavenConfig{
+		Username: "user",
+		Password: "pass",
+	}
+	c, _ := newClient(cfg)
+	ctx := context.Background()
+	result := c.getAuthHeader(ctx)
+	expected := "Basic " + base64.StdEncoding.EncodeToString([]byte("user:pass"))
+	if result != expected {
+		t.Errorf("expected '%s', got '%s'", expected, result)
+	}
+}
+
+func Test_getAuthHeader_NoAuth_ReturnsEmpty(t *testing.T) {
+	cfg := config.MavenConfig{}
+	c, _ := newClient(cfg)
+	ctx := context.Background()
+	result := c.getAuthHeader(ctx)
+	if result != "" {
+		t.Errorf("expected empty string, got '%s'", result)
+	}
+}
+
+func Test_HEAD_Success_ReturnsResponse(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == "HEAD" {
+			w.Header().Set("Content-Length", "100")
+			w.WriteHeader(http.StatusOK)
+		} else {
+			w.WriteHeader(http.StatusMethodNotAllowed)
+		}
+	}))
+	defer server.Close()
+
+	cfg := config.MavenConfig{BaseURL: server.URL}
+	c, err := newClient(cfg)
+	if err != nil {
+		t.Fatalf("failed to create client: %v", err)
+	}
+
+	resp, err := c.HEAD(context.Background(), "test/path")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	defer func() { _ = resp.Body.Close() }()
+
+	if resp.StatusCode != http.StatusOK {
+		t.Errorf("expected status 200, got %d", resp.StatusCode)
+	}
+}
+
+func Test_GET_Success_ReturnsResponse(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == "GET" {
+			w.WriteHeader(http.StatusOK)
+			_, _ = w.Write([]byte("test data"))
+		} else {
+			w.WriteHeader(http.StatusMethodNotAllowed)
+		}
+	}))
+	defer server.Close()
+
+	cfg := config.MavenConfig{BaseURL: server.URL}
+	c, err := newClient(cfg)
+	if err != nil {
+		t.Fatalf("failed to create client: %v", err)
+	}
+
+	resp, err := c.GET(context.Background(), "test/path")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	defer func() { _ = resp.Body.Close() }()
+
+	if resp.StatusCode != http.StatusOK {
+		t.Errorf("expected status 200, got %d", resp.StatusCode)
+	}
+}
+
+func Test_GET_ErrorStatus_ReturnsError(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusNotFound)
+	}))
+	defer server.Close()
+
+	cfg := config.MavenConfig{BaseURL: server.URL}
+	c, err := newClient(cfg)
+	if err != nil {
+		t.Fatalf("failed to create client: %v", err)
+	}
+
+	_, err = c.GET(context.Background(), "test/path")
+	if err == nil {
+		t.Errorf("expected error for 404, got nil")
+	}
+}
+
+func Test_PUT_Success_ReturnsNoError(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == "PUT" {
+			w.WriteHeader(http.StatusOK)
+		} else {
+			w.WriteHeader(http.StatusMethodNotAllowed)
+		}
+	}))
+	defer server.Close()
+
+	cfg := config.MavenConfig{BaseURL: server.URL}
+	c, err := newClient(cfg)
+	if err != nil {
+		t.Fatalf("failed to create client: %v", err)
+	}
+
+	data := strings.NewReader("test data")
+	err = c.PUT(context.Background(), "test/path", data, "application/zip")
+	if err != nil {
+		t.Errorf("unexpected error: %v", err)
+	}
+}
+
+func Test_PUT_ErrorStatus_ReturnsError(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusForbidden)
+		_, _ = w.Write([]byte("forbidden"))
+	}))
+	defer server.Close()
+
+	cfg := config.MavenConfig{BaseURL: server.URL}
+	c, err := newClient(cfg)
+	if err != nil {
+		t.Fatalf("failed to create client: %v", err)
+	}
+
+	data := strings.NewReader("test data")
+	err = c.PUT(context.Background(), "test/path", data, "application/zip")
+	if err == nil {
+		t.Errorf("expected error for 403, got nil")
+	}
+}
+
+func Test_DELETE_Success_ReturnsNoError(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == "DELETE" {
+			w.WriteHeader(http.StatusOK)
+		} else {
+			w.WriteHeader(http.StatusMethodNotAllowed)
+		}
+	}))
+	defer server.Close()
+
+	cfg := config.MavenConfig{BaseURL: server.URL}
+	c, err := newClient(cfg)
+	if err != nil {
+		t.Fatalf("failed to create client: %v", err)
+	}
+
+	err = c.DELETE(context.Background(), "test/path")
+	if err != nil {
+		t.Errorf("unexpected error: %v", err)
+	}
+}
+
+func Test_DELETE_NotFound_ReturnsNoError(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusNotFound)
+	}))
+	defer server.Close()
+
+	cfg := config.MavenConfig{BaseURL: server.URL}
+	c, err := newClient(cfg)
+	if err != nil {
+		t.Fatalf("failed to create client: %v", err)
+	}
+
+	err = c.DELETE(context.Background(), "test/path")
+	if err != nil {
+		t.Errorf("expected no error for 404, got %v", err)
+	}
+}
+
+func Test_DELETE_ErrorStatus_ReturnsError(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusForbidden)
+	}))
+	defer server.Close()
+
+	cfg := config.MavenConfig{BaseURL: server.URL}
+	c, err := newClient(cfg)
+	if err != nil {
+		t.Fatalf("failed to create client: %v", err)
+	}
+
+	err = c.DELETE(context.Background(), "test/path")
+	if err == nil {
+		t.Errorf("expected error for 403, got nil")
+	}
+}
+
+func Test_makeRequest_WithAuth_IncludesAuthHeader(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		auth := r.Header.Get("Authorization")
+		if auth == "" {
+			w.WriteHeader(http.StatusUnauthorized)
+			return
+		}
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer server.Close()
+
+	cfg := config.MavenConfig{
+		BaseURL:  server.URL,
+		AuthMode: "config",
+		Username: "user",
+		Password: "pass",
+	}
+	c, err := newClient(cfg)
+	if err != nil {
+		t.Fatalf("failed to create client: %v", err)
+	}
+
+	req, err := c.makeRequest(context.Background(), "GET", "test/path", nil)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	auth := req.Header.Get("Authorization")
+	if auth == "" {
+		t.Errorf("expected Authorization header, got empty")
+	}
+	if !strings.HasPrefix(auth, "Basic ") {
+		t.Errorf("expected Basic auth, got '%s'", auth)
+	}
+}
+
+func Test_getSPMRegistryIndex_ValidJSON_ReturnsSortedScopes(t *testing.T) {
+	body := `{"scopes":["z-scope","a-scope","m-scope"]}`
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if strings.HasSuffix(r.URL.Path, "index-1.json") {
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusOK)
+			_, _ = w.Write([]byte(body))
+		} else {
+			w.WriteHeader(http.StatusNotFound)
+		}
+	}))
+	defer server.Close()
+
+	cfg := config.MavenConfig{BaseURL: server.URL}
+	c, err := newClient(cfg)
+	if err != nil {
+		t.Fatalf("failed to create client: %v", err)
+	}
+
+	scopes, err := c.getSPMRegistryIndex(context.Background())
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	expected := []string{"a-scope", "m-scope", "z-scope"}
+	if len(scopes) != len(expected) {
+		t.Errorf("expected %d scopes, got %d: %v", len(expected), len(scopes), scopes)
+	}
+	for i := range expected {
+		if scopes[i] != expected[i] {
+			t.Errorf("expected scopes %v, got %v", expected, scopes)
+			break
+		}
+	}
+}
+
+func Test_getSPMRegistryIndex_404_ReturnsError(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusNotFound)
+	}))
+	defer server.Close()
+
+	cfg := config.MavenConfig{BaseURL: server.URL}
+	c, err := newClient(cfg)
+	if err != nil {
+		t.Fatalf("failed to create client: %v", err)
+	}
+
+	_, err = c.getSPMRegistryIndex(context.Background())
+	if err == nil {
+		t.Errorf("expected error for 404, got nil")
+	}
+}
+
+func Test_getSPMRegistryIndex_InvalidJSON_ReturnsError(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte("not json"))
+	}))
+	defer server.Close()
+
+	cfg := config.MavenConfig{BaseURL: server.URL}
+	c, err := newClient(cfg)
+	if err != nil {
+		t.Fatalf("failed to create client: %v", err)
+	}
+
+	_, err = c.getSPMRegistryIndex(context.Background())
+	if err == nil {
+		t.Errorf("expected error for invalid JSON, got nil")
+	}
+}
+
+func Test_getSPMRegistryIndexFull_WithPackages_ReturnsFullIndex(t *testing.T) {
+	body := `{"scopes":["s1","s2"],"packages":{"s1":["pkgA","pkgB"],"s2":["pkgC"]}}`
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if strings.HasSuffix(r.URL.Path, "index-1.json") {
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusOK)
+			_, _ = w.Write([]byte(body))
+		} else {
+			w.WriteHeader(http.StatusNotFound)
+		}
+	}))
+	defer server.Close()
+
+	cfg := config.MavenConfig{BaseURL: server.URL}
+	c, err := newClient(cfg)
+	if err != nil {
+		t.Fatalf("failed to create client: %v", err)
+	}
+
+	index, err := c.getSPMRegistryIndexFull(context.Background())
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(index.Scopes) != 2 || index.Scopes[0] != "s1" || index.Scopes[1] != "s2" {
+		t.Errorf("expected scopes [s1 s2], got %v", index.Scopes)
+	}
+	if len(index.Packages) != 2 {
+		t.Errorf("expected 2 scope entries in packages, got %d", len(index.Packages))
+	}
+	if len(index.Packages["s1"]) != 2 || index.Packages["s1"][0] != "pkgA" || index.Packages["s1"][1] != "pkgB" {
+		t.Errorf("expected packages[s1]=[pkgA pkgB], got %v", index.Packages["s1"])
+	}
+	if len(index.Packages["s2"]) != 1 || index.Packages["s2"][0] != "pkgC" {
+		t.Errorf("expected packages[s2]=[pkgC], got %v", index.Packages["s2"])
+	}
+}
+
+func Test_getSPMRegistryIndexFull_PackagesOnly_DerivesScopes(t *testing.T) {
+	body := `{"packages":{"s2":["pkgC"],"s1":["pkgA","pkgB"]}}`
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if strings.HasSuffix(r.URL.Path, "index-1.json") {
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusOK)
+			_, _ = w.Write([]byte(body))
+		} else {
+			w.WriteHeader(http.StatusNotFound)
+		}
+	}))
+	defer server.Close()
+
+	cfg := config.MavenConfig{BaseURL: server.URL}
+	c, err := newClient(cfg)
+	if err != nil {
+		t.Fatalf("failed to create client: %v", err)
+	}
+
+	index, err := c.getSPMRegistryIndexFull(context.Background())
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	// Scopes derived from packages keys, sorted
+	if len(index.Scopes) != 2 || index.Scopes[0] != "s1" || index.Scopes[1] != "s2" {
+		t.Errorf("expected scopes [s1 s2] derived from packages, got %v", index.Scopes)
+	}
+	scopes, err := c.getSPMRegistryIndex(context.Background())
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(scopes) != 2 || scopes[0] != "s1" || scopes[1] != "s2" {
+		t.Errorf("expected getSPMRegistryIndex to return sorted scopes [s1 s2], got %v", scopes)
+	}
+}
+
+func Test_getSPMRegistryIndexFull_OnlyScopes_PackagesEmpty(t *testing.T) {
+	body := `{"scopes":["test"]}`
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(body))
+	}))
+	defer server.Close()
+
+	cfg := config.MavenConfig{BaseURL: server.URL}
+	c, err := newClient(cfg)
+	if err != nil {
+		t.Fatalf("failed to create client: %v", err)
+	}
+
+	index, err := c.getSPMRegistryIndexFull(context.Background())
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(index.Scopes) != 1 || index.Scopes[0] != "test" {
+		t.Errorf("expected scopes [test], got %v", index.Scopes)
+	}
+	if index.Packages == nil || len(index.Packages) != 0 {
+		t.Errorf("expected empty packages map when omitted, got %v", index.Packages)
+	}
+}
