@@ -8,6 +8,7 @@ import (
 	"OpenSPMRegistry/repo"
 	"OpenSPMRegistry/repo/files"
 	"OpenSPMRegistry/repo/maven"
+	repospm "OpenSPMRegistry/repo/spm"
 	"context"
 	"flag"
 	"fmt"
@@ -96,6 +97,12 @@ func main() {
 			log.Fatalf("Failed to create Maven repository: %v", err)
 		}
 		r = mavenRepo
+	case "spm":
+		spmRepo, err := repospm.NewSpmRepo(repoConfig.SPM)
+		if err != nil {
+			log.Fatalf("Failed to create SPM proxy repository: %v", err)
+		}
+		r = spmRepo
 	default:
 		log.Fatalf("Unsupported repo type: %s", repoConfig.Type)
 	}

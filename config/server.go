@@ -32,6 +32,35 @@ type Repo struct {
 	Path  string      `yaml:"path"`
 	Type  string      `yaml:"type"`
 	Maven MavenConfig `yaml:"maven"`
+	SPM   SPMConfig   `yaml:"spm"`
+}
+
+// SPMConfig holds configuration for the Swift Package Registry proxy backend.
+// When LocalPath is set, "split mode" is enabled: signings and/or index data
+// can be stored locally even when the upstream registry does not support them.
+type SPMConfig struct {
+	// BaseURL is the base URL of the upstream Swift Package Registry (required).
+	BaseURL string `yaml:"baseURL"`
+	// AuthMode controls authentication forwarding: "passthrough" forwards the
+	// client's Authorization header to the upstream; "config" uses the
+	// Username/Password fields below. Leave empty for no auth.
+	AuthMode string `yaml:"authMode"`
+	// Username and Password are used when AuthMode is "config".
+	Username string `yaml:"username"`
+	Password string `yaml:"password"`
+	// Timeout is the HTTP client timeout in seconds (default: 30).
+	Timeout int `yaml:"timeout"`
+	// LocalPath enables split mode. When set, a local file-based store is
+	// created at this path for the element types enabled below.
+	LocalPath string `yaml:"localPath"`
+	// StoreSignings, when true and LocalPath is set, stores source-archive and
+	// metadata signatures in local storage so they can be published to and
+	// served by this proxy even if the upstream does not support signings.
+	StoreSignings bool `yaml:"storeSignings"`
+	// StoreIndex, when true and LocalPath is set, stores Package.json and
+	// metadata.json files locally. This enables package-collection listings
+	// (SE-0291) served from this proxy when the upstream does not support them.
+	StoreIndex bool `yaml:"storeIndex"`
 }
 
 type MavenConfig struct {
