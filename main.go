@@ -2,6 +2,7 @@ package main
 
 import (
 	"OpenSPMRegistry/authenticator"
+	"OpenSPMRegistry/collectionsign"
 	"OpenSPMRegistry/config"
 	"OpenSPMRegistry/controller"
 	"OpenSPMRegistry/middleware"
@@ -100,7 +101,21 @@ func main() {
 		log.Fatalf("Unsupported repo type: %s", repoConfig.Type)
 	}
 	a := middleware.NewAuthentication(authenticator.CreateAuthenticator(serverConfig.Server), registryMux)
-	c := controller.NewController(serverConfig.Server, r)
+
+	var collOpts []controller.ControllerOption
+	pc := serverConfig.Server.PackageCollections
+	if pc.Enabled && pc.Signing.Enabled {
+		if len(pc.Signing.CertChain) == 0 || pc.Signing.PrivateKey == "" {
+			log.Fatal("packageCollections.signing.enabled requires certChain (non-empty) and privateKey")
+		}
+		signer, err := collectionsign.NewSignerFromFiles(pc.Signing.CertChain, pc.Signing.PrivateKey)
+		if err != nil {
+			log.Fatalf("package collection signing: %v", err)
+		}
+		collOpts = append(collOpts, controller.WithCollectionSigner(signer))
+		slog.Info("Package collection JWS signing enabled")
+	}
+	c := controller.NewController(serverConfig.Server, r, collOpts...)
 
 	// Package Collections on a separate mux so Go 1.22+ ServeMux does not conflict with /{scope}/{package}.
 	// GET also matches HEAD per Go 1.22+ routing.

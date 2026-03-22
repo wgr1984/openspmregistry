@@ -1,6 +1,7 @@
 package controller
 
 import (
+	"OpenSPMRegistry/collectionsign"
 	"OpenSPMRegistry/config"
 	"OpenSPMRegistry/repo"
 	"OpenSPMRegistry/utils"
@@ -8,17 +9,32 @@ import (
 )
 
 type Controller struct {
-	config       config.ServerConfig
-	repo         repo.Repo
-	timeProvider utils.TimeProvider
+	config             config.ServerConfig
+	repo               repo.Repo
+	timeProvider       utils.TimeProvider
+	collectionSigner   *collectionsign.Signer
 }
 
-func NewController(config config.ServerConfig, repo repo.Repo) *Controller {
-	return &Controller{
+// ControllerOption configures NewController.
+type ControllerOption func(*Controller)
+
+// WithCollectionSigner enables SwiftPM signed package collections (JWS) on GET /collection responses.
+func WithCollectionSigner(s *collectionsign.Signer) ControllerOption {
+	return func(c *Controller) {
+		c.collectionSigner = s
+	}
+}
+
+func NewController(config config.ServerConfig, repo repo.Repo, opts ...ControllerOption) *Controller {
+	c := &Controller{
 		config:       config,
 		repo:         repo,
 		timeProvider: utils.NewRealTimeProvider(),
 	}
+	for _, o := range opts {
+		o(c)
+	}
+	return c
 }
 
 func (c *Controller) MainAction(w http.ResponseWriter, r *http.Request) {
