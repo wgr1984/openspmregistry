@@ -102,16 +102,12 @@ func main() {
 	}
 	a := middleware.NewAuthentication(authenticator.CreateAuthenticator(serverConfig.Server), registryMux)
 
+	signer, err := collectionsign.LoadSignerForPackageCollections(serverConfig.Server.PackageCollections)
+	if err != nil {
+		log.Fatal(err)
+	}
 	var collOpts []controller.ControllerOption
-	pc := serverConfig.Server.PackageCollections
-	if pc.Enabled && pc.Signing.Enabled {
-		if len(pc.Signing.CertChain) == 0 || pc.Signing.PrivateKey == "" {
-			log.Fatal("packageCollections.signing.enabled requires certChain (non-empty) and privateKey")
-		}
-		signer, err := collectionsign.NewSignerFromFiles(pc.Signing.CertChain, pc.Signing.PrivateKey)
-		if err != nil {
-			log.Fatalf("package collection signing: %v", err)
-		}
+	if signer != nil {
 		collOpts = append(collOpts, controller.WithCollectionSigner(signer))
 		slog.Info("Package collection JWS signing enabled")
 	}
