@@ -69,6 +69,15 @@ type PackageCollectionsConfig struct {
 	// that cannot send headers (e.g. swift package-collection add). Off by default to avoid credential
 	// leakage via logs, referrers, and proxies. When true, decoded value must start with "Basic " or "Bearer ".
 	AllowAuthQueryParam bool `yaml:"allowAuthQueryParam"`
+	// Signing produces SwiftPM-compatible signed collections (JWS + certificate metadata).
+	Signing PackageCollectionsSigningConfig `yaml:"signing"`
+}
+
+// PackageCollectionsSigningConfig enables JWS signing of package collection JSON (swift-package-manager PackageCollectionsSigning).
+type PackageCollectionsSigningConfig struct {
+	Enabled    bool     `yaml:"enabled"`
+	CertChain  []string `yaml:"certChain"`  // DER files, leaf certificate first
+	PrivateKey string   `yaml:"privateKey"` // PEM private key (PKCS#8, PKCS#1, or EC)
 }
 
 const (

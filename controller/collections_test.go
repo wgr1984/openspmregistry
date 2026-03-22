@@ -2,13 +2,23 @@ package controller
 
 import (
 	"context"
+	"crypto/ecdsa"
+	"crypto/elliptic"
+	"crypto/rand"
+	"crypto/x509"
+	"crypto/x509/pkix"
 	"encoding/json"
+	"encoding/pem"
 	"errors"
+	"math/big"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"path/filepath"
 	"testing"
 	"time"
 
+	"OpenSPMRegistry/collectionsign"
 	"OpenSPMRegistry/config"
 	"OpenSPMRegistry/models"
 	"OpenSPMRegistry/responses"
@@ -46,6 +56,45 @@ func Test_GlobalCollectionAction_CollectionsDisabled_ReturnsNotFound(t *testing.
 	}
 	if resp.Detail != "Package collections are not enabled" {
 		t.Fatalf("unexpected error detail: %s", resp.Detail)
+	}
+}
+
+func Test_GlobalCollectionAction_WithCollectionSigner_ReturnsSignedJSON(t *testing.T) {
+	dir := t.TempDir()
+	certPath, keyPath := writeTestP256CertForCollection(t, dir)
+	signer, err := collectionsign.NewSignerFromFiles([]string{certPath}, keyPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	repo := newCollectionTestRepo([]models.ListElement{
+		{Scope: "scope", PackageName: "pkg", Version: "1.0.0"},
+	})
+	c := NewController(
+		config.ServerConfig{
+			Hostname:           "example.com",
+			PackageCollections: config.PackageCollectionsConfig{Enabled: true},
+		},
+		repo,
+		WithCollectionSigner(signer),
+	)
+
+	req := httptest.NewRequest("GET", "/collection", nil)
+	w := httptest.NewRecorder()
+	c.GlobalCollectionAction(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected status %d, got %d", http.StatusOK, w.Code)
+	}
+	var root map[string]json.RawMessage
+	if err := json.Unmarshal(w.Body.Bytes(), &root); err != nil {
+		t.Fatalf("decode body: %v", err)
+	}
+	if _, ok := root["signature"]; !ok {
+		t.Fatal("expected signed collection to include signature key")
+	}
+	if _, ok := root["packages"]; !ok {
+		t.Fatal("expected packages key")
 	}
 }
 
@@ -289,4 +338,37 @@ func (r *collectionTestRepo) GetSwiftToolVersion(ctx context.Context, manifest *
 
 func (r *collectionTestRepo) PublishDate(ctx context.Context, element *models.UploadElement) (time.Time, error) {
 	return r.publishDate, nil
+}
+
+func writeTestP256CertForCollection(t *testing.T, dir string) (certPath, keyPath string) {
+	t.Helper()
+	priv, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+	if err != nil {
+		t.Fatal(err)
+	}
+	template := x509.Certificate{
+		SerialNumber:          big.NewInt(1),
+		Subject:               pkix.Name{CommonName: "collection-test"},
+		NotBefore:             time.Now().Add(-time.Hour),
+		NotAfter:              time.Now().Add(24 * time.Hour),
+		KeyUsage:              x509.KeyUsageDigitalSignature,
+		BasicConstraintsValid: true,
+	}
+	der, err := x509.CreateCertificate(rand.Reader, &template, &template, &priv.PublicKey, priv)
+	if err != nil {
+		t.Fatal(err)
+	}
+	certPath = filepath.Join(dir, "leaf.der")
+	if err := os.WriteFile(certPath, der, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	pk8, err := x509.MarshalPKCS8PrivateKey(priv)
+	if err != nil {
+		t.Fatal(err)
+	}
+	keyPath = filepath.Join(dir, "key.pem")
+	if err := os.WriteFile(keyPath, pem.EncodeToMemory(&pem.Block{Type: "PRIVATE KEY", Bytes: pk8}), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	return certPath, keyPath
 }

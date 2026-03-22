@@ -2,6 +2,7 @@ package controller
 
 import (
 	"OpenSPMRegistry/mimetypes"
+	"OpenSPMRegistry/models"
 	"OpenSPMRegistry/repo"
 	"encoding/json"
 	"log/slog"
@@ -36,23 +37,7 @@ func (c *Controller) GlobalCollectionAction(w http.ResponseWriter, r *http.Reque
 		return
 	}
 
-	// Set headers
-	data, err := json.Marshal(collection)
-	if err != nil {
-		slog.Error("Error marshaling collection JSON", "error", err)
-		writeErrorWithStatusCode("Error generating collection", w, http.StatusInternalServerError)
-		return
-	}
-
-	header := w.Header()
-	header.Set("Content-Type", mimetypes.ApplicationJson)
-	header.Set("Content-Length", strconv.Itoa(len(data)))
-
-	// Return collection as JSON
-	w.WriteHeader(http.StatusOK)
-	if _, err := w.Write(data); err != nil {
-		slog.Error("Error writing collection JSON", "error", err)
-	}
+	c.writeCollectionResponse(w, collection)
 }
 
 // ScopeCollectionAction handles GET /collection/{scope} requests for scope-specific collections
@@ -94,8 +79,17 @@ func (c *Controller) ScopeCollectionAction(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	// Set headers
-	data, err := json.Marshal(collection)
+	c.writeCollectionResponse(w, collection)
+}
+
+func (c *Controller) writeCollectionResponse(w http.ResponseWriter, collection *models.PackageCollection) {
+	var data []byte
+	var err error
+	if c.collectionSigner != nil {
+		data, err = c.collectionSigner.WrapSignedCollection(collection)
+	} else {
+		data, err = json.Marshal(collection)
+	}
 	if err != nil {
 		slog.Error("Error marshaling collection JSON", "error", err)
 		writeErrorWithStatusCode("Error generating collection", w, http.StatusInternalServerError)
@@ -105,8 +99,6 @@ func (c *Controller) ScopeCollectionAction(w http.ResponseWriter, r *http.Reques
 	header := w.Header()
 	header.Set("Content-Type", mimetypes.ApplicationJson)
 	header.Set("Content-Length", strconv.Itoa(len(data)))
-
-	// Return collection as JSON
 	w.WriteHeader(http.StatusOK)
 	if _, err := w.Write(data); err != nil {
 		slog.Error("Error writing collection JSON", "error", err)

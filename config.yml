@@ -21,3 +21,8 @@ server:
   packageCollections:
     enabled: true
     requirePackageJson: false
+    # Optional SwiftPM signed collections (JWS); leaf DER first, then intermediates.
+    # signing:
+    #   enabled: true
+    #   certChain: ["./certs/collection-leaf.der", "./certs/collection-ca.der"]
+    #   privateKey: "./certs/collection-key.pem"
