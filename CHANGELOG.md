@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Latest]
 
+## [0.2.0] - 2026-03-22
+
+- Added Maven repository backend for storing packages in Maven-compatible servers (e.g. Nexus, Reposilite) [#30](https://github.com/wgr1984/openspmregistry/issues/30) ([#31](https://github.com/wgr1984/openspmregistry/pull/31))
+
 ## [0.1.0] - 2026-01-10
 - Added Package Collections feature [#25](https://github.com/wgr1984/openspmregistry/issues/25)
 - Add prev/next version link in header [#19](https://github.com/wgr1984/openspmregistry/issues/19)
