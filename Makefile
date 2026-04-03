@@ -7,7 +7,7 @@ ifdef E2E_HTTPS
 E2E_REGISTRY_URL := https://127.0.0.1:8082
 endif
 
-.PHONY: help build clean build-docker run tailwind tailwind-watch lint staticcheck golangci-lint errcheck release changelog-unreleased test-integration test-integration-up test-integration-down test-e2e-generate-certs test-e2e-swift test-e2e-registry test-e2e-full test-e2e-swift-https test-e2e-registry-https test-e2e-full-https
+.PHONY: help build clean build-docker run tailwind tailwind-watch lint staticcheck golangci-lint errcheck release changelog-unreleased test-integration test-integration-up test-integration-down test-e2e-generate-certs test-e2e-swift test-e2e-registry test-e2e-spm test-e2e-full test-e2e-swift-https test-e2e-registry-https test-e2e-full-https
 
 # Default target when no arguments are given to make
 help:
@@ -32,6 +32,7 @@ help:
 	@echo "  test-integration-up - Start Maven test server (Nexus or Reposilite per MAVEN_PROVIDER)"
 	@echo "  test-integration-down - Stop Maven test server(s)"
 	@echo "  test-e2e-generate-certs - Generate E2E HTTPS certs (for optional HTTPS testing)"
+	@echo "  test-e2e-spm - E2E: SPM proxy backend (no external services required; self-contained mock upstream)"
 	@echo "  test-e2e-swift - E2E: Swift publish + resolve (Maven server must be up; requires Swift)"
 	@echo "  test-e2e-registry - E2E: Registry HTTP API against file and Maven backends"
 	@echo "  test-e2e-full - Start Maven server, run E2E Swift and registry tests, then stop"
@@ -182,6 +183,11 @@ test-integration: test-integration-up
 test-e2e-generate-certs:
 	@go run ./cmd/e2e-generate-certs
 
+# E2E SPM proxy: exercise the SPM proxy backend and split mode against a mock upstream.
+# No external services required — the mock upstream is started in-process by the test.
+test-e2e-spm:
+	E2E_TESTS=1 go test -tags=e2e -v -count=1 ./e2e/... -run TestRegistryE2ESPM
+
 # E2E Swift: publish package to OpenSPMRegistry (Maven-backed) and resolve from consumer.
 # test-e2e-swift: run E2E test only (start Maven server first with make test-integration-up).
 test-e2e-swift:
@@ -206,11 +212,11 @@ test-e2e-registry:
 	  MAVEN_REPO_URL="http://localhost:8081/repository" MAVEN_REPO_NAME=private MAVEN_PROVIDER=nexus MAVEN_REPO_USERNAME=admin MAVEN_REPO_PASSWORD="$$MAVEN_REPO_PASSWORD" E2E_TESTS=1 E2E_REGISTRY_URL="$(E2E_REGISTRY_URL)" go test -tags=e2e -v -count=1 ./e2e/... -run TestRegistryE2E; \
 	fi
 
-# test-e2e-full: start Maven server, bootstrap, run E2E Swift and registry tests, then tear down.
+# test-e2e-full: start Maven server, bootstrap, run all E2E tests (Swift, registry, SPM proxy), then tear down.
 # Always run test-integration-down so containers are stopped even when tests fail.
 test-e2e-full: test-integration-up
-	@$(MAKE) test-e2e-swift; r=$$?; $(MAKE) test-e2e-registry; r2=$$?; $(MAKE) test-integration-down; \
-	if [ $$r -ne 0 ]; then exit $$r; fi; exit $$r2
+	@$(MAKE) test-e2e-swift; r=$$?; $(MAKE) test-e2e-registry; r2=$$?; $(MAKE) test-e2e-spm; r3=$$?; $(MAKE) test-integration-down; \
+	if [ $$r -ne 0 ]; then exit $$r; fi; if [ $$r2 -ne 0 ]; then exit $$r2; fi; exit $$r3
 
 test-e2e-swift-https:
 	@$(MAKE) test-e2e-swift E2E_HTTPS=1
